@@ -1,0 +1,6 @@
+{
+  "五言绝句": {"line_count": 4, "line_length": 5, "planning_unit": "line", "antithesis_pairs": []},
+  "七言绝句": {"line_count": 4, "line_length": 7, "planning_unit": "line", "antithesis_pairs": []},
+  "五言律诗": {"line_count": 8, "line_length": 5, "planning_unit": "couplet", "antithesis_pairs": [[3, 4], [5, 6]]},
+  "七言律诗": {"line_count": 8, "line_length": 7, "planning_unit": "couplet", "antithesis_pairs": [[3, 4], [5, 6]]}
+}

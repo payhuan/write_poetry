@@ -1,0 +1,27 @@
+{
+  "note": "确定性接口验收夹具：东、月等机械字串用于展示声韵分类，不是文学作品；评分也是固定测试输入。真实创作由运行 Skill 的 agent 输出完整句并评价。",
+  "request": {
+    "raw_request": "写东风月夜五绝，仄起，首句不入韵，情绪宁静。",
+    "theme": "东风月夜",
+    "emotion": ["宁静"],
+    "poem_type": "五言绝句",
+    "meter": {"start": "仄起", "first_line_rhymes": false}
+  },
+  "plan": {
+    "imagery": ["东风", "月"],
+    "structure": [{"unit": "第二句", "intent": "承接夜景，保持宁静视角"}],
+    "rhyme": {"system": "平水韵", "group": "一东", "first_line_rhymes": false}
+  },
+  "line_index": 2,
+  "candidates": [
+    {"id": "a", "text": " 东东月月东。 ", "line_index": 2},
+    {"id": "b", "text": "东冬月月东", "line_index": 2},
+    {"id": "duplicate", "text": "东东月月东", "line_index": 2},
+    {"id": "bad", "text": "东月月月东", "line_index": 2},
+    {"id": "unknown", "text": "东重月月东", "line_index": 2}
+  ],
+  "scores": [
+    {"id": "a", "evaluation": {"dimensions": {"theme": 0.25, "naturalness": 0, "imagery": 0.25, "continuity": 0, "expression": 0}, "reason": "机械字串虽规则通过，但缺乏自然句意；固定夹具仅验证评分计算。"}},
+    {"id": "b", "evaluation": {"dimensions": {"theme": 0.25, "naturalness": 0, "imagery": 0.25, "continuity": 0, "expression": 0}, "reason": "同为机械字串，无自然表达；与 a 同分以验证生成顺序优先。"}}
+  ]
+}

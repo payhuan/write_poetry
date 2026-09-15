@@ -1,0 +1,37 @@
+{
+  "batch_id": "78c00d427eb0462c9ef729f5f101d798",
+  "generation_sha256": "ffc30c940cf822d4e077e5aae12c5ce7c8b5ea4106bb6314bc01b54decf99369",
+  "context_sha256": "dba97a83b820d876b7c049e129ed5242d140d9b2da1890cd95710d9a1145180d",
+  "contract_version": "poetry-round-1",
+  "attempt": 1,
+  "filter_sha256": "d33f6c9fc1f20c9cb5fb7e3b0488abd157c07ea0bd26d38438ec7e62957f3487",
+  "rubric_version": "literary-1",
+  "scores": [
+    {
+      "id": "a",
+      "evaluation": {
+        "dimensions": {
+          "theme": 0.25,
+          "naturalness": 0,
+          "imagery": 0.25,
+          "continuity": 0,
+          "expression": 0
+        },
+        "reason": "机械字串虽规则通过，但缺乏自然句意；固定夹具仅验证评分计算。"
+      }
+    },
+    {
+      "id": "b",
+      "evaluation": {
+        "dimensions": {
+          "theme": 0.25,
+          "naturalness": 0,
+          "imagery": 0.25,
+          "continuity": 0,
+          "expression": 0
+        },
+        "reason": "同为机械字串，无自然表达；与 a 同分以验证生成顺序优先。"
+      }
+    }
+  ]
+}

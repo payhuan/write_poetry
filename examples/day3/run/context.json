@@ -1,0 +1,241 @@
+{
+  "contract_version": "poetry-round-1",
+  "batch_id": "78c00d427eb0462c9ef729f5f101d798",
+  "context_sha256": "dba97a83b820d876b7c049e129ed5242d140d9b2da1890cd95710d9a1145180d",
+  "revision": 2,
+  "status": "ready",
+  "reasons": [],
+  "request": {
+    "raw_request": "写东风月夜五绝，仄起，首句不入韵，情绪宁静。",
+    "theme": "东风月夜",
+    "emotion": [
+      "宁静"
+    ],
+    "poem_type": "五言绝句",
+    "meter": {
+      "template_id": null,
+      "start": "仄起",
+      "first_line_rhymes": false
+    },
+    "input": {
+      "version": 1,
+      "text": "写东风月夜五绝，仄起，首句不入韵，情绪宁静。",
+      "attachments": []
+    },
+    "scene": "",
+    "time": "",
+    "characters": [],
+    "constraints": []
+  },
+  "theme": "东风月夜",
+  "emotion": [
+    "宁静"
+  ],
+  "imagery": [
+    "东风",
+    "月"
+  ],
+  "structure": [
+    {
+      "unit": "第二句",
+      "intent": "承接夜景，保持宁静视角"
+    }
+  ],
+  "lines": [],
+  "poem_type": "五言绝句",
+  "form": {
+    "line_count": 4,
+    "line_length": 5,
+    "planning_unit": "line",
+    "antithesis_pairs": []
+  },
+  "line_index": 2,
+  "template": {
+    "data": {
+      "id": "wj_z",
+      "sketch": "五言绝句，仄起首句不入韵，4句20字",
+      "type": "五言绝句",
+      "pattern": "仄起首句不入韵",
+      "line_count": 4,
+      "char_count": 20,
+      "rhyme": {
+        "type": "平韵",
+        "first_line_rhyme": false,
+        "positions": [
+          2,
+          4
+        ]
+      },
+      "constraints": [
+        "忌孤平",
+        "忌三平调",
+        "二四六分明"
+      ],
+      "tunes": [
+        {
+          "tune": "中",
+          "line": 1,
+          "pos": 1
+        },
+        {
+          "tune": "仄",
+          "line": 1,
+          "pos": 2
+        },
+        {
+          "tune": "中",
+          "line": 1,
+          "pos": 3
+        },
+        {
+          "tune": "平",
+          "line": 1,
+          "pos": 4
+        },
+        {
+          "tune": "仄",
+          "line": 1,
+          "pos": 5,
+          "rhythm": "句"
+        },
+        {
+          "tune": "中",
+          "line": 2,
+          "pos": 1
+        },
+        {
+          "tune": "平",
+          "line": 2,
+          "pos": 2
+        },
+        {
+          "tune": "中",
+          "line": 2,
+          "pos": 3
+        },
+        {
+          "tune": "仄",
+          "line": 2,
+          "pos": 4
+        },
+        {
+          "tune": "平",
+          "line": 2,
+          "pos": 5,
+          "rhythm": "韵"
+        },
+        {
+          "tune": "中",
+          "line": 3,
+          "pos": 1
+        },
+        {
+          "tune": "平",
+          "line": 3,
+          "pos": 2
+        },
+        {
+          "tune": "平",
+          "line": 3,
+          "pos": 3
+        },
+        {
+          "tune": "仄",
+          "line": 3,
+          "pos": 4
+        },
+        {
+          "tune": "仄",
+          "line": 3,
+          "pos": 5,
+          "rhythm": "句"
+        },
+        {
+          "tune": "中",
+          "line": 4,
+          "pos": 1
+        },
+        {
+          "tune": "仄",
+          "line": 4,
+          "pos": 2
+        },
+        {
+          "tune": "仄",
+          "line": 4,
+          "pos": 3
+        },
+        {
+          "tune": "平",
+          "line": 4,
+          "pos": 4
+        },
+        {
+          "tune": "平",
+          "line": 4,
+          "pos": 5,
+          "rhythm": "韵"
+        }
+      ]
+    },
+    "source_sha256": "38f8e5b34ab209c3cb9dca3446f55ee7be54c76b9fc525f67dc5fc19523faab3"
+  },
+  "user_meter": {
+    "template_id": null,
+    "start": "仄起",
+    "first_line_rhymes": false
+  },
+  "tone_requirements": [
+    {
+      "tune": "中",
+      "line": 2,
+      "pos": 1
+    },
+    {
+      "tune": "平",
+      "line": 2,
+      "pos": 2
+    },
+    {
+      "tune": "中",
+      "line": 2,
+      "pos": 3
+    },
+    {
+      "tune": "仄",
+      "line": 2,
+      "pos": 4
+    },
+    {
+      "tune": "平",
+      "line": 2,
+      "pos": 5,
+      "rhythm": "韵"
+    }
+  ],
+  "is_rhyme_line": true,
+  "rhyme": {
+    "system": "平水韵",
+    "group": "一东",
+    "first_line_rhymes": false
+  },
+  "constraints": [],
+  "couplet": null,
+  "budget": {
+    "candidates_per_round": 10,
+    "beam_width": 3,
+    "max_backtracks": 3,
+    "max_rounds": 20
+  },
+  "candidate_count": {
+    "min": 1,
+    "max": 10,
+    "target": 5
+  },
+  "retry_policy": {
+    "max_attempts_per_stage": 3,
+    "automatic_retries": false
+  },
+  "generation_instruction": "生成语义完整的候选句，保留句意与自然措辞；不得逐字填空、自动改句或猜选有利读音。",
+  "generation_sha256": "ffc30c940cf822d4e077e5aae12c5ce7c8b5ea4106bb6314bc01b54decf99369"
+}

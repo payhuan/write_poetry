@@ -1,0 +1,4042 @@
+{
+  "state": {
+    "schema_version": "0.3.0",
+    "request": {
+      "raw_request": "写东风月夜五绝，仄起，首句不入韵，情绪宁静。",
+      "theme": "东风月夜",
+      "emotion": [
+        "宁静"
+      ],
+      "poem_type": "五言绝句",
+      "meter": {
+        "template_id": null,
+        "start": "仄起",
+        "first_line_rhymes": false
+      },
+      "input": {
+        "version": 1,
+        "text": "写东风月夜五绝，仄起，首句不入韵，情绪宁静。",
+        "attachments": []
+      },
+      "scene": "",
+      "time": "",
+      "characters": [],
+      "constraints": []
+    },
+    "assumptions": [],
+    "poem_type": "五言绝句",
+    "form": {
+      "line_count": 4,
+      "line_length": 5,
+      "planning_unit": "line",
+      "antithesis_pairs": []
+    },
+    "template_id": "wj_z",
+    "theme": "东风月夜",
+    "emotion": [
+      "宁静"
+    ],
+    "imagery": [
+      "东风",
+      "月"
+    ],
+    "structure": [
+      {
+        "unit": "第二句",
+        "intent": "承接夜景，保持宁静视角"
+      }
+    ],
+    "rhyme": {
+      "system": "平水韵",
+      "group": "一东",
+      "first_line_rhymes": false
+    },
+    "lines": [],
+    "constraints": [],
+    "candidate_history": [
+      {
+        "id": "78c00d427eb0462c9ef729f5f101d798:a",
+        "text": " 东东月月东。 ",
+        "line_index": 2,
+        "parent_path": "round:78c00d427eb0462c9ef729f5f101d798:ffc30c940cf822d4e077e5aae12c5ce7c8b5ea4106bb6314bc01b54decf99369",
+        "revision": 2,
+        "checks": {
+          "binding_version": 1,
+          "scope": "candidate",
+          "subject": {
+            "candidate_id": "78c00d427eb0462c9ef729f5f101d798:a",
+            "line_index": 2,
+            "text_sha256": "1902bf3e9bb6546b76bb987df26819cf5573265e5f757a0595ec8a80f07c9ef8"
+          },
+          "context_sha256": "dba97a83b820d876b7c049e129ed5242d140d9b2da1890cd95710d9a1145180d",
+          "revision": 2,
+          "valid": true,
+          "checks": {
+            "length": {
+              "status": "pass",
+              "required": true,
+              "issues": [],
+              "lines": [
+                {
+                  "line": 2,
+                  "original": " 东东月月东。 ",
+                  "text": "东东月月东",
+                  "cells": [
+                    {
+                      "line": 2,
+                      "pos": 1,
+                      "char": "东",
+                      "offset": 1,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 2,
+                      "char": "东",
+                      "offset": 2,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 3,
+                      "char": "月",
+                      "offset": 3,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 4,
+                      "char": "月",
+                      "offset": 4,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 5,
+                      "char": "东",
+                      "offset": 5,
+                      "is_han": true
+                    }
+                  ],
+                  "segments": 1
+                }
+              ]
+            },
+            "pingze": {
+              "status": "pass",
+              "required": true,
+              "issues": [],
+              "lines": [
+                {
+                  "line": 2,
+                  "status": "pass",
+                  "issues": [],
+                  "positions": [
+                    {
+                      "line": 2,
+                      "pos": 1,
+                      "char": "东",
+                      "offset": 1,
+                      "is_han": true,
+                      "expected": "中",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "上平声部",
+                          "group": "一东",
+                          "tone": "平"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 2,
+                      "char": "东",
+                      "offset": 2,
+                      "is_han": true,
+                      "expected": "平",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "上平声部",
+                          "group": "一东",
+                          "tone": "平"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 3,
+                      "char": "月",
+                      "offset": 3,
+                      "is_han": true,
+                      "expected": "中",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "入声部",
+                          "group": "入声六月",
+                          "tone": "仄"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 4,
+                      "char": "月",
+                      "offset": 4,
+                      "is_han": true,
+                      "expected": "仄",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "入声部",
+                          "group": "入声六月",
+                          "tone": "仄"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 5,
+                      "char": "东",
+                      "offset": 5,
+                      "is_han": true,
+                      "expected": "平",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "上平声部",
+                          "group": "一东",
+                          "tone": "平"
+                        }
+                      ]
+                    }
+                  ],
+                  "rules": [
+                    {
+                      "rule": "忌三平调",
+                      "version": "last-three-level-1",
+                      "status": "pass"
+                    },
+                    {
+                      "rule": "忌孤平",
+                      "version": "guping-wangli-1",
+                      "status": "pass"
+                    }
+                  ]
+                }
+              ],
+              "rule_version": "pingshui-basic-1",
+              "rule_mapping": {
+                "忌孤平": "guping-wangli-1",
+                "忌三平调": "last-three-level-1",
+                "二四六分明": "bound-even-positions-1"
+              }
+            },
+            "rhyme": {
+              "status": "pass",
+              "required": true,
+              "issues": [],
+              "lines": [
+                {
+                  "line": 2,
+                  "status": "pass",
+                  "issues": []
+                }
+              ]
+            },
+            "duplicate": {
+              "status": "fail",
+              "required": false,
+              "occurrences": [
+                {
+                  "char": "东",
+                  "count": 3,
+                  "positions": [
+                    {
+                      "line": 2,
+                      "pos": 1,
+                      "offset": 1
+                    },
+                    {
+                      "line": 2,
+                      "pos": 2,
+                      "offset": 2
+                    },
+                    {
+                      "line": 2,
+                      "pos": 5,
+                      "offset": 5
+                    }
+                  ]
+                },
+                {
+                  "char": "月",
+                  "count": 2,
+                  "positions": [
+                    {
+                      "line": 2,
+                      "pos": 3,
+                      "offset": 3
+                    },
+                    {
+                      "line": 2,
+                      "pos": 4,
+                      "offset": 4
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "errors": [],
+          "warnings": [
+            "重复字：东、月"
+          ]
+        },
+        "quality_score": 0.1125,
+        "decision": "retained",
+        "reason": "{\"category\": \"passed\", \"reasons\": [], \"duplicate_of\": null, \"literary_evaluation\": {\"dimensions\": {\"theme\": 0.25, \"naturalness\": 0, \"imagery\": 0.25, \"continuity\": 0, \"expression\": 0}, \"reason\": \"机械字串虽规则通过，但缺乏自然句意；固定夹具仅验证评分计算。\", \"rubric_version\": \"literary-1\", \"total\": 0.1125}, \"missing_score\": false, \"adopted\": false}"
+      },
+      {
+        "id": "78c00d427eb0462c9ef729f5f101d798:b",
+        "text": "东冬月月东",
+        "line_index": 2,
+        "parent_path": "round:78c00d427eb0462c9ef729f5f101d798:ffc30c940cf822d4e077e5aae12c5ce7c8b5ea4106bb6314bc01b54decf99369",
+        "revision": 2,
+        "checks": {
+          "binding_version": 1,
+          "scope": "candidate",
+          "subject": {
+            "candidate_id": "78c00d427eb0462c9ef729f5f101d798:b",
+            "line_index": 2,
+            "text_sha256": "572009b7b89ef608030640ec379a1ae239a38da1d5fc298dedea4e9f88e2f04b"
+          },
+          "context_sha256": "dba97a83b820d876b7c049e129ed5242d140d9b2da1890cd95710d9a1145180d",
+          "revision": 2,
+          "valid": true,
+          "checks": {
+            "length": {
+              "status": "pass",
+              "required": true,
+              "issues": [],
+              "lines": [
+                {
+                  "line": 2,
+                  "original": "东冬月月东",
+                  "text": "东冬月月东",
+                  "cells": [
+                    {
+                      "line": 2,
+                      "pos": 1,
+                      "char": "东",
+                      "offset": 0,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 2,
+                      "char": "冬",
+                      "offset": 1,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 3,
+                      "char": "月",
+                      "offset": 2,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 4,
+                      "char": "月",
+                      "offset": 3,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 5,
+                      "char": "东",
+                      "offset": 4,
+                      "is_han": true
+                    }
+                  ],
+                  "segments": 1
+                }
+              ]
+            },
+            "pingze": {
+              "status": "pass",
+              "required": true,
+              "issues": [],
+              "lines": [
+                {
+                  "line": 2,
+                  "status": "pass",
+                  "issues": [],
+                  "positions": [
+                    {
+                      "line": 2,
+                      "pos": 1,
+                      "char": "东",
+                      "offset": 0,
+                      "is_han": true,
+                      "expected": "中",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "上平声部",
+                          "group": "一东",
+                          "tone": "平"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 2,
+                      "char": "冬",
+                      "offset": 1,
+                      "is_han": true,
+                      "expected": "平",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "上平声部",
+                          "group": "二冬",
+                          "tone": "平"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 3,
+                      "char": "月",
+                      "offset": 2,
+                      "is_han": true,
+                      "expected": "中",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "入声部",
+                          "group": "入声六月",
+                          "tone": "仄"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 4,
+                      "char": "月",
+                      "offset": 3,
+                      "is_han": true,
+                      "expected": "仄",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "入声部",
+                          "group": "入声六月",
+                          "tone": "仄"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 5,
+                      "char": "东",
+                      "offset": 4,
+                      "is_han": true,
+                      "expected": "平",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "上平声部",
+                          "group": "一东",
+                          "tone": "平"
+                        }
+                      ]
+                    }
+                  ],
+                  "rules": [
+                    {
+                      "rule": "忌三平调",
+                      "version": "last-three-level-1",
+                      "status": "pass"
+                    },
+                    {
+                      "rule": "忌孤平",
+                      "version": "guping-wangli-1",
+                      "status": "pass"
+                    }
+                  ]
+                }
+              ],
+              "rule_version": "pingshui-basic-1",
+              "rule_mapping": {
+                "忌孤平": "guping-wangli-1",
+                "忌三平调": "last-three-level-1",
+                "二四六分明": "bound-even-positions-1"
+              }
+            },
+            "rhyme": {
+              "status": "pass",
+              "required": true,
+              "issues": [],
+              "lines": [
+                {
+                  "line": 2,
+                  "status": "pass",
+                  "issues": []
+                }
+              ]
+            },
+            "duplicate": {
+              "status": "fail",
+              "required": false,
+              "occurrences": [
+                {
+                  "char": "东",
+                  "count": 2,
+                  "positions": [
+                    {
+                      "line": 2,
+                      "pos": 1,
+                      "offset": 0
+                    },
+                    {
+                      "line": 2,
+                      "pos": 5,
+                      "offset": 4
+                    }
+                  ]
+                },
+                {
+                  "char": "月",
+                  "count": 2,
+                  "positions": [
+                    {
+                      "line": 2,
+                      "pos": 3,
+                      "offset": 2
+                    },
+                    {
+                      "line": 2,
+                      "pos": 4,
+                      "offset": 3
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "errors": [],
+          "warnings": [
+            "重复字：东、月"
+          ]
+        },
+        "quality_score": 0.1125,
+        "decision": "retained",
+        "reason": "{\"category\": \"passed\", \"reasons\": [], \"duplicate_of\": null, \"literary_evaluation\": {\"dimensions\": {\"theme\": 0.25, \"naturalness\": 0, \"imagery\": 0.25, \"continuity\": 0, \"expression\": 0}, \"reason\": \"同为机械字串，无自然表达；与 a 同分以验证生成顺序优先。\", \"rubric_version\": \"literary-1\", \"total\": 0.1125}, \"missing_score\": false, \"adopted\": false}"
+      },
+      {
+        "id": "78c00d427eb0462c9ef729f5f101d798:duplicate",
+        "text": "东东月月东",
+        "line_index": 2,
+        "parent_path": "round:78c00d427eb0462c9ef729f5f101d798:ffc30c940cf822d4e077e5aae12c5ce7c8b5ea4106bb6314bc01b54decf99369",
+        "revision": 2,
+        "checks": {},
+        "quality_score": null,
+        "decision": "rejected",
+        "reason": "{\"category\": \"duplicate\", \"reasons\": [{\"code\": \"DUPLICATE_TEXT\", \"message\": \"仅忽略外围空白和约定标点后与较早候选相同。\"}], \"duplicate_of\": \"a\", \"literary_evaluation\": null, \"missing_score\": false, \"adopted\": false}"
+      },
+      {
+        "id": "78c00d427eb0462c9ef729f5f101d798:bad",
+        "text": "东月月月东",
+        "line_index": 2,
+        "parent_path": "round:78c00d427eb0462c9ef729f5f101d798:ffc30c940cf822d4e077e5aae12c5ce7c8b5ea4106bb6314bc01b54decf99369",
+        "revision": 2,
+        "checks": {
+          "binding_version": 1,
+          "scope": "candidate",
+          "subject": {
+            "candidate_id": "78c00d427eb0462c9ef729f5f101d798:bad",
+            "line_index": 2,
+            "text_sha256": "0166d39e4098a9305e1a7af861b0d848b6f4d9507a8f5ee246cab6314511f21b"
+          },
+          "context_sha256": "dba97a83b820d876b7c049e129ed5242d140d9b2da1890cd95710d9a1145180d",
+          "revision": 2,
+          "valid": false,
+          "checks": {
+            "length": {
+              "status": "pass",
+              "required": true,
+              "issues": [],
+              "lines": [
+                {
+                  "line": 2,
+                  "original": "东月月月东",
+                  "text": "东月月月东",
+                  "cells": [
+                    {
+                      "line": 2,
+                      "pos": 1,
+                      "char": "东",
+                      "offset": 0,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 2,
+                      "char": "月",
+                      "offset": 1,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 3,
+                      "char": "月",
+                      "offset": 2,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 4,
+                      "char": "月",
+                      "offset": 3,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 5,
+                      "char": "东",
+                      "offset": 4,
+                      "is_han": true
+                    }
+                  ],
+                  "segments": 1
+                }
+              ]
+            },
+            "pingze": {
+              "status": "fail",
+              "required": true,
+              "issues": [
+                {
+                  "line": 2,
+                  "pos": 2,
+                  "char": "月",
+                  "offset": 1,
+                  "is_han": true,
+                  "expected": "平",
+                  "status": "fail",
+                  "code": "TONE_MISMATCH"
+                }
+              ],
+              "lines": [
+                {
+                  "line": 2,
+                  "status": "fail",
+                  "issues": [
+                    {
+                      "line": 2,
+                      "pos": 2,
+                      "char": "月",
+                      "offset": 1,
+                      "is_han": true,
+                      "expected": "平",
+                      "status": "fail",
+                      "code": "TONE_MISMATCH"
+                    }
+                  ],
+                  "positions": [
+                    {
+                      "line": 2,
+                      "pos": 1,
+                      "char": "东",
+                      "offset": 0,
+                      "is_han": true,
+                      "expected": "中",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "上平声部",
+                          "group": "一东",
+                          "tone": "平"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 2,
+                      "char": "月",
+                      "offset": 1,
+                      "is_han": true,
+                      "expected": "平",
+                      "status": "fail",
+                      "memberships": [
+                        {
+                          "section": "入声部",
+                          "group": "入声六月",
+                          "tone": "仄"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 3,
+                      "char": "月",
+                      "offset": 2,
+                      "is_han": true,
+                      "expected": "中",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "入声部",
+                          "group": "入声六月",
+                          "tone": "仄"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 4,
+                      "char": "月",
+                      "offset": 3,
+                      "is_han": true,
+                      "expected": "仄",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "入声部",
+                          "group": "入声六月",
+                          "tone": "仄"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 5,
+                      "char": "东",
+                      "offset": 4,
+                      "is_han": true,
+                      "expected": "平",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "上平声部",
+                          "group": "一东",
+                          "tone": "平"
+                        }
+                      ]
+                    }
+                  ],
+                  "rules": [
+                    {
+                      "rule": "忌三平调",
+                      "version": "last-three-level-1",
+                      "status": "pass"
+                    },
+                    {
+                      "rule": "忌孤平",
+                      "version": "guping-wangli-1",
+                      "status": "pass"
+                    }
+                  ]
+                }
+              ],
+              "rule_version": "pingshui-basic-1",
+              "rule_mapping": {
+                "忌孤平": "guping-wangli-1",
+                "忌三平调": "last-three-level-1",
+                "二四六分明": "bound-even-positions-1"
+              }
+            },
+            "rhyme": {
+              "status": "pass",
+              "required": true,
+              "issues": [],
+              "lines": [
+                {
+                  "line": 2,
+                  "status": "pass",
+                  "issues": []
+                }
+              ]
+            },
+            "duplicate": {
+              "status": "fail",
+              "required": false,
+              "occurrences": [
+                {
+                  "char": "东",
+                  "count": 2,
+                  "positions": [
+                    {
+                      "line": 2,
+                      "pos": 1,
+                      "offset": 0
+                    },
+                    {
+                      "line": 2,
+                      "pos": 5,
+                      "offset": 4
+                    }
+                  ]
+                },
+                {
+                  "char": "月",
+                  "count": 3,
+                  "positions": [
+                    {
+                      "line": 2,
+                      "pos": 2,
+                      "offset": 1
+                    },
+                    {
+                      "line": 2,
+                      "pos": 3,
+                      "offset": 2
+                    },
+                    {
+                      "line": 2,
+                      "pos": 4,
+                      "offset": 3
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "errors": [
+            "pingze: TONE_MISMATCH"
+          ],
+          "warnings": [
+            "重复字：东、月"
+          ]
+        },
+        "quality_score": null,
+        "decision": "rejected",
+        "reason": "{\"category\": \"failed\", \"reasons\": [{\"check\": \"pingze\", \"line\": 2, \"pos\": 2, \"char\": \"月\", \"offset\": 1, \"is_han\": true, \"expected\": \"平\", \"status\": \"fail\", \"code\": \"TONE_MISMATCH\"}], \"duplicate_of\": null, \"literary_evaluation\": null, \"missing_score\": false, \"adopted\": false}"
+      },
+      {
+        "id": "78c00d427eb0462c9ef729f5f101d798:unknown",
+        "text": "东重月月东",
+        "line_index": 2,
+        "parent_path": "round:78c00d427eb0462c9ef729f5f101d798:ffc30c940cf822d4e077e5aae12c5ce7c8b5ea4106bb6314bc01b54decf99369",
+        "revision": 2,
+        "checks": {
+          "binding_version": 1,
+          "scope": "candidate",
+          "subject": {
+            "candidate_id": "78c00d427eb0462c9ef729f5f101d798:unknown",
+            "line_index": 2,
+            "text_sha256": "8b1f81784f9062c7d91ea1cf302e138c24dac40c3b46f052c11c2a4ee6488d94"
+          },
+          "context_sha256": "dba97a83b820d876b7c049e129ed5242d140d9b2da1890cd95710d9a1145180d",
+          "revision": 2,
+          "valid": null,
+          "checks": {
+            "length": {
+              "status": "pass",
+              "required": true,
+              "issues": [],
+              "lines": [
+                {
+                  "line": 2,
+                  "original": "东重月月东",
+                  "text": "东重月月东",
+                  "cells": [
+                    {
+                      "line": 2,
+                      "pos": 1,
+                      "char": "东",
+                      "offset": 0,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 2,
+                      "char": "重",
+                      "offset": 1,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 3,
+                      "char": "月",
+                      "offset": 2,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 4,
+                      "char": "月",
+                      "offset": 3,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 5,
+                      "char": "东",
+                      "offset": 4,
+                      "is_han": true
+                    }
+                  ],
+                  "segments": 1
+                }
+              ]
+            },
+            "pingze": {
+              "status": "unknown",
+              "required": true,
+              "issues": [
+                {
+                  "line": 2,
+                  "pos": 2,
+                  "char": "重",
+                  "offset": 1,
+                  "is_han": true,
+                  "expected": "平",
+                  "status": "unknown",
+                  "code": "AMBIGUOUS_READING"
+                }
+              ],
+              "lines": [
+                {
+                  "line": 2,
+                  "status": "unknown",
+                  "issues": [
+                    {
+                      "line": 2,
+                      "pos": 2,
+                      "char": "重",
+                      "offset": 1,
+                      "is_han": true,
+                      "expected": "平",
+                      "status": "unknown",
+                      "code": "AMBIGUOUS_READING"
+                    }
+                  ],
+                  "positions": [
+                    {
+                      "line": 2,
+                      "pos": 1,
+                      "char": "东",
+                      "offset": 0,
+                      "is_han": true,
+                      "expected": "中",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "上平声部",
+                          "group": "一东",
+                          "tone": "平"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 2,
+                      "char": "重",
+                      "offset": 1,
+                      "is_han": true,
+                      "expected": "平",
+                      "status": "unknown",
+                      "memberships": [
+                        {
+                          "section": "上声部",
+                          "group": "二肿",
+                          "tone": "仄"
+                        },
+                        {
+                          "section": "上平声部",
+                          "group": "二冬",
+                          "tone": "平"
+                        },
+                        {
+                          "section": "去声部",
+                          "group": "二宋",
+                          "tone": "仄"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 3,
+                      "char": "月",
+                      "offset": 2,
+                      "is_han": true,
+                      "expected": "中",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "入声部",
+                          "group": "入声六月",
+                          "tone": "仄"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 4,
+                      "char": "月",
+                      "offset": 3,
+                      "is_han": true,
+                      "expected": "仄",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "入声部",
+                          "group": "入声六月",
+                          "tone": "仄"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 5,
+                      "char": "东",
+                      "offset": 4,
+                      "is_han": true,
+                      "expected": "平",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "上平声部",
+                          "group": "一东",
+                          "tone": "平"
+                        }
+                      ]
+                    }
+                  ],
+                  "rules": [
+                    {
+                      "rule": "忌三平调",
+                      "version": "last-three-level-1",
+                      "status": "pass"
+                    },
+                    {
+                      "rule": "忌孤平",
+                      "version": "guping-wangli-1",
+                      "status": "pass"
+                    }
+                  ]
+                }
+              ],
+              "rule_version": "pingshui-basic-1",
+              "rule_mapping": {
+                "忌孤平": "guping-wangli-1",
+                "忌三平调": "last-three-level-1",
+                "二四六分明": "bound-even-positions-1"
+              }
+            },
+            "rhyme": {
+              "status": "pass",
+              "required": true,
+              "issues": [],
+              "lines": [
+                {
+                  "line": 2,
+                  "status": "pass",
+                  "issues": []
+                }
+              ]
+            },
+            "duplicate": {
+              "status": "fail",
+              "required": false,
+              "occurrences": [
+                {
+                  "char": "东",
+                  "count": 2,
+                  "positions": [
+                    {
+                      "line": 2,
+                      "pos": 1,
+                      "offset": 0
+                    },
+                    {
+                      "line": 2,
+                      "pos": 5,
+                      "offset": 4
+                    }
+                  ]
+                },
+                {
+                  "char": "月",
+                  "count": 2,
+                  "positions": [
+                    {
+                      "line": 2,
+                      "pos": 3,
+                      "offset": 2
+                    },
+                    {
+                      "line": 2,
+                      "pos": 4,
+                      "offset": 3
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "errors": [],
+          "warnings": [
+            "重复字：东、月"
+          ]
+        },
+        "quality_score": null,
+        "decision": "pending",
+        "reason": "{\"category\": \"unresolved\", \"reasons\": [{\"check\": \"pingze\", \"line\": 2, \"pos\": 2, \"char\": \"重\", \"offset\": 1, \"is_han\": true, \"expected\": \"平\", \"status\": \"unknown\", \"code\": \"AMBIGUOUS_READING\"}], \"duplicate_of\": null, \"literary_evaluation\": null, \"missing_score\": false, \"adopted\": false}"
+      }
+    ],
+    "quality_score": null,
+    "checks": {},
+    "budget": {
+      "candidates_per_round": 10,
+      "beam_width": 3,
+      "max_backtracks": 3,
+      "max_rounds": 20
+    },
+    "status": "planning",
+    "revision": 2,
+    "meter_template": {
+      "data": {
+        "id": "wj_z",
+        "sketch": "五言绝句，仄起首句不入韵，4句20字",
+        "type": "五言绝句",
+        "pattern": "仄起首句不入韵",
+        "line_count": 4,
+        "char_count": 20,
+        "rhyme": {
+          "type": "平韵",
+          "first_line_rhyme": false,
+          "positions": [
+            2,
+            4
+          ]
+        },
+        "constraints": [
+          "忌孤平",
+          "忌三平调",
+          "二四六分明"
+        ],
+        "tunes": [
+          {
+            "tune": "中",
+            "line": 1,
+            "pos": 1
+          },
+          {
+            "tune": "仄",
+            "line": 1,
+            "pos": 2
+          },
+          {
+            "tune": "中",
+            "line": 1,
+            "pos": 3
+          },
+          {
+            "tune": "平",
+            "line": 1,
+            "pos": 4
+          },
+          {
+            "tune": "仄",
+            "line": 1,
+            "pos": 5,
+            "rhythm": "句"
+          },
+          {
+            "tune": "中",
+            "line": 2,
+            "pos": 1
+          },
+          {
+            "tune": "平",
+            "line": 2,
+            "pos": 2
+          },
+          {
+            "tune": "中",
+            "line": 2,
+            "pos": 3
+          },
+          {
+            "tune": "仄",
+            "line": 2,
+            "pos": 4
+          },
+          {
+            "tune": "平",
+            "line": 2,
+            "pos": 5,
+            "rhythm": "韵"
+          },
+          {
+            "tune": "中",
+            "line": 3,
+            "pos": 1
+          },
+          {
+            "tune": "平",
+            "line": 3,
+            "pos": 2
+          },
+          {
+            "tune": "平",
+            "line": 3,
+            "pos": 3
+          },
+          {
+            "tune": "仄",
+            "line": 3,
+            "pos": 4
+          },
+          {
+            "tune": "仄",
+            "line": 3,
+            "pos": 5,
+            "rhythm": "句"
+          },
+          {
+            "tune": "中",
+            "line": 4,
+            "pos": 1
+          },
+          {
+            "tune": "仄",
+            "line": 4,
+            "pos": 2
+          },
+          {
+            "tune": "仄",
+            "line": 4,
+            "pos": 3
+          },
+          {
+            "tune": "平",
+            "line": 4,
+            "pos": 4
+          },
+          {
+            "tune": "平",
+            "line": 4,
+            "pos": 5,
+            "rhythm": "韵"
+          }
+        ]
+      },
+      "source_sha256": "38f8e5b34ab209c3cb9dca3446f55ee7be54c76b9fc525f67dc5fc19523faab3"
+    }
+  },
+  "report": {
+    "batch_id": "78c00d427eb0462c9ef729f5f101d798",
+    "context_sha256": "dba97a83b820d876b7c049e129ed5242d140d9b2da1890cd95710d9a1145180d",
+    "contract_version": "poetry-round-1",
+    "generation_sha256": "ffc30c940cf822d4e077e5aae12c5ce7c8b5ea4106bb6314bc01b54decf99369",
+    "status": "completed",
+    "code": "ROUND_EVALUATED",
+    "counts": {
+      "passed": 2,
+      "failed": 1,
+      "unresolved": 1,
+      "duplicate": 1,
+      "scored": 2
+    },
+    "missing_scores": [],
+    "records": [
+      {
+        "id": "a",
+        "text": " 东东月月东。 ",
+        "line_index": 2,
+        "input_index": 0,
+        "normalized_text": "东东月月东",
+        "history_id": "78c00d427eb0462c9ef729f5f101d798:a",
+        "checks": {
+          "binding_version": 1,
+          "scope": "candidate",
+          "subject": {
+            "candidate_id": "78c00d427eb0462c9ef729f5f101d798:a",
+            "line_index": 2,
+            "text_sha256": "1902bf3e9bb6546b76bb987df26819cf5573265e5f757a0595ec8a80f07c9ef8"
+          },
+          "context_sha256": "dba97a83b820d876b7c049e129ed5242d140d9b2da1890cd95710d9a1145180d",
+          "revision": 2,
+          "valid": true,
+          "checks": {
+            "length": {
+              "status": "pass",
+              "required": true,
+              "issues": [],
+              "lines": [
+                {
+                  "line": 2,
+                  "original": " 东东月月东。 ",
+                  "text": "东东月月东",
+                  "cells": [
+                    {
+                      "line": 2,
+                      "pos": 1,
+                      "char": "东",
+                      "offset": 1,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 2,
+                      "char": "东",
+                      "offset": 2,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 3,
+                      "char": "月",
+                      "offset": 3,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 4,
+                      "char": "月",
+                      "offset": 4,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 5,
+                      "char": "东",
+                      "offset": 5,
+                      "is_han": true
+                    }
+                  ],
+                  "segments": 1
+                }
+              ]
+            },
+            "pingze": {
+              "status": "pass",
+              "required": true,
+              "issues": [],
+              "lines": [
+                {
+                  "line": 2,
+                  "status": "pass",
+                  "issues": [],
+                  "positions": [
+                    {
+                      "line": 2,
+                      "pos": 1,
+                      "char": "东",
+                      "offset": 1,
+                      "is_han": true,
+                      "expected": "中",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "上平声部",
+                          "group": "一东",
+                          "tone": "平"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 2,
+                      "char": "东",
+                      "offset": 2,
+                      "is_han": true,
+                      "expected": "平",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "上平声部",
+                          "group": "一东",
+                          "tone": "平"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 3,
+                      "char": "月",
+                      "offset": 3,
+                      "is_han": true,
+                      "expected": "中",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "入声部",
+                          "group": "入声六月",
+                          "tone": "仄"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 4,
+                      "char": "月",
+                      "offset": 4,
+                      "is_han": true,
+                      "expected": "仄",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "入声部",
+                          "group": "入声六月",
+                          "tone": "仄"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 5,
+                      "char": "东",
+                      "offset": 5,
+                      "is_han": true,
+                      "expected": "平",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "上平声部",
+                          "group": "一东",
+                          "tone": "平"
+                        }
+                      ]
+                    }
+                  ],
+                  "rules": [
+                    {
+                      "rule": "忌三平调",
+                      "version": "last-three-level-1",
+                      "status": "pass"
+                    },
+                    {
+                      "rule": "忌孤平",
+                      "version": "guping-wangli-1",
+                      "status": "pass"
+                    }
+                  ]
+                }
+              ],
+              "rule_version": "pingshui-basic-1",
+              "rule_mapping": {
+                "忌孤平": "guping-wangli-1",
+                "忌三平调": "last-three-level-1",
+                "二四六分明": "bound-even-positions-1"
+              }
+            },
+            "rhyme": {
+              "status": "pass",
+              "required": true,
+              "issues": [],
+              "lines": [
+                {
+                  "line": 2,
+                  "status": "pass",
+                  "issues": []
+                }
+              ]
+            },
+            "duplicate": {
+              "status": "fail",
+              "required": false,
+              "occurrences": [
+                {
+                  "char": "东",
+                  "count": 3,
+                  "positions": [
+                    {
+                      "line": 2,
+                      "pos": 1,
+                      "offset": 1
+                    },
+                    {
+                      "line": 2,
+                      "pos": 2,
+                      "offset": 2
+                    },
+                    {
+                      "line": 2,
+                      "pos": 5,
+                      "offset": 5
+                    }
+                  ]
+                },
+                {
+                  "char": "月",
+                  "count": 2,
+                  "positions": [
+                    {
+                      "line": 2,
+                      "pos": 3,
+                      "offset": 3
+                    },
+                    {
+                      "line": 2,
+                      "pos": 4,
+                      "offset": 4
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "errors": [],
+          "warnings": [
+            "重复字：东、月"
+          ]
+        },
+        "literary_evaluation": {
+          "dimensions": {
+            "theme": 0.25,
+            "naturalness": 0,
+            "imagery": 0.25,
+            "continuity": 0,
+            "expression": 0
+          },
+          "reason": "机械字串虽规则通过，但缺乏自然句意；固定夹具仅验证评分计算。",
+          "rubric_version": "literary-1",
+          "total": 0.1125
+        },
+        "quality_score": 0.1125,
+        "duplicate_of": null,
+        "reasons": [],
+        "category": "passed",
+        "decision": "retained"
+      },
+      {
+        "id": "b",
+        "text": "东冬月月东",
+        "line_index": 2,
+        "input_index": 1,
+        "normalized_text": "东冬月月东",
+        "history_id": "78c00d427eb0462c9ef729f5f101d798:b",
+        "checks": {
+          "binding_version": 1,
+          "scope": "candidate",
+          "subject": {
+            "candidate_id": "78c00d427eb0462c9ef729f5f101d798:b",
+            "line_index": 2,
+            "text_sha256": "572009b7b89ef608030640ec379a1ae239a38da1d5fc298dedea4e9f88e2f04b"
+          },
+          "context_sha256": "dba97a83b820d876b7c049e129ed5242d140d9b2da1890cd95710d9a1145180d",
+          "revision": 2,
+          "valid": true,
+          "checks": {
+            "length": {
+              "status": "pass",
+              "required": true,
+              "issues": [],
+              "lines": [
+                {
+                  "line": 2,
+                  "original": "东冬月月东",
+                  "text": "东冬月月东",
+                  "cells": [
+                    {
+                      "line": 2,
+                      "pos": 1,
+                      "char": "东",
+                      "offset": 0,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 2,
+                      "char": "冬",
+                      "offset": 1,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 3,
+                      "char": "月",
+                      "offset": 2,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 4,
+                      "char": "月",
+                      "offset": 3,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 5,
+                      "char": "东",
+                      "offset": 4,
+                      "is_han": true
+                    }
+                  ],
+                  "segments": 1
+                }
+              ]
+            },
+            "pingze": {
+              "status": "pass",
+              "required": true,
+              "issues": [],
+              "lines": [
+                {
+                  "line": 2,
+                  "status": "pass",
+                  "issues": [],
+                  "positions": [
+                    {
+                      "line": 2,
+                      "pos": 1,
+                      "char": "东",
+                      "offset": 0,
+                      "is_han": true,
+                      "expected": "中",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "上平声部",
+                          "group": "一东",
+                          "tone": "平"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 2,
+                      "char": "冬",
+                      "offset": 1,
+                      "is_han": true,
+                      "expected": "平",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "上平声部",
+                          "group": "二冬",
+                          "tone": "平"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 3,
+                      "char": "月",
+                      "offset": 2,
+                      "is_han": true,
+                      "expected": "中",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "入声部",
+                          "group": "入声六月",
+                          "tone": "仄"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 4,
+                      "char": "月",
+                      "offset": 3,
+                      "is_han": true,
+                      "expected": "仄",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "入声部",
+                          "group": "入声六月",
+                          "tone": "仄"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 5,
+                      "char": "东",
+                      "offset": 4,
+                      "is_han": true,
+                      "expected": "平",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "上平声部",
+                          "group": "一东",
+                          "tone": "平"
+                        }
+                      ]
+                    }
+                  ],
+                  "rules": [
+                    {
+                      "rule": "忌三平调",
+                      "version": "last-three-level-1",
+                      "status": "pass"
+                    },
+                    {
+                      "rule": "忌孤平",
+                      "version": "guping-wangli-1",
+                      "status": "pass"
+                    }
+                  ]
+                }
+              ],
+              "rule_version": "pingshui-basic-1",
+              "rule_mapping": {
+                "忌孤平": "guping-wangli-1",
+                "忌三平调": "last-three-level-1",
+                "二四六分明": "bound-even-positions-1"
+              }
+            },
+            "rhyme": {
+              "status": "pass",
+              "required": true,
+              "issues": [],
+              "lines": [
+                {
+                  "line": 2,
+                  "status": "pass",
+                  "issues": []
+                }
+              ]
+            },
+            "duplicate": {
+              "status": "fail",
+              "required": false,
+              "occurrences": [
+                {
+                  "char": "东",
+                  "count": 2,
+                  "positions": [
+                    {
+                      "line": 2,
+                      "pos": 1,
+                      "offset": 0
+                    },
+                    {
+                      "line": 2,
+                      "pos": 5,
+                      "offset": 4
+                    }
+                  ]
+                },
+                {
+                  "char": "月",
+                  "count": 2,
+                  "positions": [
+                    {
+                      "line": 2,
+                      "pos": 3,
+                      "offset": 2
+                    },
+                    {
+                      "line": 2,
+                      "pos": 4,
+                      "offset": 3
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "errors": [],
+          "warnings": [
+            "重复字：东、月"
+          ]
+        },
+        "literary_evaluation": {
+          "dimensions": {
+            "theme": 0.25,
+            "naturalness": 0,
+            "imagery": 0.25,
+            "continuity": 0,
+            "expression": 0
+          },
+          "reason": "同为机械字串，无自然表达；与 a 同分以验证生成顺序优先。",
+          "rubric_version": "literary-1",
+          "total": 0.1125
+        },
+        "quality_score": 0.1125,
+        "duplicate_of": null,
+        "reasons": [],
+        "category": "passed",
+        "decision": "retained"
+      },
+      {
+        "id": "duplicate",
+        "text": "东东月月东",
+        "line_index": 2,
+        "input_index": 2,
+        "normalized_text": "东东月月东",
+        "history_id": "78c00d427eb0462c9ef729f5f101d798:duplicate",
+        "checks": null,
+        "literary_evaluation": null,
+        "quality_score": null,
+        "duplicate_of": "a",
+        "reasons": [
+          {
+            "code": "DUPLICATE_TEXT",
+            "message": "仅忽略外围空白和约定标点后与较早候选相同。"
+          }
+        ],
+        "category": "duplicate",
+        "decision": "rejected"
+      },
+      {
+        "id": "bad",
+        "text": "东月月月东",
+        "line_index": 2,
+        "input_index": 3,
+        "normalized_text": "东月月月东",
+        "history_id": "78c00d427eb0462c9ef729f5f101d798:bad",
+        "checks": {
+          "binding_version": 1,
+          "scope": "candidate",
+          "subject": {
+            "candidate_id": "78c00d427eb0462c9ef729f5f101d798:bad",
+            "line_index": 2,
+            "text_sha256": "0166d39e4098a9305e1a7af861b0d848b6f4d9507a8f5ee246cab6314511f21b"
+          },
+          "context_sha256": "dba97a83b820d876b7c049e129ed5242d140d9b2da1890cd95710d9a1145180d",
+          "revision": 2,
+          "valid": false,
+          "checks": {
+            "length": {
+              "status": "pass",
+              "required": true,
+              "issues": [],
+              "lines": [
+                {
+                  "line": 2,
+                  "original": "东月月月东",
+                  "text": "东月月月东",
+                  "cells": [
+                    {
+                      "line": 2,
+                      "pos": 1,
+                      "char": "东",
+                      "offset": 0,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 2,
+                      "char": "月",
+                      "offset": 1,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 3,
+                      "char": "月",
+                      "offset": 2,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 4,
+                      "char": "月",
+                      "offset": 3,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 5,
+                      "char": "东",
+                      "offset": 4,
+                      "is_han": true
+                    }
+                  ],
+                  "segments": 1
+                }
+              ]
+            },
+            "pingze": {
+              "status": "fail",
+              "required": true,
+              "issues": [
+                {
+                  "line": 2,
+                  "pos": 2,
+                  "char": "月",
+                  "offset": 1,
+                  "is_han": true,
+                  "expected": "平",
+                  "status": "fail",
+                  "code": "TONE_MISMATCH"
+                }
+              ],
+              "lines": [
+                {
+                  "line": 2,
+                  "status": "fail",
+                  "issues": [
+                    {
+                      "line": 2,
+                      "pos": 2,
+                      "char": "月",
+                      "offset": 1,
+                      "is_han": true,
+                      "expected": "平",
+                      "status": "fail",
+                      "code": "TONE_MISMATCH"
+                    }
+                  ],
+                  "positions": [
+                    {
+                      "line": 2,
+                      "pos": 1,
+                      "char": "东",
+                      "offset": 0,
+                      "is_han": true,
+                      "expected": "中",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "上平声部",
+                          "group": "一东",
+                          "tone": "平"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 2,
+                      "char": "月",
+                      "offset": 1,
+                      "is_han": true,
+                      "expected": "平",
+                      "status": "fail",
+                      "memberships": [
+                        {
+                          "section": "入声部",
+                          "group": "入声六月",
+                          "tone": "仄"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 3,
+                      "char": "月",
+                      "offset": 2,
+                      "is_han": true,
+                      "expected": "中",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "入声部",
+                          "group": "入声六月",
+                          "tone": "仄"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 4,
+                      "char": "月",
+                      "offset": 3,
+                      "is_han": true,
+                      "expected": "仄",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "入声部",
+                          "group": "入声六月",
+                          "tone": "仄"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 5,
+                      "char": "东",
+                      "offset": 4,
+                      "is_han": true,
+                      "expected": "平",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "上平声部",
+                          "group": "一东",
+                          "tone": "平"
+                        }
+                      ]
+                    }
+                  ],
+                  "rules": [
+                    {
+                      "rule": "忌三平调",
+                      "version": "last-three-level-1",
+                      "status": "pass"
+                    },
+                    {
+                      "rule": "忌孤平",
+                      "version": "guping-wangli-1",
+                      "status": "pass"
+                    }
+                  ]
+                }
+              ],
+              "rule_version": "pingshui-basic-1",
+              "rule_mapping": {
+                "忌孤平": "guping-wangli-1",
+                "忌三平调": "last-three-level-1",
+                "二四六分明": "bound-even-positions-1"
+              }
+            },
+            "rhyme": {
+              "status": "pass",
+              "required": true,
+              "issues": [],
+              "lines": [
+                {
+                  "line": 2,
+                  "status": "pass",
+                  "issues": []
+                }
+              ]
+            },
+            "duplicate": {
+              "status": "fail",
+              "required": false,
+              "occurrences": [
+                {
+                  "char": "东",
+                  "count": 2,
+                  "positions": [
+                    {
+                      "line": 2,
+                      "pos": 1,
+                      "offset": 0
+                    },
+                    {
+                      "line": 2,
+                      "pos": 5,
+                      "offset": 4
+                    }
+                  ]
+                },
+                {
+                  "char": "月",
+                  "count": 3,
+                  "positions": [
+                    {
+                      "line": 2,
+                      "pos": 2,
+                      "offset": 1
+                    },
+                    {
+                      "line": 2,
+                      "pos": 3,
+                      "offset": 2
+                    },
+                    {
+                      "line": 2,
+                      "pos": 4,
+                      "offset": 3
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "errors": [
+            "pingze: TONE_MISMATCH"
+          ],
+          "warnings": [
+            "重复字：东、月"
+          ]
+        },
+        "literary_evaluation": null,
+        "quality_score": null,
+        "duplicate_of": null,
+        "reasons": [
+          {
+            "check": "pingze",
+            "line": 2,
+            "pos": 2,
+            "char": "月",
+            "offset": 1,
+            "is_han": true,
+            "expected": "平",
+            "status": "fail",
+            "code": "TONE_MISMATCH"
+          }
+        ],
+        "category": "failed",
+        "decision": "rejected"
+      },
+      {
+        "id": "unknown",
+        "text": "东重月月东",
+        "line_index": 2,
+        "input_index": 4,
+        "normalized_text": "东重月月东",
+        "history_id": "78c00d427eb0462c9ef729f5f101d798:unknown",
+        "checks": {
+          "binding_version": 1,
+          "scope": "candidate",
+          "subject": {
+            "candidate_id": "78c00d427eb0462c9ef729f5f101d798:unknown",
+            "line_index": 2,
+            "text_sha256": "8b1f81784f9062c7d91ea1cf302e138c24dac40c3b46f052c11c2a4ee6488d94"
+          },
+          "context_sha256": "dba97a83b820d876b7c049e129ed5242d140d9b2da1890cd95710d9a1145180d",
+          "revision": 2,
+          "valid": null,
+          "checks": {
+            "length": {
+              "status": "pass",
+              "required": true,
+              "issues": [],
+              "lines": [
+                {
+                  "line": 2,
+                  "original": "东重月月东",
+                  "text": "东重月月东",
+                  "cells": [
+                    {
+                      "line": 2,
+                      "pos": 1,
+                      "char": "东",
+                      "offset": 0,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 2,
+                      "char": "重",
+                      "offset": 1,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 3,
+                      "char": "月",
+                      "offset": 2,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 4,
+                      "char": "月",
+                      "offset": 3,
+                      "is_han": true
+                    },
+                    {
+                      "line": 2,
+                      "pos": 5,
+                      "char": "东",
+                      "offset": 4,
+                      "is_han": true
+                    }
+                  ],
+                  "segments": 1
+                }
+              ]
+            },
+            "pingze": {
+              "status": "unknown",
+              "required": true,
+              "issues": [
+                {
+                  "line": 2,
+                  "pos": 2,
+                  "char": "重",
+                  "offset": 1,
+                  "is_han": true,
+                  "expected": "平",
+                  "status": "unknown",
+                  "code": "AMBIGUOUS_READING"
+                }
+              ],
+              "lines": [
+                {
+                  "line": 2,
+                  "status": "unknown",
+                  "issues": [
+                    {
+                      "line": 2,
+                      "pos": 2,
+                      "char": "重",
+                      "offset": 1,
+                      "is_han": true,
+                      "expected": "平",
+                      "status": "unknown",
+                      "code": "AMBIGUOUS_READING"
+                    }
+                  ],
+                  "positions": [
+                    {
+                      "line": 2,
+                      "pos": 1,
+                      "char": "东",
+                      "offset": 0,
+                      "is_han": true,
+                      "expected": "中",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "上平声部",
+                          "group": "一东",
+                          "tone": "平"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 2,
+                      "char": "重",
+                      "offset": 1,
+                      "is_han": true,
+                      "expected": "平",
+                      "status": "unknown",
+                      "memberships": [
+                        {
+                          "section": "上声部",
+                          "group": "二肿",
+                          "tone": "仄"
+                        },
+                        {
+                          "section": "上平声部",
+                          "group": "二冬",
+                          "tone": "平"
+                        },
+                        {
+                          "section": "去声部",
+                          "group": "二宋",
+                          "tone": "仄"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 3,
+                      "char": "月",
+                      "offset": 2,
+                      "is_han": true,
+                      "expected": "中",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "入声部",
+                          "group": "入声六月",
+                          "tone": "仄"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 4,
+                      "char": "月",
+                      "offset": 3,
+                      "is_han": true,
+                      "expected": "仄",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "入声部",
+                          "group": "入声六月",
+                          "tone": "仄"
+                        }
+                      ]
+                    },
+                    {
+                      "line": 2,
+                      "pos": 5,
+                      "char": "东",
+                      "offset": 4,
+                      "is_han": true,
+                      "expected": "平",
+                      "status": "pass",
+                      "memberships": [
+                        {
+                          "section": "上平声部",
+                          "group": "一东",
+                          "tone": "平"
+                        }
+                      ]
+                    }
+                  ],
+                  "rules": [
+                    {
+                      "rule": "忌三平调",
+                      "version": "last-three-level-1",
+                      "status": "pass"
+                    },
+                    {
+                      "rule": "忌孤平",
+                      "version": "guping-wangli-1",
+                      "status": "pass"
+                    }
+                  ]
+                }
+              ],
+              "rule_version": "pingshui-basic-1",
+              "rule_mapping": {
+                "忌孤平": "guping-wangli-1",
+                "忌三平调": "last-three-level-1",
+                "二四六分明": "bound-even-positions-1"
+              }
+            },
+            "rhyme": {
+              "status": "pass",
+              "required": true,
+              "issues": [],
+              "lines": [
+                {
+                  "line": 2,
+                  "status": "pass",
+                  "issues": []
+                }
+              ]
+            },
+            "duplicate": {
+              "status": "fail",
+              "required": false,
+              "occurrences": [
+                {
+                  "char": "东",
+                  "count": 2,
+                  "positions": [
+                    {
+                      "line": 2,
+                      "pos": 1,
+                      "offset": 0
+                    },
+                    {
+                      "line": 2,
+                      "pos": 5,
+                      "offset": 4
+                    }
+                  ]
+                },
+                {
+                  "char": "月",
+                  "count": 2,
+                  "positions": [
+                    {
+                      "line": 2,
+                      "pos": 3,
+                      "offset": 2
+                    },
+                    {
+                      "line": 2,
+                      "pos": 4,
+                      "offset": 3
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "errors": [],
+          "warnings": [
+            "重复字：东、月"
+          ]
+        },
+        "literary_evaluation": null,
+        "quality_score": null,
+        "duplicate_of": null,
+        "reasons": [
+          {
+            "check": "pingze",
+            "line": 2,
+            "pos": 2,
+            "char": "重",
+            "offset": 1,
+            "is_han": true,
+            "expected": "平",
+            "status": "unknown",
+            "code": "AMBIGUOUS_READING"
+          }
+        ],
+        "category": "unresolved",
+        "decision": "pending"
+      }
+    ],
+    "ranking": [
+      "a",
+      "b"
+    ],
+    "recommended_id": "a",
+    "adopted_id": null,
+    "filter_artifact": {
+      "context": {
+        "contract_version": "poetry-round-1",
+        "batch_id": "78c00d427eb0462c9ef729f5f101d798",
+        "context_sha256": "dba97a83b820d876b7c049e129ed5242d140d9b2da1890cd95710d9a1145180d",
+        "revision": 2,
+        "status": "ready",
+        "reasons": [],
+        "request": {
+          "raw_request": "写东风月夜五绝，仄起，首句不入韵，情绪宁静。",
+          "theme": "东风月夜",
+          "emotion": [
+            "宁静"
+          ],
+          "poem_type": "五言绝句",
+          "meter": {
+            "template_id": null,
+            "start": "仄起",
+            "first_line_rhymes": false
+          },
+          "input": {
+            "version": 1,
+            "text": "写东风月夜五绝，仄起，首句不入韵，情绪宁静。",
+            "attachments": []
+          },
+          "scene": "",
+          "time": "",
+          "characters": [],
+          "constraints": []
+        },
+        "theme": "东风月夜",
+        "emotion": [
+          "宁静"
+        ],
+        "imagery": [
+          "东风",
+          "月"
+        ],
+        "structure": [
+          {
+            "unit": "第二句",
+            "intent": "承接夜景，保持宁静视角"
+          }
+        ],
+        "lines": [],
+        "poem_type": "五言绝句",
+        "form": {
+          "line_count": 4,
+          "line_length": 5,
+          "planning_unit": "line",
+          "antithesis_pairs": []
+        },
+        "line_index": 2,
+        "template": {
+          "data": {
+            "id": "wj_z",
+            "sketch": "五言绝句，仄起首句不入韵，4句20字",
+            "type": "五言绝句",
+            "pattern": "仄起首句不入韵",
+            "line_count": 4,
+            "char_count": 20,
+            "rhyme": {
+              "type": "平韵",
+              "first_line_rhyme": false,
+              "positions": [
+                2,
+                4
+              ]
+            },
+            "constraints": [
+              "忌孤平",
+              "忌三平调",
+              "二四六分明"
+            ],
+            "tunes": [
+              {
+                "tune": "中",
+                "line": 1,
+                "pos": 1
+              },
+              {
+                "tune": "仄",
+                "line": 1,
+                "pos": 2
+              },
+              {
+                "tune": "中",
+                "line": 1,
+                "pos": 3
+              },
+              {
+                "tune": "平",
+                "line": 1,
+                "pos": 4
+              },
+              {
+                "tune": "仄",
+                "line": 1,
+                "pos": 5,
+                "rhythm": "句"
+              },
+              {
+                "tune": "中",
+                "line": 2,
+                "pos": 1
+              },
+              {
+                "tune": "平",
+                "line": 2,
+                "pos": 2
+              },
+              {
+                "tune": "中",
+                "line": 2,
+                "pos": 3
+              },
+              {
+                "tune": "仄",
+                "line": 2,
+                "pos": 4
+              },
+              {
+                "tune": "平",
+                "line": 2,
+                "pos": 5,
+                "rhythm": "韵"
+              },
+              {
+                "tune": "中",
+                "line": 3,
+                "pos": 1
+              },
+              {
+                "tune": "平",
+                "line": 3,
+                "pos": 2
+              },
+              {
+                "tune": "平",
+                "line": 3,
+                "pos": 3
+              },
+              {
+                "tune": "仄",
+                "line": 3,
+                "pos": 4
+              },
+              {
+                "tune": "仄",
+                "line": 3,
+                "pos": 5,
+                "rhythm": "句"
+              },
+              {
+                "tune": "中",
+                "line": 4,
+                "pos": 1
+              },
+              {
+                "tune": "仄",
+                "line": 4,
+                "pos": 2
+              },
+              {
+                "tune": "仄",
+                "line": 4,
+                "pos": 3
+              },
+              {
+                "tune": "平",
+                "line": 4,
+                "pos": 4
+              },
+              {
+                "tune": "平",
+                "line": 4,
+                "pos": 5,
+                "rhythm": "韵"
+              }
+            ]
+          },
+          "source_sha256": "38f8e5b34ab209c3cb9dca3446f55ee7be54c76b9fc525f67dc5fc19523faab3"
+        },
+        "user_meter": {
+          "template_id": null,
+          "start": "仄起",
+          "first_line_rhymes": false
+        },
+        "tone_requirements": [
+          {
+            "tune": "中",
+            "line": 2,
+            "pos": 1
+          },
+          {
+            "tune": "平",
+            "line": 2,
+            "pos": 2
+          },
+          {
+            "tune": "中",
+            "line": 2,
+            "pos": 3
+          },
+          {
+            "tune": "仄",
+            "line": 2,
+            "pos": 4
+          },
+          {
+            "tune": "平",
+            "line": 2,
+            "pos": 5,
+            "rhythm": "韵"
+          }
+        ],
+        "is_rhyme_line": true,
+        "rhyme": {
+          "system": "平水韵",
+          "group": "一东",
+          "first_line_rhymes": false
+        },
+        "constraints": [],
+        "couplet": null,
+        "budget": {
+          "candidates_per_round": 10,
+          "beam_width": 3,
+          "max_backtracks": 3,
+          "max_rounds": 20
+        },
+        "candidate_count": {
+          "min": 1,
+          "max": 10,
+          "target": 5
+        },
+        "retry_policy": {
+          "max_attempts_per_stage": 3,
+          "automatic_retries": false
+        },
+        "generation_instruction": "生成语义完整的候选句，保留句意与自然措辞；不得逐字填空、自动改句或猜选有利读音。",
+        "generation_sha256": "ffc30c940cf822d4e077e5aae12c5ce7c8b5ea4106bb6314bc01b54decf99369"
+      },
+      "candidate_input": {
+        "batch_id": "78c00d427eb0462c9ef729f5f101d798",
+        "generation_sha256": "ffc30c940cf822d4e077e5aae12c5ce7c8b5ea4106bb6314bc01b54decf99369",
+        "context_sha256": "dba97a83b820d876b7c049e129ed5242d140d9b2da1890cd95710d9a1145180d",
+        "contract_version": "poetry-round-1",
+        "attempt": 1,
+        "candidates": [
+          {
+            "id": "a",
+            "text": " 东东月月东。 ",
+            "line_index": 2
+          },
+          {
+            "id": "b",
+            "text": "东冬月月东",
+            "line_index": 2
+          },
+          {
+            "id": "duplicate",
+            "text": "东东月月东",
+            "line_index": 2
+          },
+          {
+            "id": "bad",
+            "text": "东月月月东",
+            "line_index": 2
+          },
+          {
+            "id": "unknown",
+            "text": "东重月月东",
+            "line_index": 2
+          }
+        ]
+      },
+      "records": [
+        {
+          "id": "a",
+          "text": " 东东月月东。 ",
+          "line_index": 2,
+          "input_index": 0,
+          "normalized_text": "东东月月东",
+          "history_id": "78c00d427eb0462c9ef729f5f101d798:a",
+          "checks": {
+            "binding_version": 1,
+            "scope": "candidate",
+            "subject": {
+              "candidate_id": "78c00d427eb0462c9ef729f5f101d798:a",
+              "line_index": 2,
+              "text_sha256": "1902bf3e9bb6546b76bb987df26819cf5573265e5f757a0595ec8a80f07c9ef8"
+            },
+            "context_sha256": "dba97a83b820d876b7c049e129ed5242d140d9b2da1890cd95710d9a1145180d",
+            "revision": 2,
+            "valid": true,
+            "checks": {
+              "length": {
+                "status": "pass",
+                "required": true,
+                "issues": [],
+                "lines": [
+                  {
+                    "line": 2,
+                    "original": " 东东月月东。 ",
+                    "text": "东东月月东",
+                    "cells": [
+                      {
+                        "line": 2,
+                        "pos": 1,
+                        "char": "东",
+                        "offset": 1,
+                        "is_han": true
+                      },
+                      {
+                        "line": 2,
+                        "pos": 2,
+                        "char": "东",
+                        "offset": 2,
+                        "is_han": true
+                      },
+                      {
+                        "line": 2,
+                        "pos": 3,
+                        "char": "月",
+                        "offset": 3,
+                        "is_han": true
+                      },
+                      {
+                        "line": 2,
+                        "pos": 4,
+                        "char": "月",
+                        "offset": 4,
+                        "is_han": true
+                      },
+                      {
+                        "line": 2,
+                        "pos": 5,
+                        "char": "东",
+                        "offset": 5,
+                        "is_han": true
+                      }
+                    ],
+                    "segments": 1
+                  }
+                ]
+              },
+              "pingze": {
+                "status": "pass",
+                "required": true,
+                "issues": [],
+                "lines": [
+                  {
+                    "line": 2,
+                    "status": "pass",
+                    "issues": [],
+                    "positions": [
+                      {
+                        "line": 2,
+                        "pos": 1,
+                        "char": "东",
+                        "offset": 1,
+                        "is_han": true,
+                        "expected": "中",
+                        "status": "pass",
+                        "memberships": [
+                          {
+                            "section": "上平声部",
+                            "group": "一东",
+                            "tone": "平"
+                          }
+                        ]
+                      },
+                      {
+                        "line": 2,
+                        "pos": 2,
+                        "char": "东",
+                        "offset": 2,
+                        "is_han": true,
+                        "expected": "平",
+                        "status": "pass",
+                        "memberships": [
+                          {
+                            "section": "上平声部",
+                            "group": "一东",
+                            "tone": "平"
+                          }
+                        ]
+                      },
+                      {
+                        "line": 2,
+                        "pos": 3,
+                        "char": "月",
+                        "offset": 3,
+                        "is_han": true,
+                        "expected": "中",
+                        "status": "pass",
+                        "memberships": [
+                          {
+                            "section": "入声部",
+                            "group": "入声六月",
+                            "tone": "仄"
+                          }
+                        ]
+                      },
+                      {
+                        "line": 2,
+                        "pos": 4,
+                        "char": "月",
+                        "offset": 4,
+                        "is_han": true,
+                        "expected": "仄",
+                        "status": "pass",
+                        "memberships": [
+                          {
+                            "section": "入声部",
+                            "group": "入声六月",
+                            "tone": "仄"
+                          }
+                        ]
+                      },
+                      {
+                        "line": 2,
+                        "pos": 5,
+                        "char": "东",
+                        "offset": 5,
+                        "is_han": true,
+                        "expected": "平",
+                        "status": "pass",
+                        "memberships": [
+                          {
+                            "section": "上平声部",
+                            "group": "一东",
+                            "tone": "平"
+                          }
+                        ]
+                      }
+                    ],
+                    "rules": [
+                      {
+                        "rule": "忌三平调",
+                        "version": "last-three-level-1",
+                        "status": "pass"
+                      },
+                      {
+                        "rule": "忌孤平",
+                        "version": "guping-wangli-1",
+                        "status": "pass"
+                      }
+                    ]
+                  }
+                ],
+                "rule_version": "pingshui-basic-1",
+                "rule_mapping": {
+                  "忌孤平": "guping-wangli-1",
+                  "忌三平调": "last-three-level-1",
+                  "二四六分明": "bound-even-positions-1"
+                }
+              },
+              "rhyme": {
+                "status": "pass",
+                "required": true,
+                "issues": [],
+                "lines": [
+                  {
+                    "line": 2,
+                    "status": "pass",
+                    "issues": []
+                  }
+                ]
+              },
+              "duplicate": {
+                "status": "fail",
+                "required": false,
+                "occurrences": [
+                  {
+                    "char": "东",
+                    "count": 3,
+                    "positions": [
+                      {
+                        "line": 2,
+                        "pos": 1,
+                        "offset": 1
+                      },
+                      {
+                        "line": 2,
+                        "pos": 2,
+                        "offset": 2
+                      },
+                      {
+                        "line": 2,
+                        "pos": 5,
+                        "offset": 5
+                      }
+                    ]
+                  },
+                  {
+                    "char": "月",
+                    "count": 2,
+                    "positions": [
+                      {
+                        "line": 2,
+                        "pos": 3,
+                        "offset": 3
+                      },
+                      {
+                        "line": 2,
+                        "pos": 4,
+                        "offset": 4
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "errors": [],
+            "warnings": [
+              "重复字：东、月"
+            ]
+          },
+          "literary_evaluation": null,
+          "quality_score": null,
+          "duplicate_of": null,
+          "reasons": [],
+          "category": "passed"
+        },
+        {
+          "id": "b",
+          "text": "东冬月月东",
+          "line_index": 2,
+          "input_index": 1,
+          "normalized_text": "东冬月月东",
+          "history_id": "78c00d427eb0462c9ef729f5f101d798:b",
+          "checks": {
+            "binding_version": 1,
+            "scope": "candidate",
+            "subject": {
+              "candidate_id": "78c00d427eb0462c9ef729f5f101d798:b",
+              "line_index": 2,
+              "text_sha256": "572009b7b89ef608030640ec379a1ae239a38da1d5fc298dedea4e9f88e2f04b"
+            },
+            "context_sha256": "dba97a83b820d876b7c049e129ed5242d140d9b2da1890cd95710d9a1145180d",
+            "revision": 2,
+            "valid": true,
+            "checks": {
+              "length": {
+                "status": "pass",
+                "required": true,
+                "issues": [],
+                "lines": [
+                  {
+                    "line": 2,
+                    "original": "东冬月月东",
+                    "text": "东冬月月东",
+                    "cells": [
+                      {
+                        "line": 2,
+                        "pos": 1,
+                        "char": "东",
+                        "offset": 0,
+                        "is_han": true
+                      },
+                      {
+                        "line": 2,
+                        "pos": 2,
+                        "char": "冬",
+                        "offset": 1,
+                        "is_han": true
+                      },
+                      {
+                        "line": 2,
+                        "pos": 3,
+                        "char": "月",
+                        "offset": 2,
+                        "is_han": true
+                      },
+                      {
+                        "line": 2,
+                        "pos": 4,
+                        "char": "月",
+                        "offset": 3,
+                        "is_han": true
+                      },
+                      {
+                        "line": 2,
+                        "pos": 5,
+                        "char": "东",
+                        "offset": 4,
+                        "is_han": true
+                      }
+                    ],
+                    "segments": 1
+                  }
+                ]
+              },
+              "pingze": {
+                "status": "pass",
+                "required": true,
+                "issues": [],
+                "lines": [
+                  {
+                    "line": 2,
+                    "status": "pass",
+                    "issues": [],
+                    "positions": [
+                      {
+                        "line": 2,
+                        "pos": 1,
+                        "char": "东",
+                        "offset": 0,
+                        "is_han": true,
+                        "expected": "中",
+                        "status": "pass",
+                        "memberships": [
+                          {
+                            "section": "上平声部",
+                            "group": "一东",
+                            "tone": "平"
+                          }
+                        ]
+                      },
+                      {
+                        "line": 2,
+                        "pos": 2,
+                        "char": "冬",
+                        "offset": 1,
+                        "is_han": true,
+                        "expected": "平",
+                        "status": "pass",
+                        "memberships": [
+                          {
+                            "section": "上平声部",
+                            "group": "二冬",
+                            "tone": "平"
+                          }
+                        ]
+                      },
+                      {
+                        "line": 2,
+                        "pos": 3,
+                        "char": "月",
+                        "offset": 2,
+                        "is_han": true,
+                        "expected": "中",
+                        "status": "pass",
+                        "memberships": [
+                          {
+                            "section": "入声部",
+                            "group": "入声六月",
+                            "tone": "仄"
+                          }
+                        ]
+                      },
+                      {
+                        "line": 2,
+                        "pos": 4,
+                        "char": "月",
+                        "offset": 3,
+                        "is_han": true,
+                        "expected": "仄",
+                        "status": "pass",
+                        "memberships": [
+                          {
+                            "section": "入声部",
+                            "group": "入声六月",
+                            "tone": "仄"
+                          }
+                        ]
+                      },
+                      {
+                        "line": 2,
+                        "pos": 5,
+                        "char": "东",
+                        "offset": 4,
+                        "is_han": true,
+                        "expected": "平",
+                        "status": "pass",
+                        "memberships": [
+                          {
+                            "section": "上平声部",
+                            "group": "一东",
+                            "tone": "平"
+                          }
+                        ]
+                      }
+                    ],
+                    "rules": [
+                      {
+                        "rule": "忌三平调",
+                        "version": "last-three-level-1",
+                        "status": "pass"
+                      },
+                      {
+                        "rule": "忌孤平",
+                        "version": "guping-wangli-1",
+                        "status": "pass"
+                      }
+                    ]
+                  }
+                ],
+                "rule_version": "pingshui-basic-1",
+                "rule_mapping": {
+                  "忌孤平": "guping-wangli-1",
+                  "忌三平调": "last-three-level-1",
+                  "二四六分明": "bound-even-positions-1"
+                }
+              },
+              "rhyme": {
+                "status": "pass",
+                "required": true,
+                "issues": [],
+                "lines": [
+                  {
+                    "line": 2,
+                    "status": "pass",
+                    "issues": []
+                  }
+                ]
+              },
+              "duplicate": {
+                "status": "fail",
+                "required": false,
+                "occurrences": [
+                  {
+                    "char": "东",
+                    "count": 2,
+                    "positions": [
+                      {
+                        "line": 2,
+                        "pos": 1,
+                        "offset": 0
+                      },
+                      {
+                        "line": 2,
+                        "pos": 5,
+                        "offset": 4
+                      }
+                    ]
+                  },
+                  {
+                    "char": "月",
+                    "count": 2,
+                    "positions": [
+                      {
+                        "line": 2,
+                        "pos": 3,
+                        "offset": 2
+                      },
+                      {
+                        "line": 2,
+                        "pos": 4,
+                        "offset": 3
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "errors": [],
+            "warnings": [
+              "重复字：东、月"
+            ]
+          },
+          "literary_evaluation": null,
+          "quality_score": null,
+          "duplicate_of": null,
+          "reasons": [],
+          "category": "passed"
+        },
+        {
+          "id": "duplicate",
+          "text": "东东月月东",
+          "line_index": 2,
+          "input_index": 2,
+          "normalized_text": "东东月月东",
+          "history_id": "78c00d427eb0462c9ef729f5f101d798:duplicate",
+          "checks": null,
+          "literary_evaluation": null,
+          "quality_score": null,
+          "duplicate_of": "a",
+          "reasons": [
+            {
+              "code": "DUPLICATE_TEXT",
+              "message": "仅忽略外围空白和约定标点后与较早候选相同。"
+            }
+          ],
+          "category": "duplicate"
+        },
+        {
+          "id": "bad",
+          "text": "东月月月东",
+          "line_index": 2,
+          "input_index": 3,
+          "normalized_text": "东月月月东",
+          "history_id": "78c00d427eb0462c9ef729f5f101d798:bad",
+          "checks": {
+            "binding_version": 1,
+            "scope": "candidate",
+            "subject": {
+              "candidate_id": "78c00d427eb0462c9ef729f5f101d798:bad",
+              "line_index": 2,
+              "text_sha256": "0166d39e4098a9305e1a7af861b0d848b6f4d9507a8f5ee246cab6314511f21b"
+            },
+            "context_sha256": "dba97a83b820d876b7c049e129ed5242d140d9b2da1890cd95710d9a1145180d",
+            "revision": 2,
+            "valid": false,
+            "checks": {
+              "length": {
+                "status": "pass",
+                "required": true,
+                "issues": [],
+                "lines": [
+                  {
+                    "line": 2,
+                    "original": "东月月月东",
+                    "text": "东月月月东",
+                    "cells": [
+                      {
+                        "line": 2,
+                        "pos": 1,
+                        "char": "东",
+                        "offset": 0,
+                        "is_han": true
+                      },
+                      {
+                        "line": 2,
+                        "pos": 2,
+                        "char": "月",
+                        "offset": 1,
+                        "is_han": true
+                      },
+                      {
+                        "line": 2,
+                        "pos": 3,
+                        "char": "月",
+                        "offset": 2,
+                        "is_han": true
+                      },
+                      {
+                        "line": 2,
+                        "pos": 4,
+                        "char": "月",
+                        "offset": 3,
+                        "is_han": true
+                      },
+                      {
+                        "line": 2,
+                        "pos": 5,
+                        "char": "东",
+                        "offset": 4,
+                        "is_han": true
+                      }
+                    ],
+                    "segments": 1
+                  }
+                ]
+              },
+              "pingze": {
+                "status": "fail",
+                "required": true,
+                "issues": [
+                  {
+                    "line": 2,
+                    "pos": 2,
+                    "char": "月",
+                    "offset": 1,
+                    "is_han": true,
+                    "expected": "平",
+                    "status": "fail",
+                    "code": "TONE_MISMATCH"
+                  }
+                ],
+                "lines": [
+                  {
+                    "line": 2,
+                    "status": "fail",
+                    "issues": [
+                      {
+                        "line": 2,
+                        "pos": 2,
+                        "char": "月",
+                        "offset": 1,
+                        "is_han": true,
+                        "expected": "平",
+                        "status": "fail",
+                        "code": "TONE_MISMATCH"
+                      }
+                    ],
+                    "positions": [
+                      {
+                        "line": 2,
+                        "pos": 1,
+                        "char": "东",
+                        "offset": 0,
+                        "is_han": true,
+                        "expected": "中",
+                        "status": "pass",
+                        "memberships": [
+                          {
+                            "section": "上平声部",
+                            "group": "一东",
+                            "tone": "平"
+                          }
+                        ]
+                      },
+                      {
+                        "line": 2,
+                        "pos": 2,
+                        "char": "月",
+                        "offset": 1,
+                        "is_han": true,
+                        "expected": "平",
+                        "status": "fail",
+                        "memberships": [
+                          {
+                            "section": "入声部",
+                            "group": "入声六月",
+                            "tone": "仄"
+                          }
+                        ]
+                      },
+                      {
+                        "line": 2,
+                        "pos": 3,
+                        "char": "月",
+                        "offset": 2,
+                        "is_han": true,
+                        "expected": "中",
+                        "status": "pass",
+                        "memberships": [
+                          {
+                            "section": "入声部",
+                            "group": "入声六月",
+                            "tone": "仄"
+                          }
+                        ]
+                      },
+                      {
+                        "line": 2,
+                        "pos": 4,
+                        "char": "月",
+                        "offset": 3,
+                        "is_han": true,
+                        "expected": "仄",
+                        "status": "pass",
+                        "memberships": [
+                          {
+                            "section": "入声部",
+                            "group": "入声六月",
+                            "tone": "仄"
+                          }
+                        ]
+                      },
+                      {
+                        "line": 2,
+                        "pos": 5,
+                        "char": "东",
+                        "offset": 4,
+                        "is_han": true,
+                        "expected": "平",
+                        "status": "pass",
+                        "memberships": [
+                          {
+                            "section": "上平声部",
+                            "group": "一东",
+                            "tone": "平"
+                          }
+                        ]
+                      }
+                    ],
+                    "rules": [
+                      {
+                        "rule": "忌三平调",
+                        "version": "last-three-level-1",
+                        "status": "pass"
+                      },
+                      {
+                        "rule": "忌孤平",
+                        "version": "guping-wangli-1",
+                        "status": "pass"
+                      }
+                    ]
+                  }
+                ],
+                "rule_version": "pingshui-basic-1",
+                "rule_mapping": {
+                  "忌孤平": "guping-wangli-1",
+                  "忌三平调": "last-three-level-1",
+                  "二四六分明": "bound-even-positions-1"
+                }
+              },
+              "rhyme": {
+                "status": "pass",
+                "required": true,
+                "issues": [],
+                "lines": [
+                  {
+                    "line": 2,
+                    "status": "pass",
+                    "issues": []
+                  }
+                ]
+              },
+              "duplicate": {
+                "status": "fail",
+                "required": false,
+                "occurrences": [
+                  {
+                    "char": "东",
+                    "count": 2,
+                    "positions": [
+                      {
+                        "line": 2,
+                        "pos": 1,
+                        "offset": 0
+                      },
+                      {
+                        "line": 2,
+                        "pos": 5,
+                        "offset": 4
+                      }
+                    ]
+                  },
+                  {
+                    "char": "月",
+                    "count": 3,
+                    "positions": [
+                      {
+                        "line": 2,
+                        "pos": 2,
+                        "offset": 1
+                      },
+                      {
+                        "line": 2,
+                        "pos": 3,
+                        "offset": 2
+                      },
+                      {
+                        "line": 2,
+                        "pos": 4,
+                        "offset": 3
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "errors": [
+              "pingze: TONE_MISMATCH"
+            ],
+            "warnings": [
+              "重复字：东、月"
+            ]
+          },
+          "literary_evaluation": null,
+          "quality_score": null,
+          "duplicate_of": null,
+          "reasons": [
+            {
+              "check": "pingze",
+              "line": 2,
+              "pos": 2,
+              "char": "月",
+              "offset": 1,
+              "is_han": true,
+              "expected": "平",
+              "status": "fail",
+              "code": "TONE_MISMATCH"
+            }
+          ],
+          "category": "failed"
+        },
+        {
+          "id": "unknown",
+          "text": "东重月月东",
+          "line_index": 2,
+          "input_index": 4,
+          "normalized_text": "东重月月东",
+          "history_id": "78c00d427eb0462c9ef729f5f101d798:unknown",
+          "checks": {
+            "binding_version": 1,
+            "scope": "candidate",
+            "subject": {
+              "candidate_id": "78c00d427eb0462c9ef729f5f101d798:unknown",
+              "line_index": 2,
+              "text_sha256": "8b1f81784f9062c7d91ea1cf302e138c24dac40c3b46f052c11c2a4ee6488d94"
+            },
+            "context_sha256": "dba97a83b820d876b7c049e129ed5242d140d9b2da1890cd95710d9a1145180d",
+            "revision": 2,
+            "valid": null,
+            "checks": {
+              "length": {
+                "status": "pass",
+                "required": true,
+                "issues": [],
+                "lines": [
+                  {
+                    "line": 2,
+                    "original": "东重月月东",
+                    "text": "东重月月东",
+                    "cells": [
+                      {
+                        "line": 2,
+                        "pos": 1,
+                        "char": "东",
+                        "offset": 0,
+                        "is_han": true
+                      },
+                      {
+                        "line": 2,
+                        "pos": 2,
+                        "char": "重",
+                        "offset": 1,
+                        "is_han": true
+                      },
+                      {
+                        "line": 2,
+                        "pos": 3,
+                        "char": "月",
+                        "offset": 2,
+                        "is_han": true
+                      },
+                      {
+                        "line": 2,
+                        "pos": 4,
+                        "char": "月",
+                        "offset": 3,
+                        "is_han": true
+                      },
+                      {
+                        "line": 2,
+                        "pos": 5,
+                        "char": "东",
+                        "offset": 4,
+                        "is_han": true
+                      }
+                    ],
+                    "segments": 1
+                  }
+                ]
+              },
+              "pingze": {
+                "status": "unknown",
+                "required": true,
+                "issues": [
+                  {
+                    "line": 2,
+                    "pos": 2,
+                    "char": "重",
+                    "offset": 1,
+                    "is_han": true,
+                    "expected": "平",
+                    "status": "unknown",
+                    "code": "AMBIGUOUS_READING"
+                  }
+                ],
+                "lines": [
+                  {
+                    "line": 2,
+                    "status": "unknown",
+                    "issues": [
+                      {
+                        "line": 2,
+                        "pos": 2,
+                        "char": "重",
+                        "offset": 1,
+                        "is_han": true,
+                        "expected": "平",
+                        "status": "unknown",
+                        "code": "AMBIGUOUS_READING"
+                      }
+                    ],
+                    "positions": [
+                      {
+                        "line": 2,
+                        "pos": 1,
+                        "char": "东",
+                        "offset": 0,
+                        "is_han": true,
+                        "expected": "中",
+                        "status": "pass",
+                        "memberships": [
+                          {
+                            "section": "上平声部",
+                            "group": "一东",
+                            "tone": "平"
+                          }
+                        ]
+                      },
+                      {
+                        "line": 2,
+                        "pos": 2,
+                        "char": "重",
+                        "offset": 1,
+                        "is_han": true,
+                        "expected": "平",
+                        "status": "unknown",
+                        "memberships": [
+                          {
+                            "section": "上声部",
+                            "group": "二肿",
+                            "tone": "仄"
+                          },
+                          {
+                            "section": "上平声部",
+                            "group": "二冬",
+                            "tone": "平"
+                          },
+                          {
+                            "section": "去声部",
+                            "group": "二宋",
+                            "tone": "仄"
+                          }
+                        ]
+                      },
+                      {
+                        "line": 2,
+                        "pos": 3,
+                        "char": "月",
+                        "offset": 2,
+                        "is_han": true,
+                        "expected": "中",
+                        "status": "pass",
+                        "memberships": [
+                          {
+                            "section": "入声部",
+                            "group": "入声六月",
+                            "tone": "仄"
+                          }
+                        ]
+                      },
+                      {
+                        "line": 2,
+                        "pos": 4,
+                        "char": "月",
+                        "offset": 3,
+                        "is_han": true,
+                        "expected": "仄",
+                        "status": "pass",
+                        "memberships": [
+                          {
+                            "section": "入声部",
+                            "group": "入声六月",
+                            "tone": "仄"
+                          }
+                        ]
+                      },
+                      {
+                        "line": 2,
+                        "pos": 5,
+                        "char": "东",
+                        "offset": 4,
+                        "is_han": true,
+                        "expected": "平",
+                        "status": "pass",
+                        "memberships": [
+                          {
+                            "section": "上平声部",
+                            "group": "一东",
+                            "tone": "平"
+                          }
+                        ]
+                      }
+                    ],
+                    "rules": [
+                      {
+                        "rule": "忌三平调",
+                        "version": "last-three-level-1",
+                        "status": "pass"
+                      },
+                      {
+                        "rule": "忌孤平",
+                        "version": "guping-wangli-1",
+                        "status": "pass"
+                      }
+                    ]
+                  }
+                ],
+                "rule_version": "pingshui-basic-1",
+                "rule_mapping": {
+                  "忌孤平": "guping-wangli-1",
+                  "忌三平调": "last-three-level-1",
+                  "二四六分明": "bound-even-positions-1"
+                }
+              },
+              "rhyme": {
+                "status": "pass",
+                "required": true,
+                "issues": [],
+                "lines": [
+                  {
+                    "line": 2,
+                    "status": "pass",
+                    "issues": []
+                  }
+                ]
+              },
+              "duplicate": {
+                "status": "fail",
+                "required": false,
+                "occurrences": [
+                  {
+                    "char": "东",
+                    "count": 2,
+                    "positions": [
+                      {
+                        "line": 2,
+                        "pos": 1,
+                        "offset": 0
+                      },
+                      {
+                        "line": 2,
+                        "pos": 5,
+                        "offset": 4
+                      }
+                    ]
+                  },
+                  {
+                    "char": "月",
+                    "count": 2,
+                    "positions": [
+                      {
+                        "line": 2,
+                        "pos": 3,
+                        "offset": 2
+                      },
+                      {
+                        "line": 2,
+                        "pos": 4,
+                        "offset": 3
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "errors": [],
+            "warnings": [
+              "重复字：东、月"
+            ]
+          },
+          "literary_evaluation": null,
+          "quality_score": null,
+          "duplicate_of": null,
+          "reasons": [
+            {
+              "check": "pingze",
+              "line": 2,
+              "pos": 2,
+              "char": "重",
+              "offset": 1,
+              "is_han": true,
+              "expected": "平",
+              "status": "unknown",
+              "code": "AMBIGUOUS_READING"
+            }
+          ],
+          "category": "unresolved"
+        }
+      ],
+      "filter_sha256": "d33f6c9fc1f20c9cb5fb7e3b0488abd157c07ea0bd26d38438ec7e62957f3487",
+      "score_request": {
+        "batch_id": "78c00d427eb0462c9ef729f5f101d798",
+        "context_sha256": "dba97a83b820d876b7c049e129ed5242d140d9b2da1890cd95710d9a1145180d",
+        "contract_version": "poetry-round-1",
+        "generation_sha256": "ffc30c940cf822d4e077e5aae12c5ce7c8b5ea4106bb6314bc01b54decf99369",
+        "filter_sha256": "d33f6c9fc1f20c9cb5fb7e3b0488abd157c07ea0bd26d38438ec7e62957f3487",
+        "rubric_version": "literary-1",
+        "weights": {
+          "theme": 0.25,
+          "naturalness": 0.25,
+          "imagery": 0.2,
+          "continuity": 0.15,
+          "expression": 0.15
+        },
+        "scale": {
+          "0": "不符合该维度",
+          "0.25": "明显薄弱",
+          "0.5": "基本成立但有明显不足",
+          "0.75": "表现良好，只有局部不足",
+          "1": "在当前上下文中充分且准确"
+        },
+        "context": {
+          "contract_version": "poetry-round-1",
+          "batch_id": "78c00d427eb0462c9ef729f5f101d798",
+          "context_sha256": "dba97a83b820d876b7c049e129ed5242d140d9b2da1890cd95710d9a1145180d",
+          "revision": 2,
+          "status": "ready",
+          "reasons": [],
+          "request": {
+            "raw_request": "写东风月夜五绝，仄起，首句不入韵，情绪宁静。",
+            "theme": "东风月夜",
+            "emotion": [
+              "宁静"
+            ],
+            "poem_type": "五言绝句",
+            "meter": {
+              "template_id": null,
+              "start": "仄起",
+              "first_line_rhymes": false
+            },
+            "input": {
+              "version": 1,
+              "text": "写东风月夜五绝，仄起，首句不入韵，情绪宁静。",
+              "attachments": []
+            },
+            "scene": "",
+            "time": "",
+            "characters": [],
+            "constraints": []
+          },
+          "theme": "东风月夜",
+          "emotion": [
+            "宁静"
+          ],
+          "imagery": [
+            "东风",
+            "月"
+          ],
+          "structure": [
+            {
+              "unit": "第二句",
+              "intent": "承接夜景，保持宁静视角"
+            }
+          ],
+          "lines": [],
+          "poem_type": "五言绝句",
+          "form": {
+            "line_count": 4,
+            "line_length": 5,
+            "planning_unit": "line",
+            "antithesis_pairs": []
+          },
+          "line_index": 2,
+          "template": {
+            "data": {
+              "id": "wj_z",
+              "sketch": "五言绝句，仄起首句不入韵，4句20字",
+              "type": "五言绝句",
+              "pattern": "仄起首句不入韵",
+              "line_count": 4,
+              "char_count": 20,
+              "rhyme": {
+                "type": "平韵",
+                "first_line_rhyme": false,
+                "positions": [
+                  2,
+                  4
+                ]
+              },
+              "constraints": [
+                "忌孤平",
+                "忌三平调",
+                "二四六分明"
+              ],
+              "tunes": [
+                {
+                  "tune": "中",
+                  "line": 1,
+                  "pos": 1
+                },
+                {
+                  "tune": "仄",
+                  "line": 1,
+                  "pos": 2
+                },
+                {
+                  "tune": "中",
+                  "line": 1,
+                  "pos": 3
+                },
+                {
+                  "tune": "平",
+                  "line": 1,
+                  "pos": 4
+                },
+                {
+                  "tune": "仄",
+                  "line": 1,
+                  "pos": 5,
+                  "rhythm": "句"
+                },
+                {
+                  "tune": "中",
+                  "line": 2,
+                  "pos": 1
+                },
+                {
+                  "tune": "平",
+                  "line": 2,
+                  "pos": 2
+                },
+                {
+                  "tune": "中",
+                  "line": 2,
+                  "pos": 3
+                },
+                {
+                  "tune": "仄",
+                  "line": 2,
+                  "pos": 4
+                },
+                {
+                  "tune": "平",
+                  "line": 2,
+                  "pos": 5,
+                  "rhythm": "韵"
+                },
+                {
+                  "tune": "中",
+                  "line": 3,
+                  "pos": 1
+                },
+                {
+                  "tune": "平",
+                  "line": 3,
+                  "pos": 2
+                },
+                {
+                  "tune": "平",
+                  "line": 3,
+                  "pos": 3
+                },
+                {
+                  "tune": "仄",
+                  "line": 3,
+                  "pos": 4
+                },
+                {
+                  "tune": "仄",
+                  "line": 3,
+                  "pos": 5,
+                  "rhythm": "句"
+                },
+                {
+                  "tune": "中",
+                  "line": 4,
+                  "pos": 1
+                },
+                {
+                  "tune": "仄",
+                  "line": 4,
+                  "pos": 2
+                },
+                {
+                  "tune": "仄",
+                  "line": 4,
+                  "pos": 3
+                },
+                {
+                  "tune": "平",
+                  "line": 4,
+                  "pos": 4
+                },
+                {
+                  "tune": "平",
+                  "line": 4,
+                  "pos": 5,
+                  "rhythm": "韵"
+                }
+              ]
+            },
+            "source_sha256": "38f8e5b34ab209c3cb9dca3446f55ee7be54c76b9fc525f67dc5fc19523faab3"
+          },
+          "user_meter": {
+            "template_id": null,
+            "start": "仄起",
+            "first_line_rhymes": false
+          },
+          "tone_requirements": [
+            {
+              "tune": "中",
+              "line": 2,
+              "pos": 1
+            },
+            {
+              "tune": "平",
+              "line": 2,
+              "pos": 2
+            },
+            {
+              "tune": "中",
+              "line": 2,
+              "pos": 3
+            },
+            {
+              "tune": "仄",
+              "line": 2,
+              "pos": 4
+            },
+            {
+              "tune": "平",
+              "line": 2,
+              "pos": 5,
+              "rhythm": "韵"
+            }
+          ],
+          "is_rhyme_line": true,
+          "rhyme": {
+            "system": "平水韵",
+            "group": "一东",
+            "first_line_rhymes": false
+          },
+          "constraints": [],
+          "couplet": null,
+          "budget": {
+            "candidates_per_round": 10,
+            "beam_width": 3,
+            "max_backtracks": 3,
+            "max_rounds": 20
+          },
+          "candidate_count": {
+            "min": 1,
+            "max": 10,
+            "target": 5
+          },
+          "retry_policy": {
+            "max_attempts_per_stage": 3,
+            "automatic_retries": false
+          },
+          "generation_instruction": "生成语义完整的候选句，保留句意与自然措辞；不得逐字填空、自动改句或猜选有利读音。",
+          "generation_sha256": "ffc30c940cf822d4e077e5aae12c5ce7c8b5ea4106bb6314bc01b54decf99369"
+        },
+        "candidates": [
+          {
+            "id": "a",
+            "text": " 东东月月东。 ",
+            "line_index": 2
+          },
+          {
+            "id": "b",
+            "text": "东冬月月东",
+            "line_index": 2
+          }
+        ],
+        "instruction": "只评价此处列出的规则通过候选；各维度给有限 0–1 数值和简短理由。未评价填 null。自然、准确、含蓄优于词藻堆砌，不要求机械添加诗眼。不得改变规则结果。律诗可附加对仗观察，但不得声称程序已完成语义对仗判断。"
+      }
+    },
+    "score_input": {
+      "batch_id": "78c00d427eb0462c9ef729f5f101d798",
+      "generation_sha256": "ffc30c940cf822d4e077e5aae12c5ce7c8b5ea4106bb6314bc01b54decf99369",
+      "context_sha256": "dba97a83b820d876b7c049e129ed5242d140d9b2da1890cd95710d9a1145180d",
+      "contract_version": "poetry-round-1",
+      "attempt": 1,
+      "filter_sha256": "d33f6c9fc1f20c9cb5fb7e3b0488abd157c07ea0bd26d38438ec7e62957f3487",
+      "rubric_version": "literary-1",
+      "scores": [
+        {
+          "id": "a",
+          "evaluation": {
+            "dimensions": {
+              "theme": 0.25,
+              "naturalness": 0,
+              "imagery": 0.25,
+              "continuity": 0,
+              "expression": 0
+            },
+            "reason": "机械字串虽规则通过，但缺乏自然句意；固定夹具仅验证评分计算。"
+          }
+        },
+        {
+          "id": "b",
+          "evaluation": {
+            "dimensions": {
+              "theme": 0.25,
+              "naturalness": 0,
+              "imagery": 0.25,
+              "continuity": 0,
+              "expression": 0
+            },
+            "reason": "同为机械字串，无自然表达；与 a 同分以验证生成顺序优先。"
+          }
+        }
+      ]
+    }
+  }
+}

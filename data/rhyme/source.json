@@ -1,0 +1,38 @@
+{
+  "repository": "https://github.com/charlesix59/chinese_word_rhyme",
+  "commit": "ff0e9c13fb037c43e0eaa5dc929c0fe4fa2ffb18",
+  "source_url": "https://raw.githubusercontent.com/charlesix59/chinese_word_rhyme/ff0e9c13fb037c43e0eaa5dc929c0fe4fa2ffb18/data/Pingshui_Rhyme.json",
+  "file": "Pingshui_Rhyme.json",
+  "sha256": "2822293ddb4fd100937e59e468847f63a22865626e4803dea35d51224d5d6362",
+  "upstream_sha256": "fd11164ca1b848eb6b777688d5d6628ce772d72d0a25a0efd12d6b58459c6e2e",
+  "matches_upstream": false,
+  "license_file": "LICENSE",
+  "license_note": "Upstream MIT license retained; data provenance is as declared by upstream.",
+  "limitations": "Character to section/group memberships only; no pronunciation-to-group mapping; no automatic simplified/traditional conversion.",
+  "known_gaps": {
+    "base_group_count": 105,
+    "base_missing_group": "上声部/三讲",
+    "effective_group_count": 106,
+    "supplemented_groups": [
+      "上声部/三讲"
+    ],
+    "note": "Group coverage is complete; character and reading coverage is not asserted complete."
+  },
+  "local_changes": [
+    {
+      "source_url": "https://sou-yun.cn/QR.aspx?ct=%E8%AE%B2",
+      "retrieved_on": "2026-09-14",
+      "version": "souyun-sanjiang-2026-09-14",
+      "section": "上声部",
+      "group": "三讲",
+      "character_count": 29,
+      "extraction": "Preserve listed characters in source order, including both rare non-BMP characters; omit headings, whitespace and bracketed gloss; no script conversion.",
+      "annotations": {
+        "漎": "水会也"
+      },
+      "license": "No explicit open-data redistribution license identified on the source/about pages; upstream MIT license does not cover this supplement. Only character/group membership facts are included.",
+      "license_reference_url": "https://sou-yun.cn/about.aspx",
+      "operation": "Insert 上声部/三讲 between 二肿 and 四纸 in Pingshui_Rhyme.json; all other upstream bytes retained."
+    }
+  ]
+}

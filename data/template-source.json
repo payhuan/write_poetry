@@ -1,0 +1,9 @@
+{
+  "source_path": "data/shi_ge_lv.json",
+  "source_kind": "user_provided",
+  "imported_on": "2026-09-14",
+  "sha256": "38f8e5b34ab209c3cb9dca3446f55ee7be54c76b9fc525f67dc5fc19523faab3",
+  "template_count": 16,
+  "bibliographic_source": null,
+  "notes": "Original bytes preserved. Structural validation is not full prosody certification; named constraints require later engine implementation."
+}
