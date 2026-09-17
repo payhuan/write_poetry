@@ -252,6 +252,9 @@ class ConstraintTests(unittest.TestCase):
             bad = deepcopy(r); bad['checks']['duplicate']['required'] = value
             with self.assertRaises(ValueError):
                 PoemState._validate_assessment(bad, bad['revision'], full_poem=False)
+        bad = deepcopy(r); bad['checks']['reading']['required'] = False
+        with self.assertRaises(ValueError):
+            PoemState._validate_assessment(bad, bad['revision'], full_poem=False)
 
     def test_call_errors(self):
         for line in (0, 5, True):

@@ -249,15 +249,16 @@ class PoemState:
             if item.get("required", True):
                 statuses.append(item["status"])
         if any(result["checks"].get(key, {}).get("required", True) is False
-               for key in ("length", "pingze", "rhyme")):
+               for key in ("length", "pingze", "rhyme", "reading")):
             raise ValueError("Core checks must be required")
         expected = False if "fail" in statuses else None if any(x in statuses for x in ("unknown", "not_run")) else True
         if result["valid"] is not expected:
             raise ValueError("Assessment summary disagrees with individual checks")
         if result["valid"] is True and (result["errors"] or not {"length", "pingze", "rhyme"} <= set(result["checks"])
                 or any(result["checks"][key]["status"] != "pass" for key in ("length", "pingze"))
-                or result["checks"]["rhyme"]["status"] not in (("pass",) if full_poem else ("pass", "not_applicable"))):
-            raise ValueError("Passing assessment requires length, pingze and rhyme checks")
+                or result["checks"]["rhyme"]["status"] not in (("pass",) if full_poem else ("pass", "not_applicable"))
+                or ("reading" in result["checks"] and result["checks"]["reading"]["status"] != "pass")):
+            raise ValueError("Passing assessment requires all core checks to pass")
 
     def _commit(self, data, invalidate=False):
         if invalidate:
