@@ -9,6 +9,7 @@ from poem_state import PoemState
 from request_options import normalize_meter, normalize_input
 from poem_templates import TemplateLibrary
 from content_requirements import normalize_requirements, ContentConflict
+from runtime_workspace import configure_workspace, input_path, output_path
 
 
 ALIASES = {
@@ -135,12 +136,16 @@ def main():
     source.add_argument("--text-file", type=Path, help="UTF-8 original request file")
     parser.add_argument("--extraction", required=True, type=Path, help="LLM extraction JSON")
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--work-dir", type=Path)
     args = parser.parse_args()
     try:
-        raw = args.text if args.text is not None else args.text_file.read_text(encoding="utf-8-sig")
-        extraction = json.loads(args.extraction.read_text(encoding="utf-8-sig"))
+        configure_workspace(args.work_dir)
+        target = output_path(args.output)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        raw = args.text if args.text is not None else input_path(args.text_file).read_text(encoding="utf-8-sig")
+        extraction = json.loads(input_path(args.extraction).read_text(encoding="utf-8-sig"))
         state = parse_request(raw, extraction)
-        with args.output.open("x", encoding="utf-8") as output:
+        with target.open("x", encoding="utf-8") as output:
             json.dump(state, output, ensure_ascii=False, indent=2)
             output.write("\n")
     except ClarificationRequired as exc:

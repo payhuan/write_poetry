@@ -9,8 +9,9 @@ from poem_state import PoemState
 from constraint_engine import ConstraintEngine
 from assessment_binding import digest, make_binding
 from poetry_round import (export_context, filter_candidates, review_content, finish_round,
-                          require, RoundError, read_json, project_path, write_new_json,
+                          require, RoundError, read_json, write_new_json,
                           _validate_context)
+from runtime_workspace import configure_workspace, input_path, output_path
 from round_content import export_content_plan, validate_content_plan, requirements
 
 VERSION = 'poetry-search-1'
@@ -107,11 +108,11 @@ class Search:
         return s
 
     def save(self, path):
-        write_new_json(path, self.to_dict())
+        write_new_json(output_path(path), self.to_dict())
 
     @classmethod
     def load(cls, path, **kwargs):
-        return cls.from_dict(read_json(project_path(path).read_text(encoding='utf-8-sig')), **kwargs)
+        return cls.from_dict(read_json(input_path(path).read_text(encoding='utf-8-sig')), **kwargs)
 
     def next_job(self):
         return deepcopy(self.data['pending'])
@@ -371,9 +372,11 @@ def main():
     parser.add_argument('--output', required=True)
     parser.add_argument('--content-plan')
     parser.add_argument('--response')
+    parser.add_argument('--work-dir')
     args = parser.parse_args()
+    configure_workspace(args.work_dir)
     def load(path):
-        return read_json(project_path(path).read_text(encoding='utf-8-sig'))
+        return read_json(input_path(path).read_text(encoding='utf-8-sig'))
     if args.command == 'start':
         s = Search.create(PoemState.from_dict(load(args.input)),
                           content_plan=load(args.content_plan) if args.content_plan else None)
@@ -381,7 +384,7 @@ def main():
         s = Search.from_dict(load(args.input))
         if args.command == 'submit':
             s.submit(load(args.response))
-    write_new_json(args.output, s.next_job() if args.command == 'next' else s.to_dict())
+    write_new_json(output_path(args.output), s.next_job() if args.command == 'next' else s.to_dict())
 
 
 if __name__ == '__main__':

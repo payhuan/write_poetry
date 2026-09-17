@@ -35,7 +35,7 @@ filter_candidates 整批校验后才检查规则，复用一个引擎和一个�
 
 ## CLI 和完整示例
 
-在项目目录运行下列命令。所有数据路径均相对于 Skill 项目根解析，与调用工作目录无关；内置资源相对于模块加载。CLI 拒绝项目外数据路径，也拒绝覆盖已有输出。输出父目录应先存在。
+可从任意目录运行下列命令。相对运行路径按[独立工作区](runtime-workspace.md)解析；内置资源相对于模块只读加载。CLI 拒绝向 Skill 目录写入，也拒绝覆盖已有输出，并自动创建工作区内的输出父目录。
 
 ```sh
 python scripts/day3_example.py --output-dir examples/day3/run-new
@@ -53,7 +53,7 @@ python scripts/poetry_round.py filter --state examples/day3/run-new/state.json -
 python scripts/poetry_round.py finish --state examples/day3/run-new/state.json --filtered examples/day3/filtered-new.json --scores examples/day3/scores-new.json --output examples/day3/result-new.json
 ```
 
-从其他目录调用时，只需以项目实际位置定位脚本，参数仍用上述项目相对路径。result 文件为 `{state: 标准PoemState字典, report: 完整审计报告}`；该 CLI 的 --state 同时接受原始状态或此结果包。独立 PoemState.from_dict 使用包中的 state。一个完整结果包先在同目录临时文件写完，再原子发布，已有目标不覆盖；失败不发布部分 JSON。文件系统须支持同目录硬链接，不支持时明确报 IO 错误。
+从其他目录调用时，只需以项目实际位置定位脚本，参数仍使用工作区相对路径，或传绝对路径。result 文件为 `{state: 标准PoemState字典, report: 完整审计报告}`；该 CLI 的 --state 同时接受原始状态或此结果包。独立 PoemState.from_dict 使用包中的 state。一个完整结果包先在同目录临时文件写完，再原子发布，已有目标不覆盖；失败不发布部分 JSON。文件系统须支持同目录硬链接，不支持时明确报 IO 错误。
 
 ## 生成提示和 JSON 契约
 

@@ -15,6 +15,7 @@ import time
 from urllib.error import URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+from runtime_workspace import configure_workspace, output_path
 
 PROJECT = Path(__file__).resolve().parent.parent
 PAGE_URL = 'https://www.52shici.com/zd/yun.php'
@@ -263,7 +264,7 @@ def generate(fetcher):
                         'No script conversion, inferred variants, or supplementation from the old table.',
                         'Source may change; HTTP hashes and cache allow a specific capture to be audited. '
                         'Responses can have different capture times after resume; this is not an atomic website snapshot. '
-                        'The ignored runs/rhyme-scrape cache is local capture evidence, not a required runtime resource.'],
+                        'The external workspace cache is local capture evidence, not a required runtime resource.'],
         'license_note': 'No explicit open-data redistribution license identified in the fetched page. '
                         'The retained LICENSE belongs to the previous GitHub source and does not license this website data.',
         'previous_source': {'repository': 'https://github.com/charlesix59/chinese_word_rhyme',
@@ -279,15 +280,17 @@ def main():
         sys.stdout.reconfigure(encoding='utf-8')
         sys.stderr.reconfigure(encoding='utf-8')
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--cache', default='runs/rhyme-scrape')
+    parser.add_argument('--cache', default='cache/rhyme-scrape')
     parser.add_argument('--output-dir', default='data/rhyme')
+    parser.add_argument('--work-dir')
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument('--offline', action='store_true')
     mode.add_argument('--refresh', action='store_true')
     args = parser.parse_args()
     try:
+        configure_workspace(args.work_dir)
         output = project_path(args.output_dir)
-        raw, source = generate(Fetcher(project_path(args.cache), offline=args.offline, refresh=args.refresh))
+        raw, source = generate(Fetcher(output_path(args.cache), offline=args.offline, refresh=args.refresh))
         # Nothing touches the final files until every group/response has passed validation.
         output.mkdir(parents=True, exist_ok=True)
         (output / 'Pingshui_Rhyme.json').write_bytes(raw)

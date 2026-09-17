@@ -15,7 +15,7 @@ Day 4 集成见 [搜索控制](poetry-search.md)：搜索固定已确认的 assi
 
 所有接口都可从 poetry_round 导入；实现分为 scripts/round_content.py 和现有 scripts/poetry_round.py。除 finish 外不写 PoemState。可以在同一流程传入同一个 ConstraintEngine，复用韵库。新语义阶段也遵守一次输出加两次格式修正的上限（attempt=1、2、3），不自动调用模型或搜索。
 
-项目目录下运行（先建好本项目内的 examples/content-run 目录，所有参数路径均相对项目根）：
+可从任意目录运行；以下相对路径位于[独立工作区](runtime-workspace.md)，无需在 Skill 包内创建运行目录：
 
 ```sh
 python scripts/poetry_round.py plan --state examples/content-run/state.json --output examples/content-run/plan.json

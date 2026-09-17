@@ -321,10 +321,12 @@ class SearchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             project = Path(temp) / 'moved'
             shutil.copytree(Path(__file__).resolve().parent.parent, project, ignore=shutil.ignore_patterns('__pycache__'))
+            workspace = Path(temp) / 'workspace'
             run = subprocess.run([sys.executable, str(project/'scripts/day4_example.py'),
-                                  '--output', 'examples/migration-day4.json'], cwd=temp, capture_output=True, text=True)
+                                  '--output', 'examples/migration-day4.json', '--work-dir', str(workspace)],
+                                 cwd=temp, capture_output=True, text=True)
             self.assertEqual(run.returncode, 0, run.stderr)
-            saved = json.loads((project/'examples/migration-day4.json').read_text(encoding='utf-8'))
+            saved = json.loads((workspace/'examples/migration-day4.json').read_text(encoding='utf-8'))
             s = Search.from_dict(saved, engine=fixture_engine())
             self.assertEqual(s.data['status'], 'ready_for_review')
 

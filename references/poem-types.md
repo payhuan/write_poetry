@@ -13,7 +13,7 @@ python scripts/poem_templates.py list --poem-type 七言绝句
 python scripts/poem_templates.py bind --state state.json --template-id qj_p_y --output planned.json
 ```
 
-也可使用 `--pattern 平起首句入韵`。`--library` 为可选的全局参数，可在 list/bind 之前指定其他库路径。脚本路径按 Skill 目录解析，状态路径按当前工作目录解析。
+也可使用 `--pattern 平起首句入韵`。`--library` 为可选的全局参数，可在 list/bind 之前指定其他库路径。脚本及默认模板库按 Skill 目录定位；状态输入输出按[独立工作区](runtime-workspace.md)解析。
 
 绑定会同时应用 request.meter 中的明确要求，不允许 CLI 选择覆盖用户要求。若状态中的要求已唯一确定模板，bind 可以省略 --template-id/--pattern；若仍有多个兼容模板则明确报错，须由规划补选。parse_request 已对唯一匹配自动绑定。
 

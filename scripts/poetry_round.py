@@ -23,6 +23,7 @@ from round_content import (CONTENT_VERSION, ContentError, export_content_plan,
                            validate_content_plan, locked_candidate, check_content,
                            content_eligible, semantic_request, apply_semantic_reviews,
                            read_content_fulfillment)
+from runtime_workspace import configure_workspace, input_path, output_path
 
 PROJECT = Path(__file__).resolve().parent.parent
 CONTRACT_VERSION = 'poetry-round-1'
@@ -411,22 +412,14 @@ def finish_round(state, filtered, scores=None, *, engine=None):
     return report
 
 
-def project_path(value):
-    """Require CLI inputs/outputs to live in the relocatable project directory."""
-    path = Path(value)
-    path = (path if path.is_absolute() else PROJECT / path).resolve()
-    if not path.is_relative_to(PROJECT):
-        raise RoundError('PATH_OUTSIDE_PROJECT', 'Keep round input/output files inside this project')
-    return path
-
-
 def _load(value):
-    return read_json(project_path(value).read_text(encoding='utf-8-sig'))
+    return read_json(input_path(value).read_text(encoding='utf-8-sig'))
 
 
 def write_new_json(path, value):
     """Publish one complete JSON artifact atomically, with no existing-file overwrite."""
-    path = project_path(path)
+    path = Path(path).resolve()
+    path.parent.mkdir(parents=True, exist_ok=True)
     serialized = json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + '\n'
     temporary = None
     try:
@@ -451,6 +444,7 @@ def main():
     commands = parser.add_subparsers(dest='command', required=True)
     for name in ('plan', 'export', 'filter', 'review-content', 'finish'):
         command = commands.add_parser(name)
+        command.add_argument('--work-dir')
         command.add_argument('--state', required=True)
         command.add_argument('--output', required=True)
         if name == 'export':
@@ -467,7 +461,8 @@ def main():
             command.add_argument('--scores')
     args = parser.parse_args()
     try:
-        output = project_path(args.output)
+        configure_workspace(args.work_dir)
+        output = output_path(args.output)
         require(not output.exists(), 'OUTPUT_EXISTS', 'Use a new output file; snapshots are never overwritten')
         data = _load(args.state)
         state = PoemState.from_dict(data['state'] if isinstance(data, dict) and set(data) == {'state', 'report'} else data)
@@ -483,7 +478,7 @@ def main():
             report = finish_round(state, _load(args.filtered), _load(args.scores) if args.scores else None)
             result = {'state': state.to_dict(), 'report': report}
         write_new_json(output, result)
-        summary = {'output': output.relative_to(PROJECT).as_posix()}
+        summary = {'output': str(output)}
         if args.command == 'finish':
             summary.update({k: report[k] for k in ('status', 'code', 'counts', 'recommended_id')})
         elif args.command == 'export':

@@ -79,7 +79,7 @@ stage：generate → 可选 content → score。完整正文的语义复核使�
 
 `to_dict/from_dict` 使用 `{search, sha256}` 完整包，版本 poetry-search-1，与 PoemState 0.3.0 分开。search 包括 run_id、initial、config、assignments、active、alternatives、children（当前层已产生尚未全局剪枝的子路径）、cursor、pending、processed、invalid_responses、drafts、diagnostics、events、used 和稳定 ID 计数器。路径包含 path_id、parent_path_id、state、depth、adoptions、score、content；content 是候选历史依据，完整出口另保存 final_content 和当前绑定。
 
-保存原子发布新文件，禁止覆盖；CLI 所有数据路径相对项目根解析、禁止项目外路径。整个项目可迁移，脚本定位资源相对于自身目录。
+保存原子发布新文件，禁止覆盖；CLI 相对数据路径按[独立工作区](runtime-workspace.md)解析，并禁止向 Skill 目录写入。整个项目可迁移，脚本定位内置资源相对于自身目录。
 
 ```sh
 python scripts/poetry_search.py start --input examples/planned-state.json --content-plan examples/plan.json --output examples/search-01.json

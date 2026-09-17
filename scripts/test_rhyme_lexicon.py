@@ -13,6 +13,7 @@ from urllib.error import URLError
 from rhyme_lexicon import AmbiguousRhymeGroup, DATA_DIR, RhymeLexicon
 from scrape_pingshui import (Document, Fetcher, PAGE_URL, catalog, extract_entries,
                              json_bytes, merge_entries, parse_page, parse_uncommon, project_path)
+from runtime_workspace import configure_workspace
 
 
 def synthetic_page():
@@ -116,6 +117,7 @@ class ExtractionTests(unittest.TestCase):
 
     def test_missing_response_does_not_replace_existing_outputs(self):
         from scrape_pingshui import main
+        self.addCleanup(configure_workspace, None)
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp)
             output = project / 'data' / 'rhyme'
@@ -123,7 +125,8 @@ class ExtractionTests(unittest.TestCase):
             for name in ('Pingshui_Rhyme.json', 'source.json'):
                 (output / name).write_bytes(b'original')
             with patch('scrape_pingshui.PROJECT', project), \
-                    patch('sys.argv', ['scrape_pingshui.py', '--offline']), \
+                    patch('sys.argv', ['scrape_pingshui.py', '--offline',
+                                       '--work-dir', str(project / 'work')]), \
                     patch('scrape_pingshui.urlopen', side_effect=AssertionError('Network used')), \
                     patch('sys.stderr'):
                 with self.assertRaises(SystemExit) as error:

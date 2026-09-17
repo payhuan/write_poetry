@@ -7,6 +7,7 @@ from constraint_engine import ConstraintEngine
 from rhyme_lexicon import RhymeLexicon
 from poetry_round import ENVELOPE, WEIGHTS, write_new_json
 from poetry_search import Search
+from runtime_workspace import configure_workspace, output_path
 
 LEXICON = {'上平声部': {'一东': list('天地人')}, '上声部': {'一董': list('水火土')}}
 
@@ -74,11 +75,13 @@ def drive(search, **kwargs):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', default='examples/day4-result.json')
+    parser.add_argument('--work-dir')
     args = parser.parse_args()
+    configure_workspace(args.work_dir)
     search = drive(Search.create(fixture_state(), engine=fixture_engine()), fail_high=True)
     assert search.data['status'] == 'ready_for_review', search.data['events']
     assert search.data['used']['backtracks'] == 1
-    write_new_json(args.output, search.to_dict())
+    write_new_json(output_path(args.output), search.to_dict())
     print(json.dumps({'status': search.data['status'], 'used': search.data['used'],
                       'events': search.data['events']}, ensure_ascii=True))
 

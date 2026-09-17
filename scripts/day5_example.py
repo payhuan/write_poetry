@@ -6,6 +6,7 @@ from day4_example import fixture_state, fixture_engine, drive, response_for as s
 from poetry_search import Search
 from poetry_polish import Polish, IDENTITY, WEIGHTS, REVIEW_VERSION
 from poetry_round import write_new_json
+from runtime_workspace import configure_workspace, output_path
 
 
 def review_for(state, *, revise=False, positions=(1,), score=.8):
@@ -89,9 +90,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', default='examples/day5-result.json')
     parser.add_argument('--adopt', action='store_true')
+    parser.add_argument('--work-dir')
     args = parser.parse_args()
+    configure_workspace(args.work_dir)
     polish = run_example(adopt=args.adopt)
-    write_new_json(args.output, polish.to_dict())
+    write_new_json(output_path(args.output), polish.to_dict())
     print(json.dumps(polish.result(include_notes=True), ensure_ascii=True))
 
 

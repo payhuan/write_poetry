@@ -8,7 +8,8 @@ from constraint_engine import ConstraintEngine
 from poem_state import PoemState
 from poem_templates import TemplateLibrary
 from poetry_round import (ENVELOPE, PROJECT, RUBRIC_VERSION, export_context, filter_candidates,
-                          finish_round, project_path, read_json, write_new_json)
+                          finish_round, read_json, write_new_json)
+from runtime_workspace import configure_workspace, output_path
 
 
 def run(output_dir):
@@ -25,13 +26,13 @@ def run(output_dir):
     scores = {**envelope, 'attempt': 1, 'filter_sha256': filtered['filter_sha256'],
               'rubric_version': RUBRIC_VERSION, 'scores': deepcopy(fixture['scores'])}
     report = finish_round(state, filtered, scores, engine=engine)
-    output = project_path(output_dir)
+    output = output_path(output_dir)
     output.mkdir(parents=True, exist_ok=False)
     for filename, value in [('state.json', initial), ('context.json', context),
                             ('candidates.json', candidates), ('filtered.json', filtered),
                             ('scores.json', scores), ('result.json', {'state': state.to_dict(), 'report': report})]:
         write_new_json(output / filename, value)
-    return {'output': output.relative_to(PROJECT).as_posix(), 'status': report['status'],
+    return {'output': str(output), 'status': report['status'],
             'counts': report['counts'], 'ranking': report['ranking'],
             'recommended_id': report['recommended_id'], 'adopted_id': report['adopted_id'],
             'lines': state.to_dict()['lines']}
@@ -40,8 +41,10 @@ def run(output_dir):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output-dir', default='examples/day3/run')
+    parser.add_argument('--work-dir')
     args = parser.parse_args()
     try:
+        configure_workspace(args.work_dir)
         print(json.dumps(run(args.output_dir), ensure_ascii=False, indent=2))
     except (OSError, ValueError) as exc:
         parser.exit(2, f'Example error: {exc}\n')

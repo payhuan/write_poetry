@@ -6,6 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 from request_options import normalize_meter, matches_meter
+from runtime_workspace import configure_workspace, input_path, output_path
 
 DEFAULT_PATH = Path(__file__).resolve().parent.parent / "data" / "shi_ge_lv.json"
 
@@ -112,7 +113,9 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     listing = commands.add_parser("list")
     listing.add_argument("--poem-type")
+    listing.add_argument("--work-dir", type=Path)
     binding = commands.add_parser("bind")
+    binding.add_argument("--work-dir", type=Path)
     binding.add_argument("--state", type=Path, required=True)
     binding.add_argument("--output", type=Path, required=True)
     selector = binding.add_mutually_exclusive_group()
@@ -120,14 +123,18 @@ def main():
     selector.add_argument("--pattern")
     args = parser.parse_args()
     try:
-        library = TemplateLibrary(args.library)
+        configure_workspace(args.work_dir)
+        library_path = args.library if args.library == DEFAULT_PATH else input_path(args.library)
+        library = TemplateLibrary(library_path)
         if args.command == "list":
             print(json.dumps(library.list(args.poem_type), ensure_ascii=False, indent=2))
         else:
             from poem_state import PoemState
-            state = PoemState.load(args.state)
+            state = PoemState.load(input_path(args.state))
             library.bind(state, template_id=args.template_id, pattern=args.pattern)
-            state.save(args.output)
+            target = output_path(args.output)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            state.save(target)
     except (ValueError, OSError) as exc:
         parser.exit(2, f"Template error: {exc}\n")
 

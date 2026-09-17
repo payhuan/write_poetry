@@ -331,15 +331,16 @@ class ContentRoundTests(unittest.TestCase):
 
     def test_relocated_cli_planning_review_and_fulfillment(self):
         project = Path(__file__).resolve().parent.parent
-        with tempfile.TemporaryDirectory(dir=project, prefix='.day3-test-') as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             copied = Path(tmp) / 'relocated'
             shutil.copytree(project, copied, ignore=shutil.ignore_patterns('__pycache__', '.day3-test-*'))
-            files = copied / 'examples' / 'content-runtime'; files.mkdir()
+            workspace = Path(tmp) / 'workspace'
+            files = workspace / 'examples' / 'content-runtime'; files.mkdir(parents=True)
             state = state_with([fragment(text='东东月月东', kind='line', line=None)], [allusion()])
             state.save(files / 'state.json')
             script = copied / 'scripts' / 'poetry_round.py'
             def run(*args):
-                subprocess.run([sys.executable, str(script), *args], cwd=project.parent,
+                subprocess.run([sys.executable, str(script), *args, '--work-dir', str(workspace)], cwd=project.parent,
                                capture_output=True, check=True)
             def read(name):
                 return read_json((files / name).read_text(encoding='utf-8'))

@@ -6,6 +6,7 @@ from pathlib import Path
 
 
 from poem_state import PoemState
+from runtime_workspace import configure_workspace, input_path, output_path
 
 
 def initialize(request):
@@ -17,10 +18,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--work-dir", type=Path)
     args = parser.parse_args()
     try:
-        state = initialize(json.loads(args.input.read_text(encoding="utf-8-sig")))
-        with args.output.open("x", encoding="utf-8") as output:
+        configure_workspace(args.work_dir)
+        target = output_path(args.output)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        state = initialize(json.loads(input_path(args.input).read_text(encoding="utf-8-sig")))
+        with target.open("x", encoding="utf-8") as output:
             json.dump(state, output, ensure_ascii=False, indent=2)
             output.write("\n")
     except (OSError, ValueError) as exc:

@@ -18,6 +18,7 @@ from poetry_polish import Polish, IDENTITY
 from poetry_round import read_json, ENVELOPE
 from round_content import export_content_plan, validate_content_plan
 from rhyme_lexicon import RhymeLexicon
+from runtime_workspace import configure_workspace, workspace_root
 
 ROOT = Path(__file__).resolve().parent.parent
 MODEL = "deepseek-flash"
@@ -223,15 +224,17 @@ def drive(client, controller, directory, polishing=False):
 def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
-    parser = argparse.ArgumentParser(description="体验赋诗 Agent，使用 deepseek-flash；运行记录保存在项目 runs 目录。")
+    parser = argparse.ArgumentParser(description="体验赋诗 Agent，使用 deepseek-flash；运行记录保存在独立工作区。")
     parser.add_argument("--prompt", help="赋诗需求；省略时交互输入")
     parser.add_argument("--check-api", action="store_true", help="只执行一次很小的 API 连通测试")
     parser.add_argument("--max-calls", type=int, default=60)
+    parser.add_argument("--work-dir", help="运行工作区；默认读取 WRITE_POETRY_WORKDIR 或系统用户数据目录")
     args = parser.parse_args()
     directory = None
     try:
         if args.max_calls < 1:
             raise ValueError("max-calls 必须为正整数")
+        configure_workspace(args.work_dir)
         key = api_key()
         if args.check_api:
             reply = Client(key, max_calls=1).ask("API 连通测试", '返回 JSON {"ok":true}', {}, max_tokens=64)
@@ -243,7 +246,7 @@ def main():
         raw = args.prompt if args.prompt is not None else input("请输入赋诗要求：").strip()
         if not raw.strip():
             raise ValueError("请输入赋诗要求")
-        directory = ROOT / "runs" / (datetime.now().strftime("%Y%m%d-%H%M%S") + '-' + uuid4().hex[:6])
+        directory = workspace_root() / "runs" / (datetime.now().strftime("%Y%m%d-%H%M%S") + '-' + uuid4().hex[:6])
         directory.mkdir(parents=True)
         client = Client(key, directory, args.max_calls)
         state, content_plan = prepare(client, raw)

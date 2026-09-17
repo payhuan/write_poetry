@@ -26,6 +26,8 @@ request 可选包含 allusions 和 required_fragments，格式见 [内容要求]
 
 `scripts/poem_state.py` 提供封装状态的 `PoemState` 类，当前版本为 `0.3.0`，仅依赖 Python 标准库。原有 `initialize(request)` 仍返回字典，底层已改用本模块；输入解析输出可以直接恢复为实例。
 
+命令行创建、绑定或推进状态时，相对文件路径位于[独立工作区](runtime-workspace.md)，不写入 Skill 安装目录。Python API 的 `load(path)` / `save(path)` 接受调用者给出的明确路径，调用方负责将运行文件放在工作区。
+
 request.meter 保存用户指定的 template_id、start、first_line_rhymes；全部允许 null。request.input 保存当前文本封套。输入可省略这两项，初始化自动补齐；模式验证要求已保存的 0.3.0 状态包含规范化字段。直接初始化也会检查用户诗格与模板库的兼容性，但自动绑定由 parse_request 或 TemplateLibrary.bind 执行。
 
 用户要求与规划选择分别存放：request.meter 保留明确要求，template_id 和 meter_template 表示当前选择。所有模板绑定及状态恢复都验证兼容性，不能用 set_plan 覆盖用户明确的首句入韵要求。原先未指定的选项由规划补齐，不能反写成用户要求。

@@ -46,7 +46,7 @@
 python scripts/parse_input.py --text-file request.txt --extraction extraction.json --output state.json
 ```
 
-也可用 `--text` 传原文。输出不可覆盖已有文件。成功退出码为 0；格式、证据或文件错误为 2；需要用户澄清为 3，且不生成状态。遇到格式错误修正提取 JSON；遇到歧义向用户询问并在答复后重新提取。不要为了绕过错误删除真实冲突。
+也可用 `--text` 传原文，并用 `--work-dir` 指定[独立工作区](runtime-workspace.md)。相对输入输出路径以工作区为根，输出不可覆盖已有文件，也不能写入 Skill 目录。成功退出码为 0；格式、证据或文件错误为 2；需要用户澄清为 3，且不生成状态。遇到格式错误修正提取 JSON；遇到歧义向用户询问并在答复后重新提取。不要为了绕过错误删除真实冲突。
 
 结果是可用于规划的 PoemState。`input_parse.evidence` 保留文本依据，`unattributed_fields` 列出没有提供依据的非空字段，供 LLM 复核，不能据此认定其为用户明确指定。
 

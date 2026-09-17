@@ -369,7 +369,7 @@ class PolishTests(unittest.TestCase):
         self.finish(p)
         restored = Polish.from_dict(p.to_dict(), engine=fixture_engine())
         self.assertEqual(restored.to_dict(), p.to_dict())
-        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent.parent) as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'polish.json'
             p.save(path)
             self.assertEqual(Polish.load(path, engine=fixture_engine()).to_dict(), p.to_dict())
@@ -561,10 +561,12 @@ class PolishTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             project = Path(temp) / 'moved'
             shutil.copytree(Path(__file__).resolve().parent.parent, project, ignore=shutil.ignore_patterns('__pycache__'))
+            workspace = Path(temp) / 'workspace'
             run = subprocess.run([sys.executable, str(project/'scripts/day5_example.py'),
-                                  '--output', 'examples/day5-migrated.json'], cwd=temp, capture_output=True, text=True)
+                                  '--output', 'examples/day5-migrated.json', '--work-dir', str(workspace)],
+                                 cwd=temp, capture_output=True, text=True)
             self.assertEqual(run.returncode, 0, run.stderr)
-            saved = json.loads((project/'examples/day5-migrated.json').read_text(encoding='utf-8'))
+            saved = json.loads((workspace/'examples/day5-migrated.json').read_text(encoding='utf-8'))
             p = Polish.from_dict(saved, engine=fixture_engine())
             self.assertEqual(p.data['status'], 'completed')
             self.assertEqual(p.data['history'][0]['decision'], 'rejected')
@@ -579,14 +581,16 @@ class PolishTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             project = Path(temp) / 'moved'
             shutil.copytree(Path(__file__).resolve().parent.parent, project, ignore=shutil.ignore_patterns('__pycache__'))
-            folder = project / 'examples' / 'day5-cli'
-            folder.mkdir()
+            workspace = Path(temp) / 'workspace'
+            folder = workspace / 'examples' / 'day5-cli'
+            folder.mkdir(parents=True)
             def write(name, value):
                 (folder / name).write_text(json.dumps(value, ensure_ascii=False), encoding='utf-8')
             def read(name):
                 return json.loads((folder / name).read_text(encoding='utf-8'))
             def run(command, *args):
-                result = subprocess.run([sys.executable, str(project/'scripts/poetry_polish.py'), command, *args],
+                result = subprocess.run([sys.executable, str(project/'scripts/poetry_polish.py'), command,
+                                         *args, '--work-dir', str(workspace)],
                                         cwd=temp, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
             root = 'examples/day5-cli/'

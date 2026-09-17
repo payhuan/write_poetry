@@ -237,8 +237,7 @@ class RoundTests(unittest.TestCase):
         self.assertEqual(report['records'][0]['checks'], filtered['records'][0]['checks'])
 
     def test_json_publication_is_atomic_and_no_overwrite(self):
-        project = Path(__file__).resolve().parent.parent
-        with tempfile.TemporaryDirectory(dir=project, prefix='.day3-test-') as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / 'result.json'
             with patch('poetry_round.os.link', side_effect=OSError('controlled publication failure')):
                 with self.assertRaises(OSError): write_new_json(target, {'state': 'complete'})
@@ -361,17 +360,17 @@ class RoundTests(unittest.TestCase):
         self.assertEqual(len(filter_candidates(self.state, self.context, candidates, engine=self.engine)['records']), 4)
 
     def test_relocation_full_cli_outside_project(self):
-        # Temporary artifacts and copied resources also remain inside this project.
         project = Path(__file__).resolve().parent.parent
-        with tempfile.TemporaryDirectory(dir=project, prefix='.day3-test-') as tmp:
+        with tempfile.TemporaryDirectory() as tmp:
             copied = Path(tmp) / 'relocated'
             shutil.copytree(project, copied, ignore=shutil.ignore_patterns('__pycache__', '.day3-test-*'))
-            files = copied / 'examples' / 'runtime'
+            workspace = Path(tmp) / 'workspace'
+            files = workspace / 'examples' / 'runtime'
             files.mkdir(parents=True)
             self.state.save(files / 'state.json')
             script = copied / 'scripts' / 'poetry_round.py'
             def run(*args, check=True):
-                return subprocess.run([sys.executable, str(script), *args], cwd=project.parent,
+                return subprocess.run([sys.executable, str(script), *args, '--work-dir', str(workspace)], cwd=project.parent,
                                       capture_output=True, check=check)
             def load(name):
                 return read_json((files / name).read_text(encoding='utf-8'))
@@ -391,12 +390,13 @@ class RoundTests(unittest.TestCase):
             self.assertEqual(result['report']['ranking'], ['c0'])
             self.assertEqual(result['state']['lines'], [])
             self.assertEqual(len(PoemState.from_dict(result['state']).to_dict()['candidate_history']), 3)
-            # A bundle can be used directly as the next CLI input; reject external paths.
+            # A bundle can be used directly as the next CLI input; reject Skill-tree output.
             run('export', '--state', 'examples/runtime/result.json', '--line', '2', '--output', 'examples/runtime/context-next.json')
             bad = run('export', '--state', 'examples/runtime/state.json', '--line', '2',
-                      '--output', '../escape.json', check=False)
+                      '--output', str(copied / 'escape.json'), check=False)
             self.assertEqual(bad.returncode, 2)
-            self.assertEqual(json.loads(bad.stderr)['code'], 'PATH_OUTSIDE_PROJECT')
+            self.assertEqual(json.loads(bad.stderr)['code'], 'INVALID_INPUT')
+            self.assertFalse((copied / 'escape.json').exists())
 
 
 if __name__ == '__main__':

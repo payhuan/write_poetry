@@ -202,7 +202,7 @@ status 为 waiting_for_llm / completed / needs_clarification / incomplete / budg
 
 完整快照为 `{polish, sha256}`，包含原 Search 快照、run_id、配置、已用预算、accepted、当前审校/内容、候选队列、pending、history、reviews、原响应 transcript、幂等记录和最终 output。恢复时从交接重新构造并重放已保存响应，逐项比较重建运行；不只相信摘要或 completed 标签。重放不调用模型、不新增实际预算，结果须与原状态完全相同。当前规则资源与原证明不一致时拒绝恢复（SNAPSHOT_REPLAY_MISMATCH 或交接错误），不能继续沿用旧通过标记。该回放成本随有界工作记录增长，保存文件也包含完整审计信息。
 
-save/load 和 CLI 复用 Day 3 项目内路径解析及原子新文件写入，禁止覆盖、禁止项目外数据路径。所有内置模板和韵库相对脚本定位，无开发机绝对路径。恢复前一接受版本可从对应历史快照及 transcript 找到采用前检查点；不能把单独 base 字典当作已通过 Day 5 的新运行。
+save/load 和 CLI 复用 Day 3 的[独立工作区](runtime-workspace.md)解析及原子新文件写入，禁止覆盖、禁止向 Skill 目录写入。所有内置模板和韵库相对脚本定位，无开发机绝对路径。恢复前一接受版本可从对应历史快照及 transcript 找到采用前检查点；不能把单独 base 字典当作已通过 Day 5 的新运行。
 
 ## CLI
 

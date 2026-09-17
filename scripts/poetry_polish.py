@@ -9,9 +9,10 @@ from assessment_binding import digest, make_binding, require_binding
 from poem_state import PoemState
 from constraint_engine import ConstraintEngine
 from poetry_search import Search
-from poetry_round import (require, read_json, project_path, write_new_json, ENVELOPE,
+from poetry_round import (require, read_json, write_new_json, ENVELOPE,
                           _context, _verify_filter, filter_candidates, review_content)
 from round_content import export_content_plan, validate_content_plan, requirements, _exact
+from runtime_workspace import configure_workspace, input_path, output_path
 
 VERSION = 'poetry-polish-1'
 REVIEW_VERSION = 'whole-poem-review-1'
@@ -543,11 +544,11 @@ class Polish:
         return restored
 
     def save(self, path):
-        write_new_json(path, self.to_dict())
+        write_new_json(output_path(path), self.to_dict())
 
     @classmethod
     def load(cls, path, **kwargs):
-        return cls.from_dict(read_json(project_path(path).read_text(encoding='utf-8-sig')), **kwargs)
+        return cls.from_dict(read_json(input_path(path).read_text(encoding='utf-8-sig')), **kwargs)
 
 
 def main():
@@ -557,6 +558,7 @@ def main():
         sub = commands.add_parser(name)
         sub.add_argument('--input', required=True)
         sub.add_argument('--output', required=True)
+        sub.add_argument('--work-dir')
         if name == 'start':
             sub.add_argument('--path-id', required=True)
             sub.add_argument('--max-rounds', type=int, default=3)
@@ -569,8 +571,9 @@ def main():
             sub.add_argument('--include-notes', action='store_true')
     args = parser.parse_args()
     def load(path):
-        return read_json(project_path(path).read_text(encoding='utf-8-sig'))
+        return read_json(input_path(path).read_text(encoding='utf-8-sig'))
     try:
+        configure_workspace(args.work_dir)
         if args.command == 'start':
             polish = Polish.create(load(args.input), args.path_id, **{k: getattr(args, k) for k in
                 ('max_rounds', 'candidates_per_round', 'max_interactions', 'max_format_repairs')})
@@ -580,7 +583,7 @@ def main():
             polish.submit(load(args.response))
         output = (polish.next_job() if args.command == 'next' else
                   polish.result(include_notes=args.include_notes) if args.command == 'result' else polish.to_dict())
-        write_new_json(args.output, output)
+        write_new_json(output_path(args.output), output)
     except (ValueError, OSError) as exc:
         parser.exit(2, 'Polish error: ' + str(exc) + '\n')
 
