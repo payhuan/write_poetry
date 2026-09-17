@@ -19,6 +19,9 @@ from rhyme_lexicon import DATA_DIR, RhymeLexicon
 from text_normalizer import normalize_line
 from assessment_binding import BINDING_FIELDS
 from reading_disambiguation import make_request, apply_review, recheck_candidate
+from duplicate_disambiguation import (make_request as make_duplicate_request,
+                                      apply_review as apply_duplicate_review,
+                                      recheck_candidate as recheck_duplicate_candidate)
 
 
 FIXTURE = {'上平声部': {'一东': list('天地人风同𠀀'), '二冬': ['同', '冬']},
@@ -28,7 +31,8 @@ FIXTURE = {'上平声部': {'一东': list('天地人风同𠀀'), '二冬': ['�
 class ConstraintTests(unittest.TestCase):
     def setUp(self):
         self.library = TemplateLibrary()
-        self.engine = ConstraintEngine(RhymeLexicon(FIXTURE))
+        self.engine = ConstraintEngine(RhymeLexicon(FIXTURE), duplicate_policy='report')
+        self.real_report_engine = ConstraintEngine(duplicate_policy='report')
 
     def state(self, template=None):
         template = template or self.library.candidates('五言绝句', meter={'pattern': '仄起首句不入韵'})[0]
@@ -234,11 +238,34 @@ class ConstraintTests(unittest.TestCase):
         self.assertTrue(r['valid'])
         self.assertEqual(r['checks']['rhyme']['status'], 'not_applicable')
         self.assertEqual(r['checks']['duplicate']['occurrences'], [])
-        r = self.candidate('天天水水天')
-        self.assertTrue(r['valid'])
-        PoemState._validate_assessment(r, r['revision'], full_poem=False)
-        state.set_plan(constraints=['禁止重复字'])
-        self.assertFalse(self.candidate('天天水水天', state)['valid'])
+        engine = ConstraintEngine(self.engine.lexicon)
+        candidate = {'id': 'c', 'text': '天天水水天', 'line_index': 2}
+        r = engine.check_candidate(candidate, self.state())
+        self.assertIsNone(r['valid'])
+        self.assertTrue(r['checks']['duplicate']['required'])
+        self.assertEqual(r['checks']['duplicate']['status'], 'unknown')
+        request = make_duplicate_request(r)
+        payload = None
+        for relation in ('reduplication', 'parallel', 'descending'):
+            payload = {'review_version': request['review_version'],
+                       'request_sha256': request['request_sha256'],
+                       'decisions': [{'char': item['char'], 'relation': relation,
+                                      'reason': '测试证据明确支持此关系。'}
+                                     for item in request['occurrences']]}
+            checked = recheck_duplicate_candidate(engine, candidate, self.state(), request, payload)
+            self.assertTrue(checked['result']['valid'])
+        rejected = deepcopy(payload)
+        rejected['decisions'][0].update(relation='error', reason='普通复现，不是允许用法。')
+        self.assertFalse(recheck_duplicate_candidate(
+            engine, candidate, self.state(), request, rejected)['result']['valid'])
+        tampered = apply_duplicate_review(request, payload)
+        tampered['constraint_binding']['revision'] += 1
+        with self.assertRaises(ValueError):
+            engine.check_candidate(candidate, self.state(), duplicate_review=tampered)
+        uncertain = deepcopy(payload)
+        uncertain['decisions'][0].update(relation='unknown', reason='上下文不足。')
+        self.assertIsNone(recheck_duplicate_candidate(
+            engine, candidate, self.state(), request, uncertain)['result']['valid'])
 
     def test_snapshot_does_not_reload_library(self):
         state = self.state()
@@ -284,7 +311,8 @@ class ConstraintTests(unittest.TestCase):
         self.assertGreaterEqual(len(lexicon.lookup('重')), 3)
         self.assertEqual(lexicon.lookup('月')[0]['tone'], '仄')
         self.assertEqual(len(lexicon.lookup('东')), 1)
-        r = check_candidate({'id': 'real', 'text': '东东月月东', 'line_index': 2}, self.state())
+        engine = ConstraintEngine(duplicate_policy='report')
+        r = engine.check_candidate({'id': 'real', 'text': '东东月月东', 'line_index': 2}, self.state())
         self.assertTrue(r['valid'])
         with tempfile.TemporaryDirectory() as tmp:
             copied = Path(tmp) / 'relocated'
@@ -296,7 +324,9 @@ class ConstraintTests(unittest.TestCase):
             process = subprocess.run([sys.executable, str(copied / 'scripts' / 'constraint_engine.py'),
                                       '--state', str(state_path), '--candidate', str(candidate)],
                                      cwd=tmp, capture_output=True, check=True)
-            self.assertTrue(json.loads(process.stdout)['valid'])
+            result = json.loads(process.stdout)
+            self.assertIsNone(result['valid'])
+            self.assertEqual(result['checks']['duplicate']['status'], 'unknown')
 
     def test_replacement_source_integrity_and_sanjiang(self):
         lexicon = RhymeLexicon()
@@ -350,7 +380,7 @@ class ConstraintTests(unittest.TestCase):
             state.append_line(text)
         state.set_status('reviewing')
         candidate = {'id': 'good', 'text': '东东月月东', 'line_index': 2}
-        result = check_candidate(candidate, state)
+        result = self.real_report_engine.check_candidate(candidate, state)
         self.assertTrue(result['valid'])
         self.assertFalse(check_poem(state)['valid'])
         before = state.to_dict()
@@ -362,7 +392,7 @@ class ConstraintTests(unittest.TestCase):
     def test_candidate_binding_checks_id_text_and_line(self):
         state = self.state()
         candidate = {'id': 'good', 'text': '东东月月东', 'line_index': 2}
-        result = check_candidate(candidate, state)
+        result = self.real_report_engine.check_candidate(candidate, state)
         # Register after checking: candidate bookkeeping must not alter context digest.
         state.record_candidate('good', candidate['text'], 2)
         state.record_candidate('bad', '东', 2)
@@ -413,7 +443,7 @@ class ConstraintTests(unittest.TestCase):
 
     def test_bound_full_poem_can_complete_and_roundtrip(self):
         state = self.full_state()
-        result = check_poem(state)
+        result = self.real_report_engine.check_poem(state)
         self.assertTrue(result['valid'])
         self.assertEqual(result['scope'], 'poem')
         state.record_candidate('c', '东东月月东', 2)
@@ -428,8 +458,8 @@ class ConstraintTests(unittest.TestCase):
         state = self.full_state()
         candidate = {'id': 'c', 'text': '东东月月东', 'line_index': 2}
         state.record_candidate('c', candidate['text'], 2)
-        old_poem = {k: v for k, v in check_poem(state).items() if k not in BINDING_FIELDS}
-        old_candidate = {k: v for k, v in check_candidate(candidate, state).items() if k not in BINDING_FIELDS}
+        old_poem = {k: v for k, v in self.real_report_engine.check_poem(state).items() if k not in BINDING_FIELDS}
+        old_candidate = {k: v for k, v in self.real_report_engine.check_candidate(candidate, state).items() if k not in BINDING_FIELDS}
         data = state.to_dict()
         data['checks'] = old_poem
         data['status'] = 'reviewing'
@@ -448,12 +478,12 @@ class ConstraintTests(unittest.TestCase):
         # Already completed legacy snapshots retain their historical status on read.
         data['status'] = 'completed'
         self.assertEqual(PoemState.from_dict(data).to_dict()['status'], 'completed')
-        restored.set_assessment(check_poem(restored))
+        restored.set_assessment(self.real_report_engine.check_poem(restored))
         restored.set_status('completed')
 
     def test_binding_validation_and_history(self):
         state = self.full_state()
-        result = check_poem(state)
+        result = self.real_report_engine.check_poem(state)
         for key, value in (('scope', 'candidate'), ('binding_version', True),
                            ('context_sha256', 'x' * 64), ('subject', {})):
             bad = deepcopy(result); bad[key] = value
@@ -465,7 +495,7 @@ class ConstraintTests(unittest.TestCase):
         with self.assertRaises(ValueError): PoemState.from_dict(data)
         candidate = {'id': 'c', 'text': '东东月月东', 'line_index': 2}
         state.record_candidate('c', candidate['text'], 2)
-        state.evaluate_candidate('c', checks=check_candidate(candidate, state), decision='retained')
+        state.evaluate_candidate('c', checks=self.real_report_engine.check_candidate(candidate, state), decision='retained')
         state.replace_line(1, '月月东东月。')
         self.assertEqual(PoemState.from_dict(state.to_dict()).to_dict(), state.to_dict())
 

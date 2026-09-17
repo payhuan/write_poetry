@@ -23,7 +23,7 @@ def fixture_state(form='五言绝句', **budget):
 
 
 def fixture_engine():
-    return ConstraintEngine(RhymeLexicon(LEXICON))
+    return ConstraintEngine(RhymeLexicon(LEXICON), duplicate_policy='report')
 
 
 def line_for(context, variant=0):

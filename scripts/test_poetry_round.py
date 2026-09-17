@@ -40,7 +40,7 @@ def model_scores(filtered, value=0.8):
 class RoundTests(unittest.TestCase):
     def setUp(self):
         self.library = TemplateLibrary()
-        self.engine = ConstraintEngine(RhymeLexicon(FIXTURE))
+        self.engine = ConstraintEngine(RhymeLexicon(FIXTURE), duplicate_policy='report')
         self.state = self.new_state()
         self.context = export_context(self.state, 2)
 
@@ -378,7 +378,7 @@ class RoundTests(unittest.TestCase):
                 (files / name).write_text(json.dumps(value, ensure_ascii=False), encoding='utf-8')
             run('export', '--state', 'examples/runtime/state.json', '--line', '2', '--output', 'examples/runtime/context.json')
             context = load('context.json')
-            save('candidates.json', model_candidates(context, ['东东月月东', '东月月月东', '东重月月东']))
+            save('candidates.json', model_candidates(context, ['风红东孔同', '风孔东火同', '风红重孔同']))
             run('filter', '--state', 'examples/runtime/state.json', '--context', 'examples/runtime/context.json',
                 '--candidates', 'examples/runtime/candidates.json', '--output', 'examples/runtime/filter.json')
             filtered = load('filter.json')

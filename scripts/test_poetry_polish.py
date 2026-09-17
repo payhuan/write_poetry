@@ -16,6 +16,7 @@ from poetry_search import Search
 from poetry_polish import Polish, validate_review
 from poetry_round import export_context
 from round_content import export_content_plan
+from rhyme_lexicon import RhymeLexicon
 from day4_example import fixture_state, fixture_engine, drive, line_for
 from day5_example import review_for, package_for, envelope, comparison_for, content_for, run_example
 
@@ -573,7 +574,18 @@ class PolishTests(unittest.TestCase):
 
     def test_migrated_cli_complete_with_bundled_real_lexicon(self):
         state = fixture_state()
-        lines = [line_for(export_context(state, i)).translate(str.maketrans('天水', '东月')) for i in range(1, 5)]
+        lexicon, used, lines = RhymeLexicon(), set(), []
+        for line_index in range(1, 5):
+            context = export_context(state, line_index)
+            chars = []
+            for item in context['tone_requirements']:
+                is_rhyme = context['is_rhyme_line'] and item['pos'] == len(context['tone_requirements'])
+                char = next(char for char in lexicon._index
+                            if char not in used and len(lexicon.lookup(char)) == 1
+                            and (item['tune'] == '中' or lexicon.lookup(char)[0]['tone'] == item['tune'])
+                            and (not is_rhyme or lexicon.lookup(char)[0]['group'] == '一东'))
+                used.add(char); chars.append(char)
+            lines.append(''.join(chars))
         for line in lines:
             state.append_line(line)
         source = Search.create(state)  # Real project rhyme library, no injected verdicts.

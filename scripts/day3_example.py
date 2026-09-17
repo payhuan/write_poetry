@@ -21,7 +21,8 @@ def run(output_dir):
     context = export_context(state, fixture['line_index'])
     envelope = {k: context[k] for k in ENVELOPE}
     candidates = {**envelope, 'attempt': 1, 'candidates': deepcopy(fixture['candidates'])}
-    engine = ConstraintEngine()
+    # Mechanical tone strings in this deterministic demo are not literary text.
+    engine = ConstraintEngine(duplicate_policy='report')
     filtered = filter_candidates(state, context, candidates, engine=engine)
     scores = {**envelope, 'attempt': 1, 'filter_sha256': filtered['filter_sha256'],
               'rubric_version': RUBRIC_VERSION, 'scores': deepcopy(fixture['scores'])}

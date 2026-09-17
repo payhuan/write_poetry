@@ -31,7 +31,7 @@ report = finish_round(state, filtered, score_json, engine=engine)
 
 export_context 返回 ready 或 planning_required；缺模板和非法句位抛 RoundError。句位允许诗体内任一合法位置，包括已有句的替代候选，与现有引擎一致；不会填充缺失正文。韵脚句未选韵部返回 RHYME_GROUP_UNSELECTED，不猜选；非韵脚句可继续，未选韵部仍为 null。律诗上下文列出当前联名、结构规划中同名联的 intent、对应句位及已有文本；无规划 intent 时为空数组，不捏造作用。
 
-filter_candidates 整批校验后才检查规则，复用一个引擎和一个状态快照，检查时不追加正文。finish_round 重新过滤并比对保存的中间结果，防止把改写的规则输出当作通过结果；同一 Python 流程可复用同一个 engine/lexicon，CLI 不同进程各加载一次。不会每个候选重新加载韵库。本阶段不接收 readings，额外字段会被拒绝；多音字未知保持未知。引擎独立接口仍支持已有显式消歧格式，后续若接入单轮流程须同时保存来源依据。
+filter_candidates 整批校验后才检查规则，复用一个引擎和一个状态快照，检查时不追加正文。finish_round 重新过滤并比对保存的中间结果，防止把改写的规则输出当作通过结果；同一 Python 流程可复用同一个 engine/lexicon，CLI 不同进程各加载一次。不会每个候选重新加载韵库。本阶段的候选生成封套不接收 readings 或 duplicate_review，额外字段会被拒绝；多音字或重字语义未审查时保持 unresolved。引擎独立接口支持绑定消歧与重字复检；把这两类审查接入单轮控制器时必须同时保存来源依据，不能直接改写过滤结果。
 
 ## CLI 和完整示例
 

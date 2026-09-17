@@ -68,7 +68,7 @@ def semantic_payload(filtered, status='satisfied'):
 
 class ContentRoundTests(unittest.TestCase):
     def setUp(self):
-        self.engine = ConstraintEngine(RhymeLexicon(FIXTURE))
+        self.engine = ConstraintEngine(RhymeLexicon(FIXTURE), duplicate_policy='report')
 
     def batch(self, state, texts=None, positions=None, line=2):
         plan = planned(state, positions) if positions is not None else None
@@ -336,7 +336,7 @@ class ContentRoundTests(unittest.TestCase):
             shutil.copytree(project, copied, ignore=shutil.ignore_patterns('__pycache__', '.day3-test-*'))
             workspace = Path(tmp) / 'workspace'
             files = workspace / 'examples' / 'content-runtime'; files.mkdir(parents=True)
-            state = state_with([fragment(text='东东月月东', kind='line', line=None)], [allusion()])
+            state = state_with([fragment(text='风红东孔同', kind='line', line=None)], [allusion()])
             state.save(files / 'state.json')
             script = copied / 'scripts' / 'poetry_round.py'
             def run(*args):
@@ -354,7 +354,7 @@ class ContentRoundTests(unittest.TestCase):
             run('export', '--state', root + 'state.json', '--line', '2', '--content-plan', root + 'arranged.json', '--output', root + 'context.json')
             run('filter', '--state', root + 'state.json', '--context', root + 'context.json', '--output', root + 'filtered.json')
             filtered = read('filtered.json')
-            self.assertEqual(filtered['records'][0]['text'], '东东月月东')
+            self.assertEqual(filtered['records'][0]['text'], '风红东孔同')
             write('reviews.json', semantic_payload(filtered))
             run('review-content', '--state', root + 'state.json', '--filtered', root + 'filtered.json',
                 '--reviews', root + 'reviews.json', '--output', root + 'reviewed.json')

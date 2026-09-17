@@ -10,23 +10,27 @@ from text_normalizer import normalize_line
 from rhyme_lexicon import RhymeLexicon, validate_readings
 from meter_checker import RULES, RULE_VERSION, aggregate, check_line as meter_line
 from rhyme_checker import check_line as rhyme_line
+from duplicate_disambiguation import ALLOWED_RELATIONS, validate_for_engine
 
 
 class ConstraintEngine:
-    def __init__(self, lexicon=None):
+    def __init__(self, lexicon=None, *, duplicate_policy='review'):
+        if duplicate_policy not in ('review', 'report'):
+            raise ValueError("duplicate_policy must be 'review' or 'report'")
         self.lexicon = lexicon if lexicon is not None else RhymeLexicon()
+        self.duplicate_policy = duplicate_policy
 
-    def check_candidate(self, candidate, state, *, readings=None):
+    def check_candidate(self, candidate, state, *, readings=None, duplicate_review=None):
         if (not isinstance(candidate, dict) or set(candidate) != {'id', 'text', 'line_index'}
                 or not isinstance(candidate['id'], str) or not candidate['id'].strip()
                 or type(candidate['line_index']) is not int):
             raise ValueError('Candidate requires id, text and one-based line_index')
-        return self._check(state, candidate, readings)
+        return self._check(state, candidate, readings, duplicate_review)
 
-    def check_poem(self, state, *, readings=None):
-        return self._check(state, None, readings)
+    def check_poem(self, state, *, readings=None, duplicate_review=None):
+        return self._check(state, None, readings, duplicate_review)
 
-    def _check(self, state, candidate, readings):
+    def _check(self, state, candidate, readings, duplicate_review):
         if isinstance(state, PoemState):
             d = state.to_dict()
         elif isinstance(state, dict):
@@ -120,25 +124,66 @@ class ConstraintEngine:
                     occurrences.setdefault(cell['char'], []).append({k: cell[k] for k in ('line', 'pos', 'offset')})
         duplicates = [{'char': char, 'count': len(locations), 'positions': locations}
                       for char, locations in occurrences.items() if len(locations) > 1]
-        checks['duplicate'] = {'status': 'fail' if duplicates else 'pass',
-                               'required': '禁止重复字' in d['constraints'], 'occurrences': duplicates}
+        duplicate_context = {'theme': d['theme'], 'emotion': d['emotion'],
+                             'lines': [text for _, text in sorted(context.items())]}
+        if not duplicates:
+            if duplicate_review is not None:
+                raise ValueError('Duplicate review supplied but current text has no repeats')
+            checks['duplicate'] = {'status': 'pass', 'required': self.duplicate_policy == 'review',
+                                   'occurrences': [], 'issues': [], 'reviewed': [],
+                                   'context': duplicate_context,
+                                   'policy': 'ai_semantic_relation_then_rule_recheck'}
+        elif self.duplicate_policy == 'report':
+            if duplicate_review is not None:
+                raise ValueError('Duplicate review is unavailable in report policy')
+            checks['duplicate'] = {'status': 'fail', 'required': False, 'occurrences': duplicates,
+                                   'issues': [], 'reviewed': [], 'context': duplicate_context,
+                                   'policy': 'report_only_fixture_mode'}
+        elif duplicate_review is None:
+            checks['duplicate'] = {
+                'status': 'unknown', 'required': True, 'occurrences': duplicates,
+                'issues': [{'code': 'DUPLICATE_REVIEW_REQUIRED', 'status': 'unknown', **item}
+                           for item in duplicates],
+                'reviewed': [], 'context': duplicate_context,
+                'policy': 'ai_semantic_relation_then_rule_recheck',
+            }
+        else:
+            binding = {**make_binding(d, candidate), 'revision': d['revision']}
+            decisions = validate_for_engine(duplicate_review, binding, duplicates)
+            by_char = {item['char']: item for item in decisions}
+            issues = []
+            for item in duplicates:
+                decision = by_char[item['char']]
+                if decision['relation'] == 'error':
+                    issues.append({'code': 'DUPLICATE_CHARACTER', 'status': 'fail',
+                                   **item, 'reason': decision['reason']})
+                elif decision['relation'] == 'unknown':
+                    issues.append({'code': 'DUPLICATE_REVIEW_UNCERTAIN', 'status': 'unknown',
+                                   **item, 'reason': decision['reason']})
+            duplicate_status = ('fail' if any(x['status'] == 'fail' for x in issues) else
+                                'unknown' if issues else 'pass')
+            checks['duplicate'] = {
+                'status': duplicate_status, 'required': True, 'occurrences': duplicates,
+                'issues': issues, 'reviewed': decisions, 'context': duplicate_context,
+                'allowed_relations': sorted(ALLOWED_RELATIONS),
+                'policy': 'ai_semantic_relation_then_rule_recheck',
+            }
         hard = [v['status'] for v in checks.values() if v.get('required', True)]
         status = aggregate(hard)
         valid = False if status == 'fail' else None if status == 'unknown' else True
         errors = [name + ': ' + issue['code'] for name, check in checks.items() if check['required']
                   for issue in check.get('issues', []) if issue.get('status', check['status']) == 'fail']
-        if duplicates and checks['duplicate']['required']:
-            errors.append('duplicate: DUPLICATE_CHARACTER')
         return {**make_binding(d, candidate), 'revision': d['revision'], 'valid': valid, 'checks': checks, 'errors': errors,
                 'warnings': ['重复字：' + '、'.join(x['char'] for x in duplicates)] if duplicates else []}
 
 
-def check_candidate(candidate, state, *, readings=None):
-    return ConstraintEngine().check_candidate(candidate, state, readings=readings)
+def check_candidate(candidate, state, *, readings=None, duplicate_review=None):
+    return ConstraintEngine().check_candidate(candidate, state, readings=readings,
+                                              duplicate_review=duplicate_review)
 
 
-def check_poem(state, *, readings=None):
-    return ConstraintEngine().check_poem(state, readings=readings)
+def check_poem(state, *, readings=None, duplicate_review=None):
+    return ConstraintEngine().check_poem(state, readings=readings, duplicate_review=duplicate_review)
 
 
 def main():
@@ -148,13 +193,16 @@ def main():
     parser.add_argument('--state', type=Path, required=True)
     parser.add_argument('--candidate', type=Path)
     parser.add_argument('--readings', type=Path)
+    parser.add_argument('--duplicate-review', type=Path)
     args = parser.parse_args()
     def read(path):
         return json.loads(path.read_text(encoding='utf-8-sig')) if path else None
     try:
         state, readings = PoemState.load(args.state), read(args.readings)
-        result = (check_candidate(read(args.candidate), state, readings=readings) if args.candidate
-                  else check_poem(state, readings=readings))
+        duplicate_review = read(args.duplicate_review)
+        result = (check_candidate(read(args.candidate), state, readings=readings,
+                                  duplicate_review=duplicate_review) if args.candidate
+                  else check_poem(state, readings=readings, duplicate_review=duplicate_review))
         print(json.dumps(result, ensure_ascii=False, indent=2))
     except (ValueError, OSError) as exc:
         parser.exit(2, f'Constraint error: {exc}\n')

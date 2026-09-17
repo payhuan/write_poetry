@@ -12,6 +12,7 @@ from constraint_engine import check_candidate, check_poem
 result = check_candidate(
     {"id": "candidate-1", "text": "东东月月东", "line_index": 2}, state,
     readings={"2:5": {"section": "上平声部", "group": "一东"}},
+    duplicate_review=validated_duplicate_review,
 )
 result = check_poem(state)
 ```
@@ -24,7 +25,7 @@ result = check_poem(state)
 
 ```sh
 python scripts/constraint_engine.py --state state.json
-python scripts/constraint_engine.py --state state.json --candidate candidate.json --readings readings.json
+python scripts/constraint_engine.py --state state.json --candidate candidate.json --readings readings.json --duplicate-review duplicate-review.json
 python -m unittest discover -s scripts -p 'test_*.py'
 ```
 
@@ -48,6 +49,14 @@ readings 使用 JSON 键 `句号:字位`，如 `2:3`；坐标必须存在于替�
 
 多归属已经由唯一 section/group 选择消歧后，`checks.reading=pass` 并在 selected 中记录实际归属和 senses。缺字为 CHAR_NOT_FOUND；即使位于“中”，仍报告资料不足。“中”只免除基础声调限制。已选韵部不会反向用作读音选择依据。简繁原字分别查表，未收录不擅自转换。
 
+## 重字语义复核
+
+引擎在候选替换后的完整上下文或全诗中统计每个汉字的位置。没有重字时 `checks.duplicate=pass`；发现重字而未提供审查时，该必需项为 `unknown`，并为每组返回 `DUPLICATE_REVIEW_REQUIRED`、char、count 和全部 line/pos/offset。规则引擎不自行猜测词义，也不会把重字直接当作普通 warning 放行。
+
+使用 `duplicate_disambiguation.make_request(result)` 生成绑定原检测对象、上下文摘要和位置集合的请求。模型对每个重复字符返回 relation 与理由；relation 仅允许 `reduplication`（叠字）、`parallel`（意群并列）、`descending`（意群递减）、`error` 或 `unknown`。前三类通过；普通复现、递进关系、不能说明每个位置所属意群或牵强解释均为 `error`；证据不足为 `unknown`。`apply_review` 校验请求摘要、字符集合和完整决定，`recheck_candidate` / `recheck_poem` 将产物作为 `duplicate_review` 交回引擎。审查产物与不同候选、正文、revision 或重复位置不匹配时拒绝复用。
+
+AI 只判断语义关系，最终状态仍由引擎汇总：任一 `error` 使 duplicate=fail 和整体验证失败；任一 `unknown` 保持整体验证未知；全部属于三种允许关系才使 duplicate=pass。`ConstraintEngine(..., duplicate_policy='report')` 仅供机械格律测试夹具保留旧式非阻断报告，正常 Skill 工作流不得使用。
+
 韵脚句位完全来自快照 rhyme.positions，首句不重新猜测。非韵脚候选为 not_applicable。韵部支持规范名（如 `十一真`）、`上平声部/十一真`，以及省略序号的尾名别名（如 `真`）。别名唯一匹配时规范化为完整韵部名；多个匹配返回 RHYME_GROUP_AMBIGUOUS 及 choices，必须消歧，不合并判定；无匹配返回 RHYME_GROUP_UNAVAILABLE。简繁不猜测。未选择韵部和其他韵书返回 unknown。韵脚必须是正确长度单句的末字，否则 RHYME_POSITION_UNAVAILABLE。
 
 ## 附加规则口径：pingshui-basic-1
@@ -64,7 +73,7 @@ readings 使用 JSON 键 `句号:字位`，如 `2:3`；坐标必须存在于替�
 
 ## 结果和兼容
 
-顶层保留 revision、valid、checks、errors、warnings，并新增 binding_version、scope、subject、context_sha256。length、pingze、rhyme、reading 必须 required=true；duplicate 默认 required=false。单项 fail 是检测事实，是否阻断由 required 决定。必需项 fail → valid=false；必需项 unknown/not_run → null；其余 → true。旧结果省略 required 仍按 true；required 只接受布尔值，不能将核心检查降级。非韵脚候选的 rhyme=not_applicable 不阻断。
+顶层保留 revision、valid、checks、errors、warnings，并新增 binding_version、scope、subject、context_sha256。正常模式下 length、pingze、rhyme、reading、duplicate 均为必需项。必需项 fail → valid=false；必需项 unknown/not_run → null；其余 → true。旧结果省略 required 仍按 true；required 只接受布尔值，不能将核心检查降级。非韵脚候选的 rhyme=not_applicable 不阻断。
 
 对象绑定由 scripts/assessment_binding.py 统一生成和校验，binding_version=1：
 
@@ -78,15 +87,11 @@ set_assessment 只接收匹配当前全诗和上下文的新结果；evaluate_ca
 
 保持状态版本 0.3.0 的读取兼容性：四个绑定字段全部缺失才视为旧结果，仍可读取、保存，并保留已有 retained/completed 历史标签；部分缺失或格式错误不当作旧结果。缺少绑定的结果不能通过上述写入入口重新使用，也不能使 reviewing 新晋级为 completed，必须重检。恢复新格式状态时校验当前结果的对象及上下文；较早 revision 的候选历史只校验对象绑定和摘要格式，不拿当前上下文去否定历史记录。
 
-重复统计返回 char、count、positions（line/pos/offset），默认仅 warnings；在 state.constraints 明确加入字符串 `禁止重复字` 才成为硬约束。其他自然语言 constraints 不由引擎猜测成开关。
-
 ## 数据边界和验证
 
 韵库和 SHA-256 位于 data/rhyme。当前文件是用户提供并要求替换的重新抓取结果，共 106 部、6605 条记录；source.json 保存接收日期、摘要、统计及已知来源边界，不记录项目外本地路径。运行只加载这一份项目内韵表并校验摘要，不联网、不混入旧表，也不推定其他字音。所有 pass 都仅表示在当前资料、绑定模板和上述规则范围内通过，不是完整文献音韵证明。
 
-测试用人工可控字集验证全 16 模板、固定位置、各类未知、逐位置消歧、孤平／三平调、“中”、重复替换、非必需项、快照与 revision；真实韵库测试多归属、入声、文件摘要、CLI 与项目外工作目录加载。测试不依赖生成诗句质量。
-
-本阶段验证结果：51 项 unittest 全部通过（含原有 27 项）；包括新增三讲字、多归属保留、注释排除与韵表摘要损坏检测；项目整体复制到临时目录后，从项目外目录运行含三讲及非 BMP 字的真实韵库 CLI 通过。Skill 结构校验通过。
+测试用人工可控字集验证全 16 模板、固定位置、各类未知、逐位置消歧、孤平／三平调、“中”、重字语义绑定、重复替换、快照与 revision；真实韵库测试多归属、入声、文件摘要、CLI 与项目外工作目录加载。测试不依赖生成诗句质量。
 
 对象绑定回归覆盖：候选结果写入错误全诗、不同候选交叉评估、同 revision 分支在正文／韵部／约束／模板快照上的交叉写入、原文标点变化、旧结果读取与晋级拒绝，以及合法完成与历史结果恢复。
 
