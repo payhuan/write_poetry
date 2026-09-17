@@ -63,10 +63,29 @@ class ConstraintEngine:
                                'issues': [{'code': 'TEMPLATE_UNBOUND', 'status': 'unknown'}]}
         else:
             grid = {(c['line'], c['pos']): c['tune'] for c in template['tunes']}
-            meters, rhymes = [], []
+            meters, rhymes, reading_issues, selected_readings = [], [], [], []
             for line in targets:
-                resolved = [self.lexicon.resolve(c['char'], readings.get(f"{c['line']}:{c['pos']}"))
-                            for c in line['cells']]
+                resolved = []
+                for cell in line['cells']:
+                    coordinate = f"{cell['line']}:{cell['pos']}"
+                    options = self.lexicon.lookup(cell['char'], include_senses=True)
+                    selector = readings.get(coordinate)
+                    records, error = self.lexicon.resolve(cell['char'], selector, include_senses=True)
+                    resolved.append((records, error))
+                    if len(options) <= 1:
+                        continue
+                    if selector is None or error is not None or len(records) != 1:
+                        reading_issues.append({
+                            'code': 'READING_REVIEW_REQUIRED', 'status': 'unknown',
+                            'coordinate': coordinate, 'line': cell['line'], 'pos': cell['pos'],
+                            'offset': cell['offset'], 'char': cell['char'], 'line_text': line['text'],
+                            'options': options,
+                        })
+                    else:
+                        selected_readings.append({
+                            'coordinate': coordinate, 'char': cell['char'],
+                            **{k: records[0][k] for k in ('section', 'group', 'tone', 'senses')},
+                        })
                 pattern = ''.join(grid[line['line'], p] for p in range(1, width + 1))
                 meters.append({'line': line['line'], **meter_line(line, pattern, resolved)})
                 rhymes.append({'line': line['line'], **rhyme_line(
@@ -87,6 +106,13 @@ class ConstraintEngine:
                 checks['pingze']['status'] = aggregate([checks['pingze']['status'], 'unknown'])
             checks['pingze']['rule_version'] = RULE_VERSION
             checks['pingze']['rule_mapping'] = RULES.copy()
+            checks['reading'] = {
+                'status': 'unknown' if reading_issues else 'pass', 'required': True,
+                'issues': reading_issues, 'selected': selected_readings,
+                'context': {'theme': d['theme'], 'emotion': d['emotion'],
+                            'lines': [text for _, text in sorted(context.items())]},
+                'policy': 'ai_context_choice_then_rule_recheck',
+            }
         occurrences = {}
         for line in normalized:
             for cell in line['cells']:

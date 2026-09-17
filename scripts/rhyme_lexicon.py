@@ -18,7 +18,7 @@ class RhymeLexicon:
             data = json.loads(raw.decode('utf-8-sig'))
         if not isinstance(data, dict) or not data:
             raise ValueError('Rhyme lexicon must be a nonempty object')
-        index, groups = {}, set()
+        index, groups, senses = {}, set(), {}
         for section, entries in data.items():
             if section not in TONES or not isinstance(entries, dict):
                 raise ValueError('Invalid rhyme section')
@@ -26,18 +26,38 @@ class RhymeLexicon:
                 if not isinstance(group, str) or not group or not isinstance(chars, list):
                     raise ValueError('Invalid rhyme group')
                 groups.add((section, group))
-                for char in chars:
+                for entry in chars:
+                    if isinstance(entry, str):
+                        char, annotations = entry, []  # Legacy injected/string-list tables.
+                    elif (isinstance(entry, dict) and set(entry) == {'char', 'senses'}
+                          and isinstance(entry['senses'], list)
+                          and all(isinstance(s, str) and s.strip() for s in entry['senses'])):
+                        char, annotations = entry['char'], entry['senses']
+                    else:
+                        raise ValueError('Rhyme entry must be a character or {char, senses} record')
                     if not isinstance(char, str) or len(char) != 1:
                         raise ValueError('Rhyme entries must be single code points')
                     index.setdefault(char, set()).add((section, group))
+                    target = senses.setdefault((char, section, group), [])
+                    for annotation in annotations:
+                        if annotation not in target:
+                            target.append(annotation)
         self._index = {c: tuple(sorted(v)) for c, v in index.items()}
+        self._senses = {key: tuple(value) for key, value in senses.items()}
         self.groups = frozenset(groups)
 
-    def lookup(self, char):
-        return [{'section': s, 'group': g, 'tone': TONES[s]} for s, g in self._index.get(char, ())]
+    def lookup(self, char, *, include_senses=False):
+        """Return memberships; opt in to source notes without changing legacy records.
 
-    def resolve(self, char, reading=None):
-        records = self.lookup(char)
+        Notes belong only to this character/section/group. They are evidence for
+        readers, never an automatic reading selector for the rule engine.
+        """
+        return [{'section': s, 'group': g, 'tone': TONES[s],
+                 **({'senses': list(self._senses[char, s, g])} if include_senses else {})}
+                for s, g in self._index.get(char, ())]
+
+    def resolve(self, char, reading=None, *, include_senses=False):
+        records = self.lookup(char, include_senses=include_senses)
         if not records:
             return [], 'CHAR_NOT_FOUND'
         if reading is None:

@@ -19,7 +19,7 @@ description: 根据中文文字描述创作五言绝句、七言绝句、五言�
 2. 使用 `scripts/parse_input.py --text-file request.txt --extraction extraction.json --output state.json` 校验并初始化 PoemState。使用 Python 3，脚本路径根据本 Skill 目录解析。需要澄清时先解决冲突，不进入生成流程。
 3. 复核 [输入与状态](references/state.md) 中的原文、缺省决策和未提供依据的字段。未指定诗体时优先从指定模板确定，否则默认七言绝句。唯一匹配已自动绑定；部分诗格要求保留供规划补选。已有规范化 JSON 也可使用 `scripts/init_state.py --input request.json --output state.json`。
 4. 按 [创作指导](references/composition-guide.md) 规划意象、各句或各联的作用与情绪推进。未绑定时按 [诗体说明](references/poem-types.md) 在兼容用户要求的模板中选择并调用 `poem_templates.py bind`，简短说明所选格式，再选择韵部。不要仅为可自行决定的未指定选项追问；明确要求冲突时则澄清。检测以绑定快照为准，未知文字规则返回 unknown。
-5. 需要候选时读 [单轮流程](references/poetry-round.md)，调用 `poetry_round.py export` 导出当前句位上下文。韵脚句尚未选择韵部时先完成规划。有内容要求时先用 `plan` 导出安排，给未指定位置的必含片段和必用典故选择承担句位，通过 `export --content-plan` 校验；inspiration 不锁句位。本句有 locked_candidate 时跳过模型生成，直接 `filter` 检测原文。其余情况由 agent 生成完整候选句，再用 `filter` 校验、去重、检测格律和 exact 内容。不能自动改句使其通过，也不能猜选有利读音；锁定原句与格律明确冲突时报告原因，请用户调整要求。
+5. 需要候选时读 [单轮流程](references/poetry-round.md)，调用 `poetry_round.py export` 导出当前句位上下文。韵脚句尚未选择韵部时先完成规划。有内容要求时先用 `plan` 导出安排，给未指定位置的必含片段和必用典故选择承担句位，通过 `export --content-plan` 校验；inspiration 不锁句位。本句有 locked_candidate 时跳过模型生成，直接 `filter` 检测原文。其余情况由 agent 生成完整候选句，再用 `filter` 校验、去重、检测格律和 exact 内容。ConstraintResult 的 `checks.reading.status=unknown` 时，按 [检测引擎](references/constraint-engine.md) 调用 `reading_disambiguation.make_request`，结合主题、上下句和各选项 senses 作语境判读；只能选择请求中已有的声部／韵部，不能为满足格律倒推读音。用 `apply_review` 验证模型结果并将 readings 回送 Constraint Engine 复检；AI 仍不确定时保留 unknown。锁定原句与格律明确冲突时报告原因，请用户调整要求。
 6. 有 `content_request.candidates` 时，agent 按内容契约逐项说明用典、adapt 或 inspiration 的实际表达，使用 `review-content` 导入；典故含义不明留 unknown，不编造出处。必用典故和 adapt 的当前履行必须确认，不能以平均文学分代替。随后只对最新 `score_request.candidates` 评分；`finish` 验证、排序并原子记录候选和完整内容履行依据。每个模型阶段（生成、内容评价、文学评分）首次输出后最多修正格式两次，attempt 依次为 1、2、3；仍有错误即停止并报告。所有中间文件和最终状态包均保存在本项目内。
 7. 单轮仍只推荐。需要推进全诗时读 [搜索控制](references/poetry-search.md)，从已规划状态创建 Search，反复读取 next_job，按 stage 提供真实生成/内容评价/评分 JSON，再 submit 并保存完整运行。不要手动追加绕过控制器归属验证，也不要把没有模型结果的空循环描述为生成成功。全局路径数、重试和回溯均受共享预算限制。
 8. ready_for_review 是 Day 4 交接状态，PoemState 仍为 reviewing。继续创作时读 [全诗审校与润色](references/poetry-polish.md)，从完整 Search 快照显式选择一个 path_id 创建 Polish，不默认取首稿，不把任意状态字典当已验收草稿。程序重新检测规则并核验当前内容证据；交接失败先报告原因，不能手动改状态或复用历史候选评分。
@@ -29,6 +29,6 @@ description: 根据中文文字描述创作五言绝句、七言绝句、五言�
 
 ## 规则边界
 
-首期覆盖常见标准近体诗格式，不覆盖词曲及完整拗救。韵库接入见 [韵律资源](references/rhyme-rules.md)。多音多韵及未收录字保留为未知，不能强行判定通过。重复字可程序统计，是否禁止取决于具体策略；重复意象和语义对仗交给文学评价。
+首期覆盖常见标准近体诗格式，不覆盖词曲及完整拗救。韵库接入见 [韵律资源](references/rhyme-rules.md)。多音多韵先由 AI 在韵表已收录义项间作有依据的语境判读，再由规则引擎复检；无法可靠判读及未收录字保留为未知。重复字可程序统计，是否禁止取决于具体策略；重复意象和语义对仗交给文学评价。
 
 当前只处理文字。图片输入仅预留封套，尚不读取或理解图片；图片依赖型请求需提供文字描述。后续适配设计见 [输入来源扩展](references/input-sources.md)，不将预留字段描述为已实现能力。

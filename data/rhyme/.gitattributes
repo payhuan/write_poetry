@@ -1,0 +1,3 @@
+# Hash verification requires byte-identical JSON after checkout on every OS.
+Pingshui_Rhyme.json text eol=lf
+source.json text eol=lf

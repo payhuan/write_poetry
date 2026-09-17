@@ -1,38 +1,40 @@
 {
-  "repository": "https://github.com/charlesix59/chinese_word_rhyme",
-  "commit": "ff0e9c13fb037c43e0eaa5dc929c0fe4fa2ffb18",
-  "source_url": "https://raw.githubusercontent.com/charlesix59/chinese_word_rhyme/ff0e9c13fb037c43e0eaa5dc929c0fe4fa2ffb18/data/Pingshui_Rhyme.json",
+  "schema_version": 3,
+  "source_name": "用户提供的平水韵重新抓取文件",
+  "source_url": null,
   "file": "Pingshui_Rhyme.json",
-  "sha256": "2822293ddb4fd100937e59e468847f63a22865626e4803dea35d51224d5d6362",
-  "upstream_sha256": "fd11164ca1b848eb6b777688d5d6628ce772d72d0a25a0efd12d6b58459c6e2e",
-  "matches_upstream": false,
-  "license_file": "LICENSE",
-  "license_note": "Upstream MIT license retained; data provenance is as declared by upstream.",
-  "limitations": "Character to section/group memberships only; no pronunciation-to-group mapping; no automatic simplified/traditional conversion.",
-  "known_gaps": {
-    "base_group_count": 105,
-    "base_missing_group": "上声部/三讲",
-    "effective_group_count": 106,
-    "supplemented_groups": [
-      "上声部/三讲"
-    ],
-    "note": "Group coverage is complete; character and reading coverage is not asserted complete."
+  "sha256": "dfd170d9e3922801eb94b4415ccd09882d6bae89bddb5f57e897e024ee559127",
+  "received_on": "2026-09-17",
+  "integration": "The user supplied a newly scraped JSON file outside the project. It was copied into data/rhyme/Pingshui_Rhyme.json and normalized to UTF-8 with LF line endings for stable cross-platform hashing; the external path is intentionally not retained.",
+  "entry_schema": {
+    "char": "one Unicode code point",
+    "senses": "source-provided meanings for this character under this section/group membership"
   },
-  "local_changes": [
-    {
-      "source_url": "https://sou-yun.cn/QR.aspx?ct=%E8%AE%B2",
-      "retrieved_on": "2026-09-14",
-      "version": "souyun-sanjiang-2026-09-14",
-      "section": "上声部",
-      "group": "三讲",
-      "character_count": 29,
-      "extraction": "Preserve listed characters in source order, including both rare non-BMP characters; omit headings, whitespace and bracketed gloss; no script conversion.",
-      "annotations": {
-        "漎": "水会也"
-      },
-      "license": "No explicit open-data redistribution license identified on the source/about pages; upstream MIT license does not cover this supplement. Only character/group membership facts are included.",
-      "license_reference_url": "https://sou-yun.cn/about.aspx",
-      "operation": "Insert 上声部/三讲 between 二肿 and 四纸 in Pingshui_Rhyme.json; all other upstream bytes retained."
-    }
-  ]
+  "counts": {
+    "group_count": 106,
+    "section_record_counts": {
+      "上平声部": 1302,
+      "下平声部": 1333,
+      "上声部": 1321,
+      "去声部": 1613,
+      "入声部": 1036
+    },
+    "records": 6605,
+    "unique_characters": 5531,
+    "characters_with_multiple_memberships": 924,
+    "records_with_senses": 508,
+    "senses": 508
+  },
+  "limitations": [
+    "The supplied file contains section, group, character and senses, but no separate pinyin field.",
+    "A membership identifies an attested Pingshui section/group and derived ping/ze tone; it must not be presented as a fabricated modern pronunciation.",
+    "Empty senses mean the supplied table has no semantic note for that membership, not that every contextual reading is valid.",
+    "Source URL, capture time, scraper implementation and redistribution license were not included with the supplied file."
+  ],
+  "previous_source": {
+    "source_name": "诗词吾爱网 · 平水韵",
+    "source_url": "https://www.52shici.com/zd/yun.php",
+    "sha256": "a3beb122d47e5f4b3655ae39401854e70da71d23d47cffa8828e00763f691288",
+    "used_in_current_table": false
+  }
 }

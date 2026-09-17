@@ -18,6 +18,7 @@ from poem_templates import TemplateLibrary, validate_template
 from rhyme_lexicon import DATA_DIR, RhymeLexicon
 from text_normalizer import normalize_line
 from assessment_binding import BINDING_FIELDS
+from reading_disambiguation import make_request, apply_review, recheck_candidate
 
 
 FIXTURE = {'上平声部': {'一东': list('天地人风同𠀀'), '二冬': ['同', '冬']},
@@ -107,6 +108,55 @@ class ConstraintTests(unittest.TestCase):
         self.assertEqual(positions[4]['status'], 'fail')
         for reading in ('feng1', {'group': '不存在'}):
             self.assertIsNone(self.candidate('天天水水风', readings={'2:5': reading})['valid'])
+
+    def test_ambiguous_character_emits_senses_and_requires_review(self):
+        lexicon = RhymeLexicon({
+            '上平声部': {'一东': [{'char': '风', 'senses': ['吹动的空气']}]},
+            '上声部': {'一董': [{'char': '风', 'senses': ['讽诵']}]},
+        })
+        engine = ConstraintEngine(lexicon)
+        candidate = {'id': 'c', 'text': '风风风风风', 'line_index': 2}
+        result = engine.check_candidate(candidate, self.state())
+        self.assertIsNone(result['valid'])
+        issue = result['checks']['reading']['issues'][0]
+        self.assertEqual(issue['coordinate'], '2:1')
+        self.assertEqual({tuple(x['senses']) for x in issue['options']},
+                         {('吹动的空气',), ('讽诵',)})
+        self.assertEqual(result['checks']['reading']['context']['theme'], '测试')
+
+    def test_bound_ai_reading_review_is_rechecked_by_rules(self):
+        result = self.candidate('天风水水天')
+        request = make_request(result)
+        decisions = []
+        for occurrence in request['occurrences']:
+            option = next(x for x in occurrence['options'] if x['section'] == '上平声部')
+            decisions.append({'coordinate': occurrence['coordinate'], 'char': occurrence['char'],
+                              'status': 'selected', 'section': option['section'],
+                              'group': option['group'], 'reason': '句中取平声义。'})
+        payload = {'review_version': request['review_version'],
+                   'request_sha256': request['request_sha256'], 'decisions': decisions}
+        reviewed = apply_review(request, payload)
+        self.assertTrue(reviewed['complete'])
+        checked = recheck_candidate(self.engine,
+                                    {'id': 'c', 'text': '天风水水天', 'line_index': 2},
+                                    self.state(), request, payload)
+        self.assertTrue(checked['result']['valid'])
+        tampered = deepcopy(payload)
+        tampered['decisions'][0]['group'] = '不存在'
+        with self.assertRaises(ValueError):
+            apply_review(request, tampered)
+
+    def test_ai_may_keep_reading_unknown(self):
+        result = self.candidate('天风水水天')
+        request = make_request(result)
+        payload = {'review_version': request['review_version'],
+                   'request_sha256': request['request_sha256'],
+                   'decisions': [{'coordinate': x['coordinate'], 'char': x['char'],
+                                  'status': 'unknown', 'section': None, 'group': None,
+                                  'reason': '上下文不足。'} for x in request['occurrences']]}
+        reviewed = apply_review(request, payload)
+        self.assertFalse(reviewed['complete'])
+        self.assertEqual(reviewed['readings'], {})
 
     def test_rules_apply_to_zhong(self):
         r = self.candidate('水天水水天')
@@ -225,23 +275,25 @@ class ConstraintTests(unittest.TestCase):
                             ignore=shutil.ignore_patterns('__pycache__'))
             state_path = Path(tmp) / 'state.json'; self.state().save(state_path)
             candidate = Path(tmp) / 'candidate.json'
-            candidate.write_text(json.dumps({'id': 'real', 'text': '东东讲𪁒东', 'line_index': 2}), encoding='utf-8')
+            candidate.write_text(json.dumps({'id': 'real', 'text': '东东月月东', 'line_index': 2}), encoding='utf-8')
             process = subprocess.run([sys.executable, str(copied / 'scripts' / 'constraint_engine.py'),
                                       '--state', str(state_path), '--candidate', str(candidate)],
                                      cwd=tmp, capture_output=True, check=True)
             self.assertTrue(json.loads(process.stdout)['valid'])
 
-    def test_sanjiang_memberships_order_and_source_integrity(self):
+    def test_replacement_source_integrity_and_sanjiang(self):
         lexicon = RhymeLexicon()
         source = json.loads((DATA_DIR / 'source.json').read_text(encoding='utf-8'))
         raw = (DATA_DIR / source['file']).read_bytes()
         self.assertEqual(hashlib.sha256(raw).hexdigest(), source['sha256'])
-        self.assertFalse(source['matches_upstream'])
-        expected = set('讲港项蚌缿耩棒傋玤控夯䎧棓硥漎顜䐟稖䬕䰷慃㭋䂜䁰庬䖫勜𢗒𪁒')
+        self.assertEqual(source['schema_version'], 3)
+        self.assertIsNone(source['source_url'])
+        self.assertEqual(source['counts']['records'], 6605)
+        expected = set('讲港项蚌傋棒夯玤庬')
         data = json.loads(raw)
-        self.assertEqual(list(data['上声部'])[:4], ['一董', '二肿', '三讲', '四纸'])
-        self.assertEqual(set(data['上声部']['三讲']), expected)
-        self.assertEqual(len(data['上声部']['三讲']), 29)
+        self.assertIn('三讲', data['上声部'])
+        self.assertEqual({r['char'] for r in data['上声部']['三讲']}, expected)
+        self.assertEqual(len(data['上声部']['三讲']), 9)
         for char in expected:
             self.assertIn({'section': '上声部', 'group': '三讲', 'tone': '仄'}, lexicon.lookup(char))
         self.assertEqual(lexicon.group_records('上声部/三讲'), {('上声部', '三讲')})
@@ -254,8 +306,8 @@ class ConstraintTests(unittest.TestCase):
         # Gloss characters are not accidentally treated as rhyme entries.
         for char in '水会也':
             self.assertNotIn({'section': '上声部', 'group': '三讲', 'tone': '仄'}, lexicon.lookup(char))
-        r = check_candidate({'id': 'added', 'text': '东东讲𪁒东', 'line_index': 2}, self.state())
-        self.assertTrue(r['valid'])
+        self.assertNotIn({'section': '上声部', 'group': '三讲', 'tone': '仄'},
+                         lexicon.lookup('漎'))
         r = check_candidate({'id': 'mismatch', 'text': '东讲月月东', 'line_index': 2}, self.state())
         self.assertFalse(r['valid'])
         self.assertEqual(r['checks']['pingze']['lines'][0]['positions'][1]['status'], 'fail')

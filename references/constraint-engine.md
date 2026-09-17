@@ -42,7 +42,11 @@ stdout 为 UTF-8 JSON；调用错误退出码 2。检测失败或未知是正常
 
 readings 使用 JSON 键 `句号:字位`，如 `2:3`；坐标必须存在于替换后的正文上下文。值为用户明确给出的声部／韵部选择器（section、group 至少一项），只能筛选该字确实存在的记录。未收录选择器返回 READING_NOT_ATTESTED；传入非空拼音字符串返回 READING_MAPPING_UNAVAILABLE，不用普通话声调推断古音。平仄、整句规则、押韵使用同一份筛选结果。
 
-全部可能归属满足要求为 pass，全部不满足为 fail，部分满足为 unknown。缺字为 CHAR_NOT_FOUND；即使位于“中”，仍报告资料不足。“中”只免除基础声调限制。已选韵部不会反向用作读音选择依据。简繁原字分别查表，未收录不擅自转换。
+一个字存在多个声部／韵部归属且调用者未给出唯一选择时，新增必需项 `checks.reading=unknown`。每个 `READING_REVIEW_REQUIRED` 问题返回 coordinate、句号、字位、原文 offset、字符、所在句和全部选项；选项包含 section、group、tone、senses。`checks.reading.context` 同时提供主题、情绪和当前诗句，供语境判断。senses 为空只表示数据源没有提供释义，不表示可以按格律任选；数据没有独立拼音字段，因此这些选项应称为平水韵归属或读音义项，不能包装成臆造的现代拼音。
+
+使用 `reading_disambiguation.make_request(result)` 生成与原检测绑定的 AI 请求。模型对每个位置只能返回 selected 或 unknown；selected 必须逐字匹配请求中已有的 section/group，并说明语境理由。`apply_review(request, payload)` 校验请求摘要、句位、字符和选项后生成 readings；`recheck_candidate` / `recheck_poem` 会把它交回 Constraint Engine。AI 只负责选择语义相符的已收录归属，最终平仄和押韵仍由规则引擎判定；不得因某选项能通过格律就选择它。任一位置为 unknown 时不生成选择，复检仍为 unknown。
+
+多归属已经由唯一 section/group 选择消歧后，`checks.reading=pass` 并在 selected 中记录实际归属和 senses。缺字为 CHAR_NOT_FOUND；即使位于“中”，仍报告资料不足。“中”只免除基础声调限制。已选韵部不会反向用作读音选择依据。简繁原字分别查表，未收录不擅自转换。
 
 韵脚句位完全来自快照 rhyme.positions，首句不重新猜测。非韵脚候选为 not_applicable。韵部支持原始短名（如一东）或 `上平声部/一东`；不做名称别名或简繁猜测。未选择、未收录韵部和其他韵书均返回 unknown。韵脚必须是正确长度单句的末字，否则 RHYME_POSITION_UNAVAILABLE。
 
@@ -60,7 +64,7 @@ readings 使用 JSON 键 `句号:字位`，如 `2:3`；坐标必须存在于替�
 
 ## 结果和兼容
 
-顶层保留 revision、valid、checks、errors、warnings，并新增 binding_version、scope、subject、context_sha256。length、pingze、rhyme 必须 required=true；duplicate 默认 required=false。单项 fail 是检测事实，是否阻断由 required 决定。必需项 fail → valid=false；必需项 unknown/not_run → null；其余 → true。旧结果省略 required 仍按 true；required 只接受布尔值，不能将核心三项降级。非韵脚候选的 rhyme=not_applicable 不阻断。
+顶层保留 revision、valid、checks、errors、warnings，并新增 binding_version、scope、subject、context_sha256。length、pingze、rhyme、reading 必须 required=true；duplicate 默认 required=false。单项 fail 是检测事实，是否阻断由 required 决定。必需项 fail → valid=false；必需项 unknown/not_run → null；其余 → true。旧结果省略 required 仍按 true；required 只接受布尔值，不能将核心检查降级。非韵脚候选的 rhyme=not_applicable 不阻断。
 
 对象绑定由 scripts/assessment_binding.py 统一生成和校验，binding_version=1：
 
@@ -78,7 +82,7 @@ set_assessment 只接收匹配当前全诗和上下文的新结果；evaluate_ca
 
 ## 数据边界和验证
 
-韵库、原仓库 MIT LICENSE、固定提交与 SHA-256 位于 data/rhyme。上游表只有 105 部；缺失的上声“三讲”已依据[搜韵韵表](https://sou-yun.cn/QR.aspx?ct=%E8%AE%B2)将 29 字直接插入 Pingshui_Rhyme.json 上声部的二肿与四纸之间，现为 106 部，其余上游内容保持不变。source.json 保存上游和当前文件的摘要、采集日期、来源、注释及独立授权说明；运行只加载一份韵表，不推定其他字音。该补充内容不沿用原仓库 MIT 授权声明。所有 pass 都仅表示在当前资料、绑定模板和上述规则范围内通过，不是完整文献音韵证明。详情见 data/rhyme/source.json。
+韵库和 SHA-256 位于 data/rhyme。当前文件是用户提供并要求替换的重新抓取结果，共 106 部、6605 条记录；source.json 保存接收日期、摘要、统计及已知来源边界，不记录项目外本地路径。运行只加载这一份项目内韵表并校验摘要，不联网、不混入旧表，也不推定其他字音。所有 pass 都仅表示在当前资料、绑定模板和上述规则范围内通过，不是完整文献音韵证明。
 
 测试用人工可控字集验证全 16 模板、固定位置、各类未知、逐位置消歧、孤平／三平调、“中”、重复替换、非必需项、快照与 revision；真实韵库测试多归属、入声、文件摘要、CLI 与项目外工作目录加载。测试不依赖生成诗句质量。
 
