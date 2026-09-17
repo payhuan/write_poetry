@@ -48,7 +48,7 @@ readings 使用 JSON 键 `句号:字位`，如 `2:3`；坐标必须存在于替�
 
 多归属已经由唯一 section/group 选择消歧后，`checks.reading=pass` 并在 selected 中记录实际归属和 senses。缺字为 CHAR_NOT_FOUND；即使位于“中”，仍报告资料不足。“中”只免除基础声调限制。已选韵部不会反向用作读音选择依据。简繁原字分别查表，未收录不擅自转换。
 
-韵脚句位完全来自快照 rhyme.positions，首句不重新猜测。非韵脚候选为 not_applicable。韵部支持原始短名（如一东）或 `上平声部/一东`；不做名称别名或简繁猜测。未选择、未收录韵部和其他韵书均返回 unknown。韵脚必须是正确长度单句的末字，否则 RHYME_POSITION_UNAVAILABLE。
+韵脚句位完全来自快照 rhyme.positions，首句不重新猜测。非韵脚候选为 not_applicable。韵部支持规范名（如 `十一真`）、`上平声部/十一真`，以及省略序号的尾名别名（如 `真`）。别名唯一匹配时规范化为完整韵部名；多个匹配返回 RHYME_GROUP_AMBIGUOUS 及 choices，必须消歧，不合并判定；无匹配返回 RHYME_GROUP_UNAVAILABLE。简繁不猜测。未选择韵部和其他韵书返回 unknown。韵脚必须是正确长度单句的末字，否则 RHYME_POSITION_UNAVAILABLE。
 
 ## 附加规则口径：pingshui-basic-1
 

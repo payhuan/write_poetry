@@ -84,6 +84,15 @@ class PoemStateTests(unittest.TestCase):
         state.replace_line(1, "墙角一枝梅")
         self.assertEqual(state.to_dict()["status"], "drafting")
 
+    def test_unique_rhyme_alias_is_saved_as_canonical_group(self):
+        state = self.state()
+        state.set_plan(rhyme={"system": "平水韵", "group": "真",
+                              "first_line_rhymes": False})
+        self.assertEqual(state.to_dict()["rhyme"]["group"], "十一真")
+        state.set_plan(rhyme={"system": "平水韵", "group": "上平声部/真",
+                              "first_line_rhymes": False})
+        self.assertEqual(state.to_dict()["rhyme"]["group"], "十一真")
+
     def test_persistence_and_migration(self):
         state = PoemState.from_dict(parse_request("咏梅", {"theme": "梅"}))
         with tempfile.TemporaryDirectory() as directory:

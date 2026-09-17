@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch
 from urllib.error import URLError
 
-from rhyme_lexicon import DATA_DIR, RhymeLexicon
+from rhyme_lexicon import AmbiguousRhymeGroup, DATA_DIR, RhymeLexicon
 from scrape_pingshui import (Document, Fetcher, PAGE_URL, catalog, extract_entries,
                              json_bytes, merge_entries, parse_page, parse_uncommon, project_path)
 
@@ -133,6 +133,22 @@ class ExtractionTests(unittest.TestCase):
 
 
 class AnnotatedLexiconTests(unittest.TestCase):
+    def test_unique_group_alias_normalizes_and_ambiguity_is_explicit(self):
+        lexicon = RhymeLexicon({
+            '上平声部': {'一东': ['甲'], '十一真': ['乙']},
+            '下平声部': {'二东': ['丙']},
+        })
+        self.assertEqual(lexicon.normalize_group('真'), '十一真')
+        self.assertEqual(lexicon.normalize_group('十一真'), '十一真')
+        self.assertEqual(lexicon.normalize_group('上平声部/真'), '十一真')
+        self.assertEqual(lexicon.group_records('真'), {('上平声部', '十一真')})
+        self.assertIsNone(lexicon.normalize_group('不存在'))
+        with self.assertRaises(AmbiguousRhymeGroup) as error:
+            lexicon.normalize_group('东')
+        self.assertEqual(set(error.exception.choices),
+                         {'上平声部/一东', '下平声部/二东'})
+        self.assertEqual(lexicon.group_records('东'), set())
+
     def test_legacy_calls_and_membership_scoped_senses(self):
         data = {'上平声部': {'一东': ['忠', {'char': '丰', 'senses': ['丰收']},
                                       {'char': '丰', 'senses': ['丰收', '另一义项']}],

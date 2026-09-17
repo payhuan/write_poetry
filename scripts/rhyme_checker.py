@@ -15,8 +15,9 @@ def check_line(line, width, rhyme_positions, rhyme, lexicon, resolved):
         code = 'UNSUPPORTED_RHYME_SYSTEM'
     elif rhyme['group'] is None:
         code = 'RHYME_GROUP_UNSELECTED'
-    elif not lexicon.group_records(rhyme['group']):
-        code = 'RHYME_GROUP_UNAVAILABLE'
+    elif len(lexicon.match_groups(rhyme['group'])) != 1:
+        matches = lexicon.match_groups(rhyme['group'])
+        code = 'RHYME_GROUP_AMBIGUOUS' if matches else 'RHYME_GROUP_UNAVAILABLE'
     else:
         records, reason = resolved[-1]
         if reason:
@@ -26,4 +27,6 @@ def check_line(line, width, rhyme_positions, rhyme, lexicon, resolved):
             status = verdict((r['section'], r['group']) in group for r in records)
             code = 'AMBIGUOUS_READING' if status == 'unknown' else 'RHYME_MISMATCH'
     return {'status': status, 'issues': [] if status == 'pass' else [
-        {**cell, 'code': code, 'status': status, 'expected': rhyme['group']}]}
+        {**cell, 'code': code, 'status': status, 'expected': rhyme['group'],
+         **({'choices': sorted(s + '/' + g for s, g in matches)}
+            if code == 'RHYME_GROUP_AMBIGUOUS' else {})}]}

@@ -196,6 +196,20 @@ class ConstraintTests(unittest.TestCase):
             self.assertIsNone(r['valid'])
             self.assertEqual(r['checks']['rhyme']['issues'][0]['code'], code)
 
+    def test_ambiguous_rhyme_alias_returns_choices(self):
+        lexicon = RhymeLexicon({
+            '上平声部': {'一东': ['天']},
+            '下平声部': {'二东': ['人']},
+            '上声部': {'一董': ['水']},
+        })
+        data = self.state().to_dict()
+        data['rhyme']['group'] = '东'  # Simulate an older/un-normalized saved plan.
+        result = ConstraintEngine(lexicon).check_candidate(
+            {'id': 'c', 'text': '天天水水天', 'line_index': 2}, PoemState.from_dict(data))
+        issue = result['checks']['rhyme']['issues'][0]
+        self.assertEqual(issue['code'], 'RHYME_GROUP_AMBIGUOUS')
+        self.assertEqual(set(issue['choices']), {'上平声部/一东', '下平声部/二东'})
+
     def test_snapshot_change_changes_verdict_without_library_change(self):
         state = self.state()
         template = state.to_dict()['meter_template']['data']
@@ -376,8 +390,8 @@ class ConstraintTests(unittest.TestCase):
                     left.replace_line(1, '月月东东月。')
                     right.replace_line(1, '月月东东月！')
                 elif field == 'rhyme':
-                    left.set_plan(rhyme={**left.to_dict()['rhyme'], 'group': '上平声部/一东'})
-                    right.set_plan(rhyme={**right.to_dict()['rhyme'], 'group': '二冬'})
+                    left.set_plan(rhyme={**left.to_dict()['rhyme'], 'group': '二冬'})
+                    right.set_plan(rhyme={**right.to_dict()['rhyme'], 'group': '三江'})
                 elif field == 'constraints':
                     left.set_plan(constraints=['提示重复字'])
                     right.set_plan(constraints=['禁止重复字'])

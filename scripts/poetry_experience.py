@@ -112,7 +112,7 @@ def prepare(client, raw):
     state.set_budget(beam_width=1, candidates_per_round=10, max_rounds=16, max_backtracks=3)
     library, lexicon = TemplateLibrary(), RhymeLexicon()
     templates = library.candidates(state.to_dict()["poem_type"], meter=state.to_dict()["request"]["meter"])
-    groups = sorted(s + '/' + g for s, g in lexicon.groups if s in ("上平声部", "下平声部"))
+    groups = sorted(g for s, g in lexicon.groups if s in ("上平声部", "下平声部"))
     error = None
     for _ in range(3):
         response = client.ask("规划意象、诗格与韵部", docs("composition-guide.md") +
@@ -120,8 +120,11 @@ def prepare(client, raw):
             {"state": state.to_dict(), "templates": templates, "rhyme_groups": groups, "previous_error": error})
         try:
             plan = read_json(response)
-            if set(plan) != {"template_id", "rhyme_group", "imagery", "structure"} or plan["rhyme_group"] not in groups:
+            if set(plan) != {"template_id", "rhyme_group", "imagery", "structure"}:
                 raise ValueError("规划字段或韵部不合法")
+            plan["rhyme_group"] = lexicon.normalize_group(plan["rhyme_group"], strict=True)
+            if plan["rhyme_group"] not in groups:
+                raise ValueError("规划韵部必须是平声韵部")
             proposed = state.fork()
             library.bind(proposed, template_id=plan["template_id"])
             rhyme = proposed.to_dict()["rhyme"]

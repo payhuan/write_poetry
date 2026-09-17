@@ -273,8 +273,16 @@ class PoemState:
         allowed = {"theme", "emotion", "imagery", "structure", "template_id", "rhyme", "constraints"}
         if set(changes) - allowed:
             raise ValueError("Unsupported plan field")
+        changes = deepcopy(changes)
+        rhyme = changes.get("rhyme")
+        if (isinstance(rhyme, dict) and rhyme.get("system") == "平水韵"
+                and isinstance(rhyme.get("group"), str) and rhyme["group"].strip()):
+            from rhyme_lexicon import RhymeLexicon
+            canonical = RhymeLexicon().normalize_group(rhyme["group"])
+            if canonical is not None:
+                rhyme["group"] = canonical
         data = self.to_dict()
-        data.update(deepcopy(changes))
+        data.update(changes)
         if data != self._data:
             self._commit(data, invalidate=True)
 

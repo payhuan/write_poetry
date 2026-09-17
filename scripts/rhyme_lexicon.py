@@ -2,10 +2,18 @@
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 DATA_DIR = Path(__file__).resolve().parent.parent / 'data' / 'rhyme'
 TONES = {'上平声部': '平', '下平声部': '平', '上声部': '仄', '去声部': '仄', '入声部': '仄'}
+NUMBER_PREFIX = re.compile(r'^[一二三四五六七八九十百]+')
+
+
+class AmbiguousRhymeGroup(ValueError):
+    def __init__(self, group, choices):
+        self.group, self.choices = group, tuple(choices)
+        super().__init__('Ambiguous rhyme group alias: ' + group + ' -> ' + ', '.join(self.choices))
 
 
 class RhymeLexicon:
@@ -68,8 +76,35 @@ class RhymeLexicon:
         records = [r for r in records if all(r[k] == v for k, v in reading.items())]
         return (records, None) if records else ([], 'READING_NOT_ATTESTED')
 
+    def match_groups(self, group):
+        """Return exact or suffix-alias matches without silently merging aliases."""
+        if not isinstance(group, str) or not group.strip():
+            return set()
+        value = group.strip()
+        section, separator, name = value.partition('/')
+        if not separator:
+            section, name = None, value
+        candidates = {(s, g) for s, g in self.groups if section in (None, s)}
+        exact = {(s, g) for s, g in candidates if g == name}
+        if exact:
+            return exact
+        return {(s, g) for s, g in candidates if NUMBER_PREFIX.sub('', g) == name}
+
+    def normalize_group(self, group, *, strict=False):
+        """Return one canonical group name; ambiguous aliases always need review."""
+        matches = self.match_groups(group)
+        if len(matches) > 1:
+            choices = sorted(s + '/' + g for s, g in matches)
+            raise AmbiguousRhymeGroup(group, choices)
+        if matches:
+            return next(iter(matches))[1]
+        if strict:
+            raise ValueError('Rhyme group unavailable: ' + str(group))
+        return None
+
     def group_records(self, group):
-        return {(s, g) for s, g in self.groups if group in (g, s + '/' + g)}
+        matches = self.match_groups(group)
+        return matches if len(matches) == 1 else set()
 
 
 def validate_readings(readings, lines):

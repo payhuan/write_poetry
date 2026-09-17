@@ -274,8 +274,8 @@ class RoundTests(unittest.TestCase):
                 t = self.state.to_dict()['meter_template']['data']
                 left.bind_template(t, 'a' * 64); right.bind_template(t, 'b' * 64)
             elif field == 'rhyme':
-                left.set_plan(rhyme={**left.to_dict()['rhyme'], 'group': '上平声部/一东'})
-                right.set_plan(rhyme={**right.to_dict()['rhyme'], 'group': '二冬'})
+                left.set_plan(rhyme={**left.to_dict()['rhyme'], 'group': '二冬'})
+                right.set_plan(rhyme={**right.to_dict()['rhyme'], 'group': '三江'})
             else:
                 left.set_plan(**{field: ['甲']}); right.set_plan(**{field: ['乙']})
             self.assertEqual(left.to_dict()['revision'], right.to_dict()['revision'])
