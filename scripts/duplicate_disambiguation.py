@@ -5,7 +5,7 @@ from copy import deepcopy
 from assessment_binding import BINDING_FIELDS, digest
 
 VERSION = 'duplicate-review-1'
-ALLOWED_RELATIONS = {'reduplication', 'parallel', 'descending'}
+ALLOWED_RELATIONS = {'reduplication', 'parallel', 'progressive'}
 RELATIONS = ALLOWED_RELATIONS | {'error', 'unknown'}
 
 
@@ -32,7 +32,7 @@ def make_request(result):
         'occurrences': occurrences,
         'instruction': (
             '逐个判断重复字在当前全句及全诗语境中的用法。只有叠字，或各重复位置所属意群构成'
-            '明确并列或递减关系时才允许；普通复现、递进、无法说明意群关系或牵强解释均判 error。'
+            '明确并列或递进关系时才允许；普通复现、递减、无法说明意群关系或牵强解释均判 error。'
             '证据不足返回 unknown。不得根据格律是否通过倒推结论。'),
     }
     request['request_sha256'] = digest(request)

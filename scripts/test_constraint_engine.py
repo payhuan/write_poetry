@@ -246,7 +246,7 @@ class ConstraintTests(unittest.TestCase):
         self.assertEqual(r['checks']['duplicate']['status'], 'unknown')
         request = make_duplicate_request(r)
         payload = None
-        for relation in ('reduplication', 'parallel', 'descending'):
+        for relation in ('reduplication', 'parallel', 'progressive'):
             payload = {'review_version': request['review_version'],
                        'request_sha256': request['request_sha256'],
                        'decisions': [{'char': item['char'], 'relation': relation,
@@ -254,6 +254,10 @@ class ConstraintTests(unittest.TestCase):
                                      for item in request['occurrences']]}
             checked = recheck_duplicate_candidate(engine, candidate, self.state(), request, payload)
             self.assertTrue(checked['result']['valid'])
+        obsolete = deepcopy(payload)
+        obsolete['decisions'][0]['relation'] = 'descending'
+        with self.assertRaises(ValueError):
+            apply_duplicate_review(request, obsolete)
         rejected = deepcopy(payload)
         rejected['decisions'][0].update(relation='error', reason='普通复现，不是允许用法。')
         self.assertFalse(recheck_duplicate_candidate(

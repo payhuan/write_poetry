@@ -53,7 +53,7 @@ readings 使用 JSON 键 `句号:字位`，如 `2:3`；坐标必须存在于替�
 
 引擎在候选替换后的完整上下文或全诗中统计每个汉字的位置。没有重字时 `checks.duplicate=pass`；发现重字而未提供审查时，该必需项为 `unknown`，并为每组返回 `DUPLICATE_REVIEW_REQUIRED`、char、count 和全部 line/pos/offset。规则引擎不自行猜测词义，也不会把重字直接当作普通 warning 放行。
 
-使用 `duplicate_disambiguation.make_request(result)` 生成绑定原检测对象、上下文摘要和位置集合的请求。模型对每个重复字符返回 relation 与理由；relation 仅允许 `reduplication`（叠字）、`parallel`（意群并列）、`descending`（意群递减）、`error` 或 `unknown`。前三类通过；普通复现、递进关系、不能说明每个位置所属意群或牵强解释均为 `error`；证据不足为 `unknown`。`apply_review` 校验请求摘要、字符集合和完整决定，`recheck_candidate` / `recheck_poem` 将产物作为 `duplicate_review` 交回引擎。审查产物与不同候选、正文、revision 或重复位置不匹配时拒绝复用。
+使用 `duplicate_disambiguation.make_request(result)` 生成绑定原检测对象、上下文摘要和位置集合的请求。模型对每个重复字符返回 relation 与理由；relation 仅允许 `reduplication`（叠字）、`parallel`（意群并列）、`progressive`（意群递进）、`error` 或 `unknown`。前三类通过；普通复现、递减关系、不能说明每个位置所属意群或牵强解释均为 `error`；证据不足为 `unknown`。`apply_review` 校验请求摘要、字符集合和完整决定，`recheck_candidate` / `recheck_poem` 将产物作为 `duplicate_review` 交回引擎。审查产物与不同候选、正文、revision 或重复位置不匹配时拒绝复用。
 
 AI 只判断语义关系，最终状态仍由引擎汇总：任一 `error` 使 duplicate=fail 和整体验证失败；任一 `unknown` 保持整体验证未知；全部属于三种允许关系才使 duplicate=pass。`ConstraintEngine(..., duplicate_policy='report')` 仅供机械格律测试夹具保留旧式非阻断报告，正常 Skill 工作流不得使用。
 
