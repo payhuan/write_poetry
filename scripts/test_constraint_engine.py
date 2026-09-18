@@ -339,12 +339,12 @@ class ConstraintTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(raw).hexdigest(), source['sha256'])
         self.assertEqual(source['schema_version'], 3)
         self.assertIsNone(source['source_url'])
-        self.assertEqual(source['counts']['records'], 6605)
+        self.assertEqual(source['counts']['records'], 18032)
         expected = set('讲港项蚌傋棒夯玤庬')
         data = json.loads(raw)
         self.assertIn('三讲', data['上声部'])
-        self.assertEqual({r['char'] for r in data['上声部']['三讲']}, expected)
-        self.assertEqual(len(data['上声部']['三讲']), 9)
+        self.assertTrue(expected <= {r['char'] for r in data['上声部']['三讲']})
+        self.assertGreater(len(data['上声部']['三讲']), 9)
         for char in expected:
             self.assertIn({'section': '上声部', 'group': '三讲', 'tone': '仄'}, lexicon.lookup(char))
         self.assertEqual(lexicon.group_records('上声部/三讲'), {('上声部', '三讲')})
@@ -354,11 +354,11 @@ class ConstraintTests(unittest.TestCase):
         for char in expected:
             for old_record in base.lookup(char):
                 self.assertIn(old_record, lexicon.lookup(char))
-        # Gloss characters are not accidentally treated as rhyme entries.
+        # Common gloss characters are not accidentally treated as rhyme entries.
         for char in '水会也':
             self.assertNotIn({'section': '上声部', 'group': '三讲', 'tone': '仄'}, lexicon.lookup(char))
-        self.assertNotIn({'section': '上声部', 'group': '三讲', 'tone': '仄'},
-                         lexicon.lookup('漎'))
+        # The expanded source now explicitly records this formerly absent rare character.
+        self.assertIn({'section': '上声部', 'group': '三讲', 'tone': '仄'}, lexicon.lookup('漎'))
         r = check_candidate({'id': 'mismatch', 'text': '东讲月月东', 'line_index': 2}, self.state())
         self.assertFalse(r['valid'])
         self.assertEqual(r['checks']['pingze']['lines'][0]['positions'][1]['status'], 'fail')

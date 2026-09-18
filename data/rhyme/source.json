@@ -1,10 +1,10 @@
 {
   "schema_version": 3,
-  "source_name": "用户提供的平水韵重新抓取文件",
+  "source_name": "用户提供的扩充生僻字平水韵重新抓取文件",
   "source_url": null,
   "file": "Pingshui_Rhyme.json",
-  "sha256": "dfd170d9e3922801eb94b4415ccd09882d6bae89bddb5f57e897e024ee559127",
-  "received_on": "2026-09-17",
+  "sha256": "1878e2139dfca91223017c5d0f8720e6a80cd5140269f2d525206d250a1492d6",
+  "received_on": "2026-09-18",
   "integration": "The user supplied a newly scraped JSON file outside the project. It was copied into data/rhyme/Pingshui_Rhyme.json and normalized to UTF-8 with LF line endings for stable cross-platform hashing; the external path is intentionally not retained.",
   "entry_schema": {
     "char": "one Unicode code point",
@@ -13,17 +13,17 @@
   "counts": {
     "group_count": 106,
     "section_record_counts": {
-      "上平声部": 1302,
-      "下平声部": 1333,
-      "上声部": 1321,
-      "去声部": 1613,
-      "入声部": 1036
+      "上平声部": 3791,
+      "下平声部": 3579,
+      "上声部": 3495,
+      "去声部": 4055,
+      "入声部": 3112
     },
-    "records": 6605,
-    "unique_characters": 5531,
-    "characters_with_multiple_memberships": 924,
-    "records_with_senses": 508,
-    "senses": 508
+    "records": 18032,
+    "unique_characters": 13930,
+    "characters_with_multiple_memberships": 3233,
+    "records_with_senses": 765,
+    "senses": 765
   },
   "limitations": [
     "The supplied file contains section, group, character and senses, but no separate pinyin field.",
@@ -32,9 +32,9 @@
     "Source URL, capture time, scraper implementation and redistribution license were not included with the supplied file."
   ],
   "previous_source": {
-    "source_name": "诗词吾爱网 · 平水韵",
-    "source_url": "https://www.52shici.com/zd/yun.php",
-    "sha256": "a3beb122d47e5f4b3655ae39401854e70da71d23d47cffa8828e00763f691288",
+    "source_name": "用户于 2026-09-17 提供的上一版重新抓取文件",
+    "source_url": null,
+    "sha256": "dfd170d9e3922801eb94b4415ccd09882d6bae89bddb5f57e897e024ee559127",
     "used_in_current_table": false
   }
 }

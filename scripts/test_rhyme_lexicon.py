@@ -189,6 +189,12 @@ class AnnotatedLexiconTests(unittest.TestCase):
         self.assertEqual({r['group']: r['senses'] for r in lexicon.lookup('重', include_senses=True)},
                          {'二冬': ['重复'], '二肿': ['郑重'], '二宋': ['轻重']})
 
+    def test_expanded_rare_characters_are_available(self):
+        lexicon = RhymeLexicon()
+        for char in '丂亍仡漎':
+            with self.subTest(char=char):
+                self.assertTrue(lexicon.lookup(char), char)
+
     def test_bundled_replacement_counts_and_integrity(self):
         data = json.loads((DATA_DIR / 'Pingshui_Rhyme.json').read_text(encoding='utf-8'))
         source = json.loads((DATA_DIR / 'source.json').read_text(encoding='utf-8'))
