@@ -148,7 +148,7 @@ packages=[] 允许表示没有值得尝试的候选，随后重新审校决定�
 
 ## 内容复检
 
-candidate_content 与 final_content 直接使用 [Day 3 内容契约](round-content.md) 的 payload，包含原有 ENVELOPE、filter_sha256、content_version、attempt 和 reviews。读取 `job.context.filtered.content_request`；使用其候选 id、line_index、text_sha256 和逐项 requirement ID，给出 satisfied/violated/unknown、reason、interpretation、evidence。
+candidate_content 与 final_content 直接使用 [Day 3 内容契约](round-content.md) 的 payload，包含原有 ENVELOPE、filter_sha256、content_version、attempt 和 reviews。读取 `job.context.filtered.content_request`；使用其候选 id、line_index、text_sha256 和逐项 requirement ID，给出 satisfied/violated/unknown、reason、interpretation、evidence。用典项还携带 [典故查询与规范化](allusion-lookup.md) 的 `allusion_reference`；每次正文改变后都要按当前诗句和同一规范证据重新判断。
 
 修改候选须在完整新正文上下文逐句复查所有安排，而非仅被修改句。必用典故/adapt 的承担句即使未改字，也可能受其他句的上下文影响，必须重新请求实际 LLM 语义结果。exacts 由原 check_content/filter_candidates 重算；语义复核通过 review_content 导入；最终以每条必需项在承担句位的 satisfied 聚合。可选用典/inspiration 可以 unknown，仍保留记录；必需项 unknown 或 violated 阻断采纳/完成。题目不会传入正文检查。
 

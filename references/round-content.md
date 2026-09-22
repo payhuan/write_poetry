@@ -10,7 +10,7 @@ Day 4 集成见 [搜索控制](poetry-search.md)：搜索固定已确认的 assi
 2. agent 安排未定位的 exact/adapt 片段和 required=true 典故的承担句位，填入独立 reason；inspiration 必须保持 null，可选典故可为 null。通过 `export_context(state, line_index, content_plan=plan)` 校验并导出上下文。
 3. 未安排必需项时返回 planning_required / CONTENT_ASSIGNMENT_REQUIRED，不进入候选处理。本句有 `locked_candidate` 时直接 `filter_candidates(state, context, engine=engine)`，跳过 LLM 生成；其他情况沿用候选 JSON。
 4. `filter_candidates` 复用 Constraint Engine 检测原文，同时独立计算 exact 内容。结果保留纯规则 category/checks，另有 content_result。只有格律通过、exact 内容未明确失败的候选进入 `content_request` 的语义评价。
-5. agent 按 content_request 对本句用典、adapt 和 inspiration 逐项评价；`review_content(state, filtered, payload, engine=engine)` 导入并校验。使用返回结果的最新 score_request 进行文学评分。
+5. agent 按 content_request 对本句用典、adapt 和 inspiration 逐项评价；用典项同时读取 `allusion_reference`，规则见 [典故查询与规范化](allusion-lookup.md)。`review_content(state, filtered, payload, engine=engine)` 导入并校验；歧义典故不能判 satisfied。使用返回结果的最新 score_request 进行文学评分。
 6. `finish_round` 复核整批规则和内容评价归属，校验评分后原子记录。未履行的当前必需内容不接受文学评分，也不能获得 retained 或推荐。无语义请求时可直接 finish；可选内容评价缺失不会阻断，仍诚实记录 unknown。
 
 所有接口都可从 poetry_round 导入；实现分为 scripts/round_content.py 和现有 scripts/poetry_round.py。除 finish 外不写 PoemState。可以在同一流程传入同一个 ConstraintEngine，复用韵库。新语义阶段也遵守一次输出加两次格式修正的上限（attempt=1、2、3），不自动调用模型或搜索。
@@ -72,7 +72,7 @@ exact 匹配复用 text_normalizer.normalize_line 的既有空白、标点和句
 
 ## LLM 语义评价契约
 
-只评价程序 content_request.candidates 指定的候选与要求。必用典故必须解释**具体表达如何体现典故的含义**；仅出现典故名称不算程序已确认。adapt 判断主要意思是否保留，不要求逐字相同。inspiration 判断启发关系，不要求原文出现；即使关系不明显也不阻断。典故含义不明时用 unknown，在 reason 说明待澄清内容，不编造解释或出处。
+只评价程序 content_request.candidates 指定的候选与要求。必用典故必须解释**具体表达如何体现典故的含义**；仅出现典故名称不算程序已确认。`resolved` 用典以同项引用中的规范主典、简释与出处原文为依据；`ambiguous` 必须先消歧，程序拒绝 satisfied；`not_found` 是局部语料未命中，须用可靠外部来源核实，否则为 unknown。adapt 判断主要意思是否保留，不要求逐字相同。inspiration 判断启发关系，不要求原文出现；即使关系不明显也不阻断。不编造解释或出处。
 
 ```json
 {

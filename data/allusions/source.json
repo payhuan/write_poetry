@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "source_name": "搜韵典故索引（用户提供的本地抓取结果）",
+  "source_url": "https://sou-yun.cn/AllusionsIndex.aspx?page=N",
+  "file": "allusions.jsonl",
+  "sha256": "73c4a38bd7b8aa4fe0b2dc4f693907acb608e1b668db92bb029b7c24e25cadc5",
+  "received_on": "2026-09-22",
+  "integration": "The user supplied a scraped directory outside the project. Only the self-contained allusions JSONL needed at runtime was copied into data/allusions; cache pages, crawler code, SQLite/CSV/HTML derivatives and logs were intentionally excluded. The external development path is not retained.",
+  "counts": {
+    "allusions": 1016,
+    "aliases": 12057,
+    "sources": 1642,
+    "records_with_gloss": 377
+  },
+  "coverage": {
+    "pages": "0-101",
+    "records_per_full_page": 10,
+    "last_page_records": 6
+  },
+  "limitations": [
+    "This is a partial snapshot: the source site describes a larger collection, so a local miss does not mean that an allusion does not exist.",
+    "The supplied export contains no parsed poetic examples even though the crawler workspace may retain examples in cached HTML.",
+    "The supplied README says the data is for personal research use and does not provide a redistribution license.",
+    "Glosses are absent for many records; source passages and aliases remain source evidence but still require contextual interpretation.",
+    "The project does not depend on the original crawler directory or perform network requests when querying this data."
+  ]
+}

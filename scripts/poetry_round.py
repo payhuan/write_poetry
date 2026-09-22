@@ -15,6 +15,7 @@ import sys
 import tempfile
 from uuid import uuid4
 
+from allusion_lexicon import AllusionLexicon
 from assessment_binding import digest, make_binding
 from constraint_engine import ConstraintEngine
 from poem_state import PoemState
@@ -32,6 +33,14 @@ WEIGHTS = {'theme': 0.25, 'naturalness': 0.25, 'imagery': 0.20,
            'continuity': 0.15, 'expression': 0.15}
 MAX_FORMAT_RETRIES = 2
 ENVELOPE = {'contract_version', 'batch_id', 'context_sha256', 'generation_sha256'}
+_ALLUSION_LEXICON = None
+
+
+def _allusion_lexicon():
+    global _ALLUSION_LEXICON
+    if _ALLUSION_LEXICON is None:
+        _ALLUSION_LEXICON = AllusionLexicon()
+    return _ALLUSION_LEXICON
 
 
 class RoundError(ValueError):
@@ -98,6 +107,16 @@ def _context(state, line_index, batch_id, content_plan=None):
                if is_rhyme and d['rhyme']['group'] is None else [])
     allusions = d['request'].get('allusions', [])
     fragments = d['request'].get('required_fragments', [])
+    allusion_references = _allusion_lexicon().resolve_requirements(allusions) if allusions else []
+    for reference, requirement in zip(allusion_references, allusions):
+        if requirement['required'] and reference['status'] == 'ambiguous':
+            reasons.append({'code': 'ALLUSION_DISAMBIGUATION_REQUIRED',
+                            'requirement_id': requirement['id'],
+                            'choices': [{'allusion_id': choice['allusion_id'],
+                                         'canonical_name': choice['canonical_name'],
+                                         'raw_nav_name': choice['raw_nav_name']}
+                                        for choice in reference['choices']],
+                            'message': '必用典故名称在本地索引中对应多条记录，请先选定主典。'})
     plan = None
     if allusions or fragments or content_plan is not None:
         plan, unresolved = validate_content_plan(state, content_plan)
@@ -119,7 +138,8 @@ def _context(state, line_index, batch_id, content_plan=None):
         'context_sha256': make_binding(d)['context_sha256'], 'revision': d['revision'],
         'status': 'planning_required' if reasons else 'ready', 'reasons': reasons,
         'request': d['request'], 'theme': d['theme'], 'emotion': d['emotion'],
-        'allusions': allusions, 'required_fragments': fragments, 'content_plan': plan,
+        'allusions': allusions, 'allusion_references': allusion_references,
+        'required_fragments': fragments, 'content_plan': plan,
         'imagery': d['imagery'], 'structure': d['structure'], 'lines': d['lines'],
         'poem_type': d['poem_type'], 'form': d['form'], 'line_index': line_index,
         'template': d['meter_template'], 'user_meter': d['request']['meter'],
@@ -130,7 +150,9 @@ def _context(state, line_index, batch_id, content_plan=None):
                             'target': min(5, d['budget']['candidates_per_round'])},
         'retry_policy': {'max_attempts_per_stage': MAX_FORMAT_RETRIES + 1,
                          'automatic_retries': False},
-        'generation_instruction': '生成语义完整的候选句，保留句意与自然措辞；不得逐字填空、自动改句或猜选有利读音。',
+        'generation_instruction': ('生成语义完整的候选句，保留句意与自然措辞；不得逐字填空、自动改句或猜选有利读音。'
+                                   '用典时以 allusion_references 的规范主典、简释和出处原文为依据；'
+                                   'not_found 只表示局部语料未收录，须另行可靠核实，不能据此编造。'),
     }
     result['locked_candidate'] = locked_candidate(result)
     if result['locked_candidate'] is not None:

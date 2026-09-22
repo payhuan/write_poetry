@@ -10,6 +10,7 @@ import tempfile
 import unittest
 
 from assessment_binding import digest
+from allusion_lexicon import AllusionLexicon
 from constraint_engine import ConstraintEngine
 from poem_state import PoemState
 from poem_templates import TemplateLibrary
@@ -94,6 +95,38 @@ class ContentRoundTests(unittest.TestCase):
         self.assertEqual(context['content_plan']['assignments'][0]['line_index'], 2)
         context['allusions'][0]['source_excerpt'] = '模型解释'
         self.assertEqual(state.to_dict(), before)
+
+    def test_resolved_allusion_reference_is_attached_without_rewriting_request(self):
+        state = state_with(allusions=[allusion(name='王质观棋')])
+        before = state.to_dict()
+        filtered = self.batch(state, positions={('allusion', 'a1'): 2})
+        reference = filtered['context']['allusion_references'][0]
+        self.assertEqual(reference['status'], 'resolved')
+        self.assertEqual(reference['record']['canonical_name'], '柯烂忘归')
+        semantic = filtered['content_request']['candidates'][0]['requirements'][0]
+        self.assertEqual(semantic['allusion_reference'], reference)
+        self.assertEqual(state.to_dict(), before)
+
+    def test_required_ambiguous_allusion_blocks_planning_and_optional_cannot_fake_satisfaction(self):
+        def item(aid, name):
+            return {'allusion_id': aid, 'page_no': 0, 'seq_in_page': aid,
+                    'raw_nav_name': name + '（甲）', 'name': name,
+                    'head_persons': ['甲'], 'aliases': [{'word': '同名', 'word_id': None}],
+                    'persons': ['甲'], 'refs': [],
+                    'sources': [{'book': '出处', 'text': '原文'}], 'gloss': ''}
+        import poetry_round
+        old = poetry_round._ALLUSION_LEXICON
+        poetry_round._ALLUSION_LEXICON = AllusionLexicon([item(1, '甲典'), item(2, '乙典')])
+        self.addCleanup(setattr, poetry_round, '_ALLUSION_LEXICON', old)
+        required = state_with(allusions=[allusion(name='同名')])
+        context = export_context(required, 2, content_plan=planned(required, {('allusion', 'a1'): 2}))
+        self.assertEqual(context['status'], 'planning_required')
+        self.assertIn('ALLUSION_DISAMBIGUATION_REQUIRED', {x['code'] for x in context['reasons']})
+        optional = state_with(allusions=[allusion(name='同名', required=False)])
+        filtered = self.batch(optional)
+        payload = semantic_payload(filtered, 'satisfied')
+        with self.assertRaisesRegex(ValueError, 'Ambiguous allusion'):
+            review_content(optional, filtered, payload, engine=self.engine)
 
     def test_plan_must_cover_requirements_and_preserve_explicit_positions(self):
         state = state_with([fragment()], [allusion()])

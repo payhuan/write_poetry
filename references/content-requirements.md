@@ -18,7 +18,7 @@
 }
 ```
 
-allusions：id、name、source_excerpt 必填；description 默认空字符串，仅记录用户解释，不编造典故出处或释义；required 默认 true，用户明确说可选才填 false。典故名称可根据用户说明概括，但 source_excerpt 必须来自原文。名称歧义且会影响创作时在 questions 提问。不要用是否出现典故名称来判定成功用典；语义确认属于后续 LLM 流程。
+allusions：id、name、source_excerpt 必填；description 默认空字符串，仅记录用户解释，不编造典故出处或释义；required 默认 true，用户明确说可选才填 false。典故名称可根据用户说明概括，但 source_excerpt 必须来自原文。解析完成后按 [典故查询与规范化](allusion-lookup.md) 建立独立引用；不把规范主典名写回用户 request。名称精确对应多条记录且会影响创作时须消歧。不要用是否出现典故名称来判定成功用典；语义确认属于后续 LLM 流程。
 
 required_fragments：id、text、kind、source_excerpt 必填。text 必须逐字来自 source_excerpt，不替用户炼字或转换简繁。kind 为 line（完整诗句）或 phrase（连续短语）；mode 默认 exact：
 

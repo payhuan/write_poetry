@@ -161,6 +161,7 @@ def semantic_request(filtered):
     candidates = []
     context = filtered['context']
     known = {(kind, item['id']): item for kind, item in requirements(context['request'])}
+    references = {item['requirement_id']: item for item in context.get('allusion_references', [])}
     for record in filtered['records']:
         result = record.get('content_result')
         if record['category'] != 'passed' or result is None or result['valid'] is False:
@@ -170,13 +171,17 @@ def semantic_request(filtered):
             candidates.append({'id': record['id'], 'line_index': record['line_index'],
                                'text': record['text'], 'text_sha256': digest(record['text']),
                                'requirements': [{'kind': x['kind'], 'requirement_id': x['requirement_id'],
-                                                 'requirement': deepcopy(known[x['kind'], x['requirement_id']])}
+                                                 'requirement': deepcopy(known[x['kind'], x['requirement_id']]),
+                                                 **({'allusion_reference': deepcopy(references[x['requirement_id']])}
+                                                    if x['kind'] == 'allusion' else {})}
                                                 for x in active]})
     return {'content_version': CONTENT_VERSION, 'filter_sha256': filtered['filter_sha256'],
             **{k: context[k] for k in ('contract_version', 'batch_id', 'context_sha256', 'generation_sha256')},
             'context': deepcopy(context), 'candidates': candidates,
             'instruction': '逐项判断 satisfied/violated/unknown，说明候选具体表达如何体现典故或保留主要意思。'
-                           '出现典故名称不等于成功用典；不明含义保留 unknown，不编造出处。'
+                           '出现典故名称不等于成功用典；resolved 典故须按规范主典、简释与出处判断；'
+                           'ambiguous 先消歧，不能判 satisfied；not_found 仅表示局部语料未收录，'
+                           '须另行可靠核实，否则保留 unknown，不编造出处。'
                            'adapt 不要求原字相同；inspiration 不要求出现原文；可选典故不阻断。'
                            'satisfied 须引用候选原文并给出具体解释。照抄候选文本摘要、句位和要求 ID。'}
 
@@ -212,6 +217,12 @@ def apply_semantic_reviews(filtered, payload):
             need(key in expected and key not in covered, 'INVALID_CONTENT_REQUIREMENT', 'Unknown, duplicate or non-due requirement')
             covered.add(key)
             need(item['status'] in ('satisfied', 'violated', 'unknown'), 'INVALID_CONTENT_STATUS', 'Semantic status must be satisfied, violated or unknown')
+            expected_item = next(x for x in candidate['requirements']
+                                 if (x['kind'], x['requirement_id']) == key)
+            if key[0] == 'allusion':
+                reference = expected_item['allusion_reference']
+                need(reference['status'] != 'ambiguous' or item['status'] != 'satisfied',
+                     'ALLUSION_AMBIGUOUS', 'Ambiguous allusion must be resolved before it can be satisfied')
             for field in ('reason', 'interpretation'):
                 need(isinstance(item[field], str) and len(item[field]) <= 1000,
                      'INVALID_CONTENT_EXPLANATION', 'Explanation must be a short string')
