@@ -4,7 +4,8 @@ import json
 from assessment_binding import make_binding
 from day4_example import fixture_state, fixture_engine, drive, response_for as search_response
 from poetry_search import Search
-from poetry_polish import Polish, IDENTITY, WEIGHTS, REVIEW_VERSION
+from poetry_polish import (Polish, IDENTITY, WEIGHTS, REVIEW_VERSION,
+                           REDLINE_VERSION, REDLINE_CHECKS)
 from poetry_round import write_new_json
 from runtime_workspace import configure_workspace, output_path
 
@@ -62,6 +63,17 @@ def content_for(job, status='satisfied'):
     return payload
 
 
+def redline_for(state, *, answer='no', check=None):
+    checks = {}
+    for name in REDLINE_CHECKS:
+        verdict = answer if check in (None, name) else 'no'
+        checks[name] = dict(answer=verdict, reason='最终出口红线检查夹具',
+                            evidence=[dict(line_index=1, quote=state['lines'][0])])
+    return dict(redline_version=REDLINE_VERSION, binding=make_binding(state),
+                revision=state['revision'], checks=checks,
+                conclusion='pass' if all(x['answer'] == 'no' for x in checks.values()) else 'blocked')
+
+
 def run_example(*, adopt=False):
     search = drive(Search.create(fixture_state(), engine=fixture_engine()))
     polish = Polish.create(search.to_dict(), search.data['drafts'][0]['path_id'], engine=fixture_engine())
@@ -78,6 +90,8 @@ def run_example(*, adopt=False):
             p = comparison_for(j)
         elif j['stage'].endswith('content'):
             p = content_for(j)
+        elif j['stage'] == 'redline':
+            p = redline_for(polish.data['accepted'])
         else:
             p = dict(title='流程测试', notes=['使用微型测试韵库与固定模型响应；不代表真实诗作质量。'])
         polish.submit(envelope(j, p))

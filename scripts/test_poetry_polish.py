@@ -13,12 +13,13 @@ from assessment_binding import digest, make_binding
 from poem_state import PoemState
 from poem_templates import TemplateLibrary
 from poetry_search import Search
-from poetry_polish import Polish, validate_review
+from poetry_polish import Polish, REDLINE_CHECKS, validate_review, validate_redline
 from poetry_round import export_context
 from round_content import export_content_plan
 from rhyme_lexicon import RhymeLexicon
 from day4_example import fixture_state, fixture_engine, drive, line_for
-from day5_example import review_for, package_for, envelope, comparison_for, content_for, run_example
+from day5_example import (review_for, package_for, envelope, comparison_for, content_for,
+                          redline_for, run_example)
 
 
 class PolishTests(unittest.TestCase):
@@ -46,6 +47,8 @@ class PolishTests(unittest.TestCase):
             self.send(p, review_for(p.data['accepted']))
         while p.next_job() and p.next_job()['stage'] == 'final_content':
             self.send(p, content_for(p.next_job()))
+        self.assertEqual(p.next_job()['stage'], 'redline')
+        self.send(p, redline_for(p.data['accepted']))
         self.assertEqual(p.next_job()['stage'], 'final')
         self.send(p, dict(title='测试题目', notes=[]))
         self.assertEqual(p.data['status'], 'completed', p.data['reason'])
@@ -79,8 +82,37 @@ class PolishTests(unittest.TestCase):
         self.finish(p)
         self.assertEqual(p.data['accepted']['lines'], original)
         self.assertEqual(p.data['history'], [])
-        self.assertEqual(p.data['used'], dict(rounds=0, interactions=2))
+        self.assertEqual(p.data['used'], dict(rounds=0, interactions=3))
         self.assertEqual(p.result(), dict(title='测试题目', lines=original, status='completed'))
+
+    def test_each_final_redline_and_unknown_blocks_output(self):
+        for name in REDLINE_CHECKS:
+            with self.subTest(check=name):
+                p = self.create()
+                self.send(p, review_for(p.data['accepted']))
+                self.assertEqual(p.next_job()['stage'], 'redline')
+                self.send(p, redline_for(p.data['accepted'], answer='yes', check=name))
+                self.assertEqual(p.data['status'], 'incomplete')
+                self.assertEqual(p.data['reason'], 'FINAL_REDLINE_BLOCKED')
+                self.assertIsNone(p.data['output'])
+                self.assertEqual(p.data['accepted']['status'], 'reviewing')
+        p = self.create()
+        self.send(p, review_for(p.data['accepted']))
+        self.send(p, redline_for(p.data['accepted'], answer='unknown',
+                                 check='allusion_facts_reversed'))
+        self.assertEqual(p.data['reason'], 'FINAL_REDLINE_BLOCKED')
+
+    def test_final_redline_contract_requires_all_checks_and_evidence(self):
+        p = self.create()
+        state = p.data['accepted']
+        payload = redline_for(state)
+        payload['checks'].pop('user_facts_reversed')
+        with self.assertRaises(ValueError):
+            validate_redline(payload, state)
+        payload = redline_for(state)
+        payload['checks']['allusion_facts_reversed']['evidence'] = []
+        with self.assertRaises(ValueError):
+            validate_redline(payload, state)
 
     def test_single_line_adopt_and_fresh_review(self):
         p = self.create()
@@ -383,6 +415,7 @@ class PolishTests(unittest.TestCase):
             self.send(p, review_for(p.data['accepted']))
             while p.next_job()['stage'] == 'final_content':
                 self.send(p, content_for(p.next_job()))
+            self.send(p, redline_for(p.data['accepted']))
             p.data[key] = None
             with self.assertRaises(ValueError):
                 self.send(p, dict(title='测试', notes=[]))
@@ -400,6 +433,7 @@ class PolishTests(unittest.TestCase):
     def test_final_rules_failure(self):
         p = self.create()
         self.send(p, review_for(p.data['accepted']))
+        self.send(p, redline_for(p.data['accepted']))
         original = p.engine.check_poem
         def unknown(state):
             result = original(state)
@@ -419,6 +453,7 @@ class PolishTests(unittest.TestCase):
         self.assertIsNone(p.data['output'])
         p = self.create()
         self.send(p, review_for(p.data['accepted']))
+        self.send(p, redline_for(p.data['accepted']))
         title = '题目可以很长也无需按五言或平水韵验收'
         self.send(p, dict(title=title, notes=[]))
         self.assertEqual(len(p.result()['lines']), 4)
@@ -614,9 +649,12 @@ class PolishTests(unittest.TestCase):
             write('review.json', envelope(job, review_for(job['context']['target'])))
             run('submit', '--input', root+'p1.json', '--response', root+'review.json', '--output', root+'p2.json')
             job = read('p2.json')['polish']['pending']
+            write('redline.json', envelope(job, redline_for(job['context']['target'])))
+            run('submit', '--input', root+'p2.json', '--response', root+'redline.json', '--output', root+'p3.json')
+            job = read('p3.json')['polish']['pending']
             write('final.json', envelope(job, dict(title='迁移流程测试', notes=[])))
-            run('submit', '--input', root+'p2.json', '--response', root+'final.json', '--output', root+'p3.json')
-            run('result', '--input', root+'p3.json', '--output', root+'result.json')
+            run('submit', '--input', root+'p3.json', '--response', root+'final.json', '--output', root+'p4.json')
+            run('result', '--input', root+'p4.json', '--output', root+'result.json')
             self.assertEqual(read('result.json'), dict(title='迁移流程测试', lines=lines, status='completed'))
 
 

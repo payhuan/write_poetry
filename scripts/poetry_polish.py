@@ -14,8 +14,11 @@ from poetry_round import (require, read_json, write_new_json, ENVELOPE,
 from round_content import export_content_plan, validate_content_plan, requirements, _exact
 from runtime_workspace import configure_workspace, input_path, output_path
 
-VERSION = 'poetry-polish-1'
+VERSION = 'poetry-polish-2'
 REVIEW_VERSION = 'whole-poem-review-1'
+REDLINE_VERSION = 'final-redline-1'
+REDLINE_CHECKS = ('user_facts_reversed', 'allusion_facts_reversed',
+                  'meaning_sacrificed_for_rhyme', 'scene_identity_tone_mismatch')
 WEIGHTS = dict(theme=.20, naturalness=.20, imagery=.15, structure=.15,
                consistency=.10, expression=.10, parallelism=.10)
 IDENTITY = ('contract_version', 'run_id', 'job_id', 'path_id', 'revision',
@@ -121,6 +124,27 @@ def validate_review(payload, state):
     return {**deepcopy(payload), 'total': float(total)}
 
 
+def validate_redline(payload, state):
+    """Require an explicit, text-bound verdict for every final semantic red line."""
+    fields(payload, ('redline_version', 'binding', 'revision', 'checks', 'conclusion'))
+    require(payload['redline_version'] == REDLINE_VERSION and
+            type(payload['revision']) is int and payload['revision'] == state['revision'],
+            'STALE_REDLINE', 'Red-line version/revision mismatch')
+    require(payload['binding'] == make_binding(state), 'STALE_REDLINE',
+            'Red-line object/context mismatch')
+    fields(payload['checks'], REDLINE_CHECKS)
+    answers = []
+    for name, item in payload['checks'].items():
+        fields(item, ('answer', 'reason', 'evidence'))
+        require(item['answer'] in ('yes', 'no', 'unknown') and text(item['reason']),
+                'INVALID_REDLINE', name)
+        quotes(item['evidence'], state)
+        answers.append(item['answer'])
+    expected = 'pass' if all(answer == 'no' for answer in answers) else 'blocked'
+    require(payload['conclusion'] == expected, 'REDLINE_CONCLUSION_CONFLICT', expected)
+    return deepcopy(payload)
+
+
 class Polish:
     """Persist complete snapshots. Model jobs are read-only; submit transacts on a copy."""
     def __init__(self, data, engine):
@@ -166,7 +190,7 @@ class Polish:
                      config=deepcopy(config), assignments=deepcopy(assignments), accepted=state.to_dict(),
                      status='running', reason=None, used=dict(rounds=0, interactions=0), next_job=0,
                      pending=None, review=None, content=None, queue=[], candidate=None, history=[],
-                     reviews=[], processed={}, invalid={}, transcript=[], output=None), engine)
+                     reviews=[], redline=None, processed={}, invalid={}, transcript=[], output=None), engine)
         s._job('review')
         return s
 
@@ -308,7 +332,7 @@ class Polish:
         if candidate:
             self._job('compare')
         else:
-            self._job('final')
+            self._job('redline')
 
     def _packages(self, payload):
         fields(payload, ('packages', 'needs_user_change', 'reason'))
@@ -423,8 +447,19 @@ class Polish:
         self._verify_content(state, c['content'], d['assignments'], self.engine)
         state.set_assessment(checks)
         d['history'].append({**deepcopy(c), 'decision': 'adopted', 'reason': payload['reason']})
-        d.update(accepted=state.to_dict(), candidate=None, queue=[], review=None, content=None)
+        d.update(accepted=state.to_dict(), candidate=None, queue=[], review=None, content=None, redline=None)
         self._job('review')  # Comparison never doubles as the accepted version's final review.
+
+    def _redline(self, job, payload):
+        d = self.data
+        state = self._state()
+        redline = validate_redline(payload, state.to_dict())
+        record = dict(identity={k: deepcopy(job[k]) for k in IDENTITY}, redline=redline)
+        d['redline'] = deepcopy(record)
+        if redline['conclusion'] != 'pass':
+            self._stop('incomplete', 'FINAL_REDLINE_BLOCKED')
+            return
+        self._job('final', redline=record)
 
     def _final(self, job, payload):
         fields(payload, ('title', 'notes'))
@@ -434,6 +469,15 @@ class Polish:
         d = self.data
         state = self._state()
         require(d['review'] is not None, 'MISSING_REVIEW', 'Current whole-poem review required')
+        require(d['redline'] is not None, 'MISSING_REDLINE', 'Current final red-line check required')
+        redline_raw = d['redline']['redline']
+        redline = validate_redline(redline_raw, state.to_dict())
+        require(redline['conclusion'] == 'pass', 'FINAL_REDLINE_BLOCKED', 'Final red-line check did not pass')
+        require(d['redline']['identity']['run_id'] == d['run_id'] and
+                d['redline']['identity']['path_id'] == d['path_id'] and
+                d['redline']['identity']['binding'] == make_binding(state.to_dict()) and
+                d['redline']['identity']['revision'] == state.to_dict()['revision'],
+                'STALE_REDLINE', 'Wrong red-line run/path/body')
         raw = {k: v for k, v in d['review']['review'].items() if k != 'total'}
         review = validate_review(raw, state.to_dict())
         require(review['conclusion'] == 'ready', 'FINAL_REVIEW_BLOCKED', 'Review is not ready')
@@ -454,7 +498,7 @@ class Polish:
         d['output'] = dict(output_version=VERSION, title=payload['title'], lines=state.to_dict()['lines'],
                            notes=deepcopy(payload['notes']), status='completed', binding=make_binding(state.to_dict()),
                            revision=state.to_dict()['revision'], identity={k: deepcopy(job[k]) for k in IDENTITY})
-        self._stop('completed', 'CURRENT_RULES_CONTENT_AND_REVIEW_PASSED')
+        self._stop('completed', 'CURRENT_RULES_CONTENT_REVIEW_AND_REDLINE_PASSED')
 
     def _receive(self, job, payload):
         stage = job['stage']
@@ -473,6 +517,8 @@ class Polish:
             self._content_next(candidate)
         elif stage == 'compare':
             self._compare(job, payload)
+        elif stage == 'redline':
+            self._redline(job, payload)
         elif stage == 'final':
             self._final(job, payload)
 

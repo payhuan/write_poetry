@@ -2,7 +2,7 @@
 
 ## 职责与入口
 
-`scripts/poetry_polish.py` 提供 `Polish`，快照与工作封套版本为 `poetry-polish-1`，审校量表为 `whole-poem-review-1`。运行 Skill 的 LLM 阅读工作并提供 JSON；程序不调用模型 API、不编造评分、不重做搜索、不处理图片。
+`scripts/poetry_polish.py` 提供 `Polish`，快照与工作封套版本为 `poetry-polish-2`，审校量表为 `whole-poem-review-1`，最终红线版本为 `final-redline-1`。运行 Skill 的 LLM 阅读工作并提供 JSON；程序不调用模型 API、不编造评分、不重做搜索、不处理图片。
 
 LLM 负责主题、情绪、时间、视角、意象、结构和语言，律诗中间两联的语义及句法对仗，用典及 adapt 语义，修改建议、候选、全诗比较和诗题。程序负责交接、绑定、范围、锁定要求、规则复检、内容契约、事务采纳、预算、持久化和完成条件。语义报告的真伪及文学质量不能由 JSON 校验器证明。
 
@@ -33,7 +33,7 @@ polish.result(include_notes=False)
 
 | 字段 | 规则 |
 | --- | --- |
-| contract_version | poetry-polish-1 |
+| contract_version | poetry-polish-2 |
 | run_id / job_id | 当前运行与工作 ID；格式修复保持 job_id |
 | path_id | 显式选定的 Day 4 草稿分支 |
 | revision | 工作 target 的版本，整数 |
@@ -49,10 +49,11 @@ binding 复用现有规则摘要；没有第二套正文摘要算法。完整相
 | generate | 局部修改包数组或明确需要用户改变要求 | 程序原子构造候选并检查 |
 | candidate_content | 原 Day 3 review-content JSON | 全部必须项通过才 compare |
 | compare | 候选全诗审校、全维度比较和采用建议 | 采用或保留原稿 |
-| final_content | 原 Day 3 review-content JSON | 当前必须内容全部通过才 final |
+| final_content | 原 Day 3 review-content JSON | 当前必须内容全部通过才 redline |
+| redline | 四项最终语义红线 | 四项全为 no 才 final；yes/unknown 阻断 |
 | final | 独立诗题与可选说明 | 最终程序检查后 completed |
 
-常规路径：review → generate → 规则/exact → candidate_content → compare → 采用或拒绝 → review → final_content → final。无问题直接 review → final_content → final。没有内容要求时自动跳过内容模型工作；exact 由程序检查。每次实际改动后重新审校，compare 中的 candidate_review 不直接冒充采用后的最终审校。
+常规路径：review → generate → 规则/exact → candidate_content → compare → 采用或拒绝 → review → final_content → redline → final。无问题直接 review → final_content → redline → final。没有内容要求时自动跳过内容模型工作；exact 由程序检查。每次实际改动后重新审校，compare 中的 candidate_review 不直接冒充采用后的最终审校。
 
 ## 全诗审校契约
 
@@ -177,11 +178,32 @@ decision=retain 始终允许，即使分数更高也可说明不改更好。deci
 
 比较建议不满足门槛时记录 ADOPTION_STANDARD_NOT_MET 并保留原稿。通过时完整包原子采用；history 同时保存 base（可恢复的前一接受版本）、候选、规则、内容证据、比较工作身份、原始理由和决定。采用本身不作为质量证据。采用后清空当前审校/最终内容证明，再发 review，未完成新审校不得 completed。所有包被拒绝时对保留原稿重新 review；模型可以解释残留 minor 为何值得保留，不能把尚未解除的 major/blocking 隐藏掉。
 
+## 最终红线
+
+最终内容复检通过后，控制器发行 redline 工作。payload 必须绑定当前正文和 revision，并逐项回答以下四个固定问题：
+
+```json
+{
+  "redline_version":"final-redline-1",
+  "binding":"照抄当前 target 的完整 binding 对象",
+  "revision":8,
+  "checks":{
+    "user_facts_reversed":{"answer":"no","reason":"没有把用户提供的人物、事件或关系写反","evidence":[{"line_index":1,"quote":"当前诗句原文"}]},
+    "allusion_facts_reversed":{"answer":"no","reason":"用典方向及事实没有写反","evidence":[{"line_index":2,"quote":"当前诗句原文"}]},
+    "meaning_sacrificed_for_rhyme":{"answer":"no","reason":"韵脚没有扭曲原意","evidence":[{"line_index":2,"quote":"当前诗句原文"}]},
+    "scene_identity_tone_mismatch":{"answer":"no","reason":"器物、身份和语气符合场景","evidence":[{"line_index":3,"quote":"当前诗句原文"}]}
+  },
+  "conclusion":"pass"
+}
+```
+
+answer 只能是 yes、no 或 unknown，每项都要给出理由并引用当前正文中的至少一句；不能以全诗审校分数代替。四项全为 no 时 conclusion 必须为 pass；任一项为 yes 或 unknown 时必须为 blocked，控制器以 FINAL_REDLINE_BLOCKED 停在 incomplete，不生成题目、不设置 completed。红线绑定当前 run、path、正文和 revision，修改后的旧结论不能复用。
+
 ## 最终输出与完成条件
 
 final payload：`{"title":"独立诗题","notes":["用户需要时展示的简短说明"]}`。题目为非空、最多 80 字、单行字符串，notes 可为空。说明只能陈述已有规则检测及语义依据支持的内容；真实韵库不确定项不能描述为通过。final 身份封套仍绑定当前正文、版本、规则上下文和审校工作。
 
-处理 final 时程序重新检查：完整 reviewing 诗作；当前全诗规则通过；当前正文内容 artifacts 经 Day 3 重建核验且每个必须项 satisfied；当前运行、分支、正文和版本的全诗审校 conclusion=ready；没有未解决阻断或必需 unknown。随后才调用 PoemState.set_assessment 和 set_status(completed)。缺失审校、旧审校、缺内容或规则失败均不能完成。
+处理 final 时程序重新检查：完整 reviewing 诗作；当前全诗规则通过；当前正文内容 artifacts 经 Day 3 重建核验且每个必须项 satisfied；当前运行、分支、正文和版本的全诗审校 conclusion=ready；当前四项红线全为 no；没有未解决阻断或必需 unknown。随后才调用 PoemState.set_assessment 和 set_status(completed)。缺失或过期的审校/红线、缺内容、规则失败及红线 yes/unknown 均不能完成。
 
 `result()` 默认返回 `{title, lines, status}`；`include_notes=True` 增加 notes。题目不是正文第五句/第九句，不参与韵脚，也不能满足正文必含片段。内部 output 还保存 output_version、binding、revision、最终工作 identity；默认不展示分数和历史。未完成时返回 `{title:null, lines:最后接受正文, status, reason}`，不得包装成已完成作品。
 
@@ -194,7 +216,7 @@ final payload：`{"title":"独立诗题","notes":["用户需要时展示的简�
 | max_interactions | 40 | 每次新模型工作和格式修复导出各消耗 1，至少 1 |
 | max_format_repairs | 2 | 每工作最多额外修正次数，范围 0–2 |
 
-初次全诗审校和最终标题同样计入交互。候选被拒绝后的重新审校、采用后的新审校也计费。读取/重复提交不扣费。外层身份错误直接抛异常、状态不变；正确寻址而 payload 错误时，舍弃事务副本，保存错误与原响应，并发行有限修复。原始模型输出建议直接作为 payload 字符串传入，严格 JSON 解析（重复键、NaN、语法错误）发生在已计费工作内，不在控制器外无限修 JSON。
+初次全诗审校、最终红线和最终标题同样计入交互。候选被拒绝后的重新审校、采用后的新审校也计费。读取/重复提交不扣费。外层身份错误直接抛异常、状态不变；正确寻址而 payload 错误时，舍弃事务副本，保存错误与原响应，并发行有限修复。原始模型输出建议直接作为 payload 字符串传入，严格 JSON 解析（重复键、NaN、语法错误）发生在已计费工作内，不在控制器外无限修 JSON。
 
 成功响应再次导入返回 already_processed；修改成功结果重放报 CHANGED_REPLAY。完全相同已拒绝响应返回 already_rejected；新的修复响应照抄新 attempt。所有修改在独立控制器副本上执行，验证错误不留下半包 accepted、history 或 candidate 更新。
 
@@ -228,6 +250,6 @@ python -m unittest discover -s scripts -p 'test_*.py'
 
 测试覆盖无修改完成、单句和成联采用、格律失败/unknown 拒绝、exact 完整句与短语及位置保护、修改别句后 allusion/adapt 失效、全诗结构退步保留、低收益不采用、工作/分支/版本归属、旧审校失效、无效包无部分写入、评分/引文/原文契约、预算和格式修复、幂等、保存恢复与篡改拒绝、最终证明缺失、标题隔离，以及项目整体迁移后从其他工作目录运行。原有 Day 1–4 测试保持不变。
 
-2026-09-15 验证：实现前原有 129 项测试通过；新增 37 项 Day 5 测试后，全量 166 项通过。迁移测试另使用项目自带真实韵库跑通 CLI start/next/submit/result，固定文学响应仍是夹具。Skill 结构校验通过，保存示例经 Polish.load 完整重放验证：completed，1 轮润色、4 次交互，修改因 RULES_FAILED_OR_UNKNOWN 被拒绝，保留原稿。
+2026-09-22 验证：全量 194 项测试通过，其中 Day 5 为 39 项；四项最终红线分别覆盖 yes 阻断，并覆盖 unknown、缺项、缺证据、保存恢复与迁移 CLI。迁移测试使用项目自带真实韵库跑通 CLI start/next/submit/result，固定文学响应仍是夹具。保存示例经 Polish.load 完整重放验证：completed，1 轮润色、5 次交互，修改因 RULES_FAILED_OR_UNKNOWN 被拒绝，保留原稿。
 
 这些测试证明控制流程和结果绑定按契约运行，不能证明真实模型文学质量、语义报告准确率或评分一致性。真实创作质量留待后续评测；平水韵资源及规则覆盖仍受既有引擎边界限制。

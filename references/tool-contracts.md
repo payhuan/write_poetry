@@ -27,6 +27,6 @@ PoemState.set_assessment 只接收匹配当前全诗的结果；evaluate_candida
 
 搜索接口位于 scripts/poetry_search.py：`Search.create(state, content_plan=..., engine=...)`、`next_job()`、`submit(response)`、`to_dict/from_dict`、`save/load`。控制器调用上述 Day 3 接口完成原子候选采用；整体保存预算、路径、备选检查点和待执行工作。规则与内容通过只交接 reviewing 草稿，详见搜索契约。
 
-Day 5 接口位于 scripts/poetry_polish.py：`Polish.create(search_snapshot, path_id, *, engine=None, max_rounds=3, candidates_per_round=3, max_interactions=40, max_format_repairs=2)`、`next_job()`、`submit(response)`、`result(include_notes=False)`、`to_dict/from_dict`、`save/load`。仅接受完整 Search 快照和明确的草稿路径，所有模型结果绑定工作、正文、上下文和版本。完整诗通过当前规则、内容与全诗审校后才设置 completed；题目独立保存。模型契约和采用标准见 Day 5 文档。
+Day 5 接口位于 scripts/poetry_polish.py：`Polish.create(search_snapshot, path_id, *, engine=None, max_rounds=3, candidates_per_round=3, max_interactions=40, max_format_repairs=2)`、`next_job()`、`submit(response)`、`result(include_notes=False)`、`to_dict/from_dict`、`save/load`。仅接受完整 Search 快照和明确的草稿路径，所有模型结果绑定工作、正文、上下文和版本。完整诗通过当前规则、内容、全诗审校及四项最终语义红线后才设置 completed；题目独立保存。模型契约和采用标准见 Day 5 文档。
 
 
