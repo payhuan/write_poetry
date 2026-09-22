@@ -1,5 +1,10 @@
 # Day 3：单轮候选与文学评价
 
+新 Search 在 `context.planned_unit` 非空时，单句候选除 id/text/line_index 外还必须提交
+`expression_path`、`semantic_increment`、`risks` 和完整 `semantic_lock`。直接调用旧式单轮且未传 poem_plan 时仍可
+读取旧三字段候选。律诗颔联、颈联不使用逐句生成入口，改用[完整句／联生成](unit-generation.md)；其中采用
+literary-2 并强制结构化对仗评价。
+
 运行 Skill 的 agent 充当 LLM，不依赖外部模型 API。Python 处理导出上下文、格式校验、去重、规则过滤、评分校验和排序；只完成一个句位的一轮处理。`export` 和 `filter` 不修改状态，`finish` 一次性记录候选历史。正文、规划、revision、全诗 checks、quality_score 和 status 保持原值。
 
 内容扩展：request.allusions / required_fragments 已接入独立内容计划和过滤，详见 [内容安排与履行](round-content.md)。新增 `plan`、`review-content` CLI；export 可传 content_plan，锁定 exact 完整句的 filter 可省略候选输入。本文原有分类 category/passed 和 counts.passed 仍表示纯格律结论；进入文学评分、retained 和推荐还必须通过本句必需内容。内容不加入引擎 checks。更新后的生成上下文带两个数组及独立计划，使用旧导出文件时应从原状态重新 export；旧状态及已保存历史仍可读取，不补写空数组。

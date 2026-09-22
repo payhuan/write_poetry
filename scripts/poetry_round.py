@@ -18,6 +18,7 @@ from uuid import uuid4
 from allusion_lexicon import AllusionLexicon
 from assessment_binding import digest, make_binding
 from constraint_engine import ConstraintEngine
+from poem_planning import unit_for_line
 from poem_state import PoemState
 from text_normalizer import IGNORED
 from round_content import (CONTENT_VERSION, ContentError, export_content_plan,
@@ -96,7 +97,7 @@ def perimeter_text(text):
     return text[start:end]
 
 
-def _context(state, line_index, batch_id, content_plan=None):
+def _context(state, line_index, batch_id, content_plan=None, poem_plan=None):
     d = state.to_dict()
     require(type(line_index) is int and 1 <= line_index <= d['form']['line_count'],
             'INVALID_LINE_INDEX', 'line_index must be a one-based position in the form')
@@ -107,6 +108,7 @@ def _context(state, line_index, batch_id, content_plan=None):
                if is_rhyme and d['rhyme']['group'] is None else [])
     allusions = d['request'].get('allusions', [])
     fragments = d['request'].get('required_fragments', [])
+    planned_unit = unit_for_line(poem_plan, line_index) if poem_plan is not None else None
     allusion_references = _allusion_lexicon().resolve_requirements(allusions) if allusions else []
     for reference, requirement in zip(allusion_references, allusions):
         if requirement['required'] and reference['status'] == 'ambiguous':
@@ -140,6 +142,7 @@ def _context(state, line_index, batch_id, content_plan=None):
         'request': d['request'], 'theme': d['theme'], 'emotion': d['emotion'],
         'allusions': allusions, 'allusion_references': allusion_references,
         'required_fragments': fragments, 'content_plan': plan,
+        'poem_plan': deepcopy(poem_plan), 'planned_unit': planned_unit,
         'imagery': d['imagery'], 'structure': d['structure'], 'lines': d['lines'],
         'poem_type': d['poem_type'], 'form': d['form'], 'line_index': line_index,
         'template': d['meter_template'], 'user_meter': d['request']['meter'],
@@ -150,7 +153,8 @@ def _context(state, line_index, batch_id, content_plan=None):
                             'target': min(5, d['budget']['candidates_per_round'])},
         'retry_policy': {'max_attempts_per_stage': MAX_FORMAT_RETRIES + 1,
                          'automatic_retries': False},
-        'generation_instruction': ('生成语义完整的候选句，保留句意与自然措辞；不得逐字填空、自动改句或猜选有利读音。'
+        'generation_instruction': ('生成语义完整的候选句，完成 planned_unit 的主要任务与语义增量，'
+                                   '保留保护语义且不得提前表达 must_not_say_yet。不得逐字填空、自动改句或猜选有利读音。'
                                    '用典时以 allusion_references 的规范主典、简释和出处原文为依据；'
                                    'not_found 只表示局部语料未收录，须另行可靠核实，不能据此编造。'),
     }
@@ -162,9 +166,9 @@ def _context(state, line_index, batch_id, content_plan=None):
     return result
 
 
-def export_context(state, line_index, *, content_plan=None):
+def export_context(state, line_index, *, content_plan=None, poem_plan=None):
     """Export a stable batch token and all model context, without changing state."""
-    return _context(state, line_index, uuid4().hex, content_plan)
+    return _context(state, line_index, uuid4().hex, content_plan, poem_plan)
 
 
 def _validate_context(state, context):
@@ -172,7 +176,8 @@ def _validate_context(state, context):
     batch_id = context.get('batch_id')
     require(isinstance(batch_id, str) and len(batch_id) == 32 and
             all(c in '0123456789abcdef' for c in batch_id), 'INVALID_BATCH', 'Invalid exported batch ID')
-    expected = _context(state, context.get('line_index'), batch_id, context.get('content_plan'))
+    expected = _context(state, context.get('line_index'), batch_id, context.get('content_plan'),
+                        context.get('poem_plan'))
     require(context == expected, 'STALE_CONTEXT', 'Context, revision or budget changed; export a new batch')
     require(context['status'] == 'ready', 'PLANNING_REQUIRED', 'Complete planning before generating this line')
 
@@ -197,9 +202,14 @@ def _receive(context, payload):
     require(1 <= len(items) <= context['candidate_count']['max'], 'CANDIDATE_BUDGET',
             'Candidate count must be 1..candidates_per_round (including duplicates)')
     ids, problems = set(), []
+    planned = context.get('planned_unit')
     for index, candidate in enumerate(items):
         code = None
-        if not isinstance(candidate, dict) or set(candidate) != {'id', 'text', 'line_index'}:
+        base_fields = {'id', 'text', 'line_index'}
+        enhanced_fields = base_fields | {'expression_path', 'semantic_increment', 'risks', 'semantic_lock'}
+        expected = base_fields if planned is None else enhanced_fields
+        if not isinstance(candidate, dict) or set(candidate) not in ((base_fields, enhanced_fields)
+                                                                      if planned is not None else (base_fields,)):
             code = 'INVALID_CANDIDATE_FIELDS'
         elif not _text(candidate['id']):
             code = 'INVALID_CANDIDATE_ID'
@@ -209,6 +219,21 @@ def _receive(context, payload):
             code = 'WRONG_LINE_INDEX'
         elif not _text(candidate['text']) or not perimeter_text(candidate['text']):
             code = 'EMPTY_CANDIDATE_TEXT'
+        elif planned is not None and set(candidate) == enhanced_fields:
+            lock = candidate['semantic_lock']
+            lock_fields = {'protected_meaning', 'facts', 'images', 'relations', 'emotion_direction',
+                           'structural_function', 'confirmed_allusions'}
+            if (not _text(candidate['expression_path']) or not _text(candidate['semantic_increment']) or
+                    not isinstance(candidate['risks'], list) or
+                    any(not _text(x) for x in candidate['risks']) or
+                    not isinstance(lock, dict) or set(lock) != lock_fields or
+                    any(not isinstance(lock[k], list) or any(not _text(x) for x in lock[k])
+                        for k in ('facts', 'images', 'relations', 'confirmed_allusions')) or
+                    any(not _text(lock[k]) for k in ('protected_meaning', 'emotion_direction',
+                                                     'structural_function')) or
+                    lock['structural_function'] != planned['primary_task'] or
+                    any(x not in lock['protected_meaning'] for x in planned['protected_meaning'])):
+                code = 'INVALID_SEMANTIC_LOCK'
         if isinstance(candidate, dict) and _text(candidate.get('id')):
             ids.add(candidate['id'])
         if code:
@@ -251,7 +276,8 @@ def filter_candidates(state, context, payload=None, *, engine=None):
                           'message': '仅忽略外围空白和约定标点后与较早候选相同。'}])
         else:
             seen[normalized] = candidate['id']
-            checks = engine.check_candidate({**candidate, 'id': record['history_id']}, snapshot)
+            checks = engine.check_candidate({'id': record['history_id'], 'text': candidate['text'],
+                                              'line_index': candidate['line_index']}, snapshot)
             record.update(checks=checks, category=('passed' if checks['valid'] is True else
                           'failed' if checks['valid'] is False else 'unresolved'),
                           reasons=_rule_reasons(checks))
@@ -316,6 +342,9 @@ def _score_request(filtered):
                       '0.75': '表现良好，只有局部不足', '1': '在当前上下文中充分且准确'},
             'context': deepcopy(context),
             'candidates': [{**{k: record[k] for k in ('id', 'text', 'line_index')},
+                            **({k: deepcopy(record[k]) for k in
+                               ('expression_path', 'semantic_increment', 'risks', 'semantic_lock')}
+                               if 'semantic_lock' in record else {}),
                             **({'content_fulfillment': deepcopy(record['content_result'])}
                                if 'content_result' in record else {})}
                            for record in filtered['records'] if content_eligible(record)],

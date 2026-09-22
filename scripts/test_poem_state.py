@@ -67,6 +67,18 @@ class PoemStateTests(unittest.TestCase):
                 mutate()
             self.assertEqual(state.to_dict(), before)
 
+    def test_structural_unit_edits_use_one_revision(self):
+        state = self.state()
+        state.append_unit(["墙角数枝梅", "凌寒独自开"])
+        self.assertEqual(state.to_dict()["lines"], ["墙角数枝梅", "凌寒独自开"])
+        self.assertEqual(state.to_dict()["revision"], 1)
+        state.replace_unit(1, ["墙角一枝梅", "凌寒独自开"])
+        self.assertEqual(state.to_dict()["revision"], 2)
+        before = state.to_dict()
+        with self.assertRaises(ValueError):
+            state.append_unit(["遥知不是雪", ""])
+        self.assertEqual(state.to_dict(), before)
+
     def test_lifecycle(self):
         state = self.state()
         with self.assertRaises(ValueError):

@@ -2,9 +2,9 @@
 
 ## 入口与交接
 
-`scripts/poetry_search.py` 的 `Search` 把 Day 3 单轮流程连成可暂停的多路径搜索。运行 Skill 的 agent 提供模型 JSON，不要求模型 API。支持五绝、七绝、五律、七律；律诗的联级 structure 原样传入 Day 3，按句推进。
+`scripts/poetry_search.py` 的 `Search` 把 Day 3 句／联流程连成可暂停的多路径搜索。运行 Skill 的 agent 提供模型 JSON，不要求模型 API。支持五绝、七绝、五律、七律；律诗颔联、颈联按整联推进，其余位置按句推进。
 
-开始前完成模板、韵部与内容安排。`Search.create(state, content_plan=plan)` 使用规划完成的 PoemState；已有正文作为不可删除前缀，未定位的必需内容须先按 Day 3 plan 契约安排。搜索固定这些安排，只在追加正文后按当前 revision 重绑定同一组 assignments，不修改用户原文、指定句位或诗格。这取代单轮操作中由 agent 每次重新搬运同一安排的步骤。
+开始前完成模板、韵部、[全诗语义规划](poem-planning.md)与内容安排。`Search.create(state, poem_plan=poem_plan, content_plan=content_plan)` 中 poem_plan 为新运行必需参数；已有正文作为不可删除前缀，未定位的必需内容须先按 Day 3 plan 契约安排。搜索固定这些安排，只在追加正文后按当前 revision 重绑定同一组 assignments，不修改用户原文、指定句位或诗格。
 
 完整路径在当前上下文调用实际 `engine.check_poem`，保存 checks、warnings 与 unknown；通过后在完整且不再修改的正文上逐句复用 Day 3 内容检查和语义 review。早先候选上的 satisfied 仅为历史，不作全诗证明。所有必需项必须在指定承担句位得到 satisfied；可选典故和 inspiration 不阻断。此处仅核对内容要求，无全诗文学评分、炼句或最终润色。
 
@@ -19,7 +19,7 @@
 ```python
 from poetry_search import Search
 
-search = Search.create(state, content_plan=plan)
+search = Search.create(state, poem_plan=poem_plan, content_plan=content_plan)
 job = search.next_job()  # 深拷贝；重复读取不计费、不生成新批次
 # agent 阅读 job.context，以及 job.filtered 中对应的 content_request / score_request
 response = {k: job[k] for k in
@@ -30,19 +30,19 @@ search.save('examples/search-01.json')
 search = Search.load('examples/search-01.json')
 ```
 
-stage：generate → 可选 content → score。完整正文的语义复核使用 final_content，payload 仍使用 Day 3 review-content 契约。每个新阶段有新 job_id，保留对应 Day 3 batch_id、generation_sha256 与 filter_sha256。格式修复保持 job_id，attempt 递增。不得在没有实际模型响应时填充评分或运行空生成循环。
+普通句 stage 为 generate → 可选 content → score；律诗中间联为 unit_generate → 可选 unit_content → unit_score。整联候选和 `literary-2` 结构化对仗评价见[完整句／联生成](unit-generation.md)。完整正文的语义复核使用 final_content。每个新阶段有新 job_id；格式修复保持 job_id，attempt 递增。不得在没有实际模型响应时填充评分或运行空生成循环。
 
 模型输出尚未解析时，使用 `payload={"attempt": job.attempt, "raw_json": 原始模型字符串}`，控制器使用 Day 3 严格解析器解析，语法错误同样进入有限格式修复计数。attempt 区分新修复响应和重复导入，即使模型再次返回完全相同的坏 JSON 也能有界结束。外层工作封套由调用者构造，必须是合法 JSON；不要在控制器外无限修复模型输出。
 
 固定 exact 完整句跳过生成模型交互，直接检查用户原文；仍需文学评分才能采用。固定句与规则明确冲突进入 needs_clarification。初始正文若与固定原文不同，完整出口保守拒绝，保留 FINAL_LOCKED_TEXT_MISMATCH，不擅改原句。
 
-`submit` 先验证工作归属，然后在独立运行副本上过滤、评分、调用 `finish_round`、fork 与 append_line，全部通过才发布。传错路径或外层批次抛 RoundError，状态和预算不变；已正确寻址但模型 payload 错误会记录原因并有限发行修复工作，不留下半批候选/正文。新路径 revision 增加，旧 checks 仅在候选历史及 adoption 报告中保留。
+`submit` 先验证工作归属，然后在独立运行副本上过滤、评分和 fork，全部通过才发布。普通句使用 append_line；中间联两句全部通过后使用 append_unit，一次 revision 原子发布。任一句失败、内容未知或响应格式错误都不留下半联。`REPLAN_REQUIRED` 停在 needs_clarification 并保存冲突，不擅自改规划。
 
 成功工作重复导入返回 already_processed；改变已处理结果报 CHANGED_REPLAY。已拒绝的相同 payload 重复导入返回 already_rejected，也不计费。旧工作不能转用于新路径，即使两者 revision 相同。摘要用于防误用和文件损坏检测，不是签名；恢复文件应来自可信本地运行。
 
 ## 搜索、排名与检查点
 
-同深度所有活跃父路径依次获得一个扩展批次，完成这一层后汇总全部合格子路径，统一保留 beam_width 条。不会给每个父路径各保留 K 条。排分复用 Day 3 literary-1 的 0–1 分，取该路径本次运行所有采用句的算术平均；固定初始正文不虚构评分。同分依创建序号（父路径处理顺序、Day 3 稳定候选顺序）升序。
+同深度所有活跃父路径依次获得一个扩展批次，完成这一层后汇总全部合格子路径，统一保留 beam_width 条。排分取该路径本次运行所有采用句／联的分数算术平均；普通句兼容 literary-1，中间联使用 literary-2，对仗低分只影响排序。固定初始正文不虚构评分。
 
 主要排名仅限同深度。恢复库先按深度降序选择最近检查点，同一深度才按平均分和创建序号排序。当前实现不合并路径，因此不会仅凭相同正文错误合并不同模板、韵律或内容安排的分支。
 
@@ -77,12 +77,12 @@ stage：generate → 可选 content → score。完整正文的语义复核使�
 
 ## 保存恢复与 CLI
 
-`to_dict/from_dict` 使用 `{search, sha256}` 完整包，版本 poetry-search-1，与 PoemState 0.3.0 分开。search 包括 run_id、initial、config、assignments、active、alternatives、children（当前层已产生尚未全局剪枝的子路径）、cursor、pending、processed、invalid_responses、drafts、diagnostics、events、used 和稳定 ID 计数器。路径包含 path_id、parent_path_id、state、depth、adoptions、score、content；content 是候选历史依据，完整出口另保存 final_content 和当前绑定。
+`to_dict/from_dict` 使用 `{search, sha256}` 完整包，版本 `poetry-search-2`。search 额外保存完整 poem_plan；路径保存 semantic_locks。`poetry-search-1` 可载入为 `legacy_readonly` 供审计，但 next_job 为空、submit 被拒绝；须基于原始状态建立新规划和新运行，不能把旧快照静默升级为可继续创作的证明。
 
 保存原子发布新文件，禁止覆盖；CLI 相对数据路径按[独立工作区](runtime-workspace.md)解析，并禁止向 Skill 目录写入。整个项目可迁移，脚本定位内置资源相对于自身目录。
 
 ```sh
-python scripts/poetry_search.py start --input examples/planned-state.json --content-plan examples/plan.json --output examples/search-01.json
+python scripts/poetry_search.py start --input examples/planned-state.json --poem-plan examples/poem-plan.json --content-plan examples/content-plan.json --output examples/search-01.json
 python scripts/poetry_search.py next --input examples/search-01.json --output examples/job-01.json
 # agent 写 response-01.json（工作身份 + payload）
 python scripts/poetry_search.py submit --input examples/search-01.json --response examples/response-01.json --output examples/search-02.json

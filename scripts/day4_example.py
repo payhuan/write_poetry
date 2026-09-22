@@ -8,6 +8,8 @@ from rhyme_lexicon import RhymeLexicon
 from poetry_round import ENVELOPE, WEIGHTS, write_new_json
 from poetry_search import Search
 from round_content import CONTENT_VERSION
+from poem_planning import PLAN_VERSION, expected_units, make_plan_artifact, planning_basis
+from poetry_unit import WEIGHTS as UNIT_WEIGHTS
 from runtime_workspace import configure_workspace, output_path
 
 LEXICON = {'上平声部': {'一东': list('天地人')}, '上声部': {'一董': list('水火土')}}
@@ -27,6 +29,49 @@ def fixture_engine():
     return ConstraintEngine(RhymeLexicon(LEXICON), duplicate_policy='report')
 
 
+def fixture_plan(state):
+    d = state.to_dict()
+    units = []
+    for item in expected_units(d['form']):
+        middle = d['form']['line_count'] == 8 and item['line_indices'] in ([3, 4], [5, 6])
+        units.append({**item, 'primary_task': '完成当前结构任务', 'content_scope': '当前可感知内容',
+                      'semantic_increment': '相对前文增加一层具体认识',
+                      'relation_to_previous': '承接前一单位', 'relation_to_next': '为后一单位留出空间',
+                      'protected_meaning': ['不改变用户事实'], 'must_not_say_yet': [],
+                      'antithesis': ({'relation': 'contrast', 'semantic_axes': ['远与近'],
+                                      'syntactic_strategy': '上下句采用对应句法骨架',
+                                      'avoid_hangzhang': '两句提供不同信息，不作同义复述'} if middle else None)})
+    allusions = d['request'].get('allusions', [])
+    plan = {'plan_version': PLAN_VERSION, 'binding': planning_basis(state),
+            'provenance': [{'field': 'theme', 'value': d['theme'], 'source': 'user',
+                            'evidence': d['request']['raw_request']}],
+            'poem_core': {'topic': d['theme'], 'core_proposition': '在具体山中场景中形成认识变化',
+                          'speaker': '身处山中的观察者', 'situation': '观察山中景物', 'trigger': '景物变化',
+                          'primary_emotion': '由平静转为有所触动', 'inner_tension': '',
+                          'ending_state': '收于克制余味', 'register': '清淡自然'},
+            'spatiotemporal_structure': {'time_path': ['眼前'], 'space_path': ['近景', '远景'],
+                                         'viewpoint': '固定观察点', 'reality_imagination_relation': '以实景为主'},
+            'emotion_path': [{'stage': 1, 'state': '平静观察', 'trigger': '进入山中场景'}],
+            'core_images': [{'image': '山', 'source_in_scene': '用户主题中的山中场景',
+                             'first_unit': units[0]['unit_id'], 'surface_function': '建立空间',
+                             'deeper_function': '承载情绪变化', 'development': '由背景转为情绪触发'}],
+            'structure_plan': units,
+            'allusion_plan': {'requirement': 'required' if any(x['required'] for x in allusions) else
+                              'optional' if allusions else 'none',
+                              'function': '按用户要求承担必要表达' if allusions else '当前规划不主动用典',
+                              'required_semantics': ['保留用户指定典义'] if allusions else [],
+                              'items': [{'requirement_id': x['id'], 'unit_id': units[-1]['unit_id'],
+                                         'function': '承接用户指定典故', 'required_semantics': ['典义准确'],
+                                         'candidate_direction': ['自然融入当前诗境']} for x in allusions]},
+            'implicit_content': [], 'risk_list': [{'risk': '意象堆积', 'prevention': '只发展核心意象'}],
+            'prosody_boundary': {'form': d['poem_type'], 'rhyme_requirement': '遵守已选平水韵',
+                                  'antithesis_positions': d['form']['antithesis_pairs']},
+            'self_check': {name: {'status': 'pass', 'reason': '固定规划夹具通过'} for name in
+                           ('independent_units', 'semantic_progression', 'grounded_images',
+                            'viewpoint_continuity', 'ending_prepared', 'allusion_necessary')}}
+    return make_plan_artifact(state, plan)
+
+
 def line_for(context, variant=0):
     tones = context['tone_requirements']
     out = []
@@ -38,16 +83,66 @@ def line_for(context, variant=0):
     return ''.join(out)
 
 
+def unit_line_for(requirement, variant=0):
+    return line_for({'tone_requirements': requirement['tone_requirements']}, variant)
+
+
 def response_for(job, *, fail_high=False, two=False, value=0.8):
     c = job['context']
     payload = {**{k: c[k] for k in ENVELOPE}, 'attempt': job['attempt']}
-    if job['stage'] == 'generate':
+    if job['stage'] == 'unit_generate':
+        candidates = []
+        for variant in range(2 if two else 1):
+            lines = [{'line_index': requirement['line_index'],
+                      'text': unit_line_for(requirement, variant)}
+                     for requirement in c['line_requirements']]
+            candidates.append({'id': str(variant), 'lines': lines,
+                               'expression_path': '以景物关系推进当前联意',
+                               'semantic_increment': '完成当前联的新增认识', 'risks': [],
+                               'semantic_lock': {
+                                   'protected_meaning': '不改变用户事实', 'facts': [],
+                                   'images': ['山中景物'], 'relations': ['上下句相互映照'],
+                                   'emotion_direction': '由平静转为触动',
+                                   'structural_function': c['planned_unit']['primary_task'],
+                                   'confirmed_allusions': []}})
+        payload.update(status='candidates', candidates=candidates)
+    elif job['stage'] == 'unit_score':
+        f = job['filtered']
+        parallel = {name: {'status': 'pass', 'reason': '固定对仗评价夹具'} for name in
+                    ('semantic_relation', 'syntax', 'parts_of_speech', 'image_relation', 'hangzhang')}
+        parallel.update(score=value, reason='对仗结构完整且两句不合掌。')
+        payload.update(filter_sha256=f['filter_sha256'], rubric_version='literary-2',
+                       scores=[{'id': item['id'], 'dimensions': {k: value for k in UNIT_WEIGHTS},
+                                'parallelism': parallel, 'reason': '固定整联评分夹具。'}
+                               for item in f['score_request']['candidates']])
+    elif job['stage'] == 'unit_content':
+        f = job['filtered']
+        reviews = []
+        for requested in f['content_request']['requests']:
+            record = next(x for x in f['records'] if x['id'] == requested['candidate_id'])
+            line_filter = next(x for x in record['line_filters']
+                               if x['context']['line_index'] == requested['line_index'])
+            fake = {'stage': 'content', 'context': line_filter['context'], 'filtered': line_filter,
+                    'attempt': job['attempt'], 'run_id': '', 'job_id': '', 'path_id': '',
+                    'batch_id': '', 'context_sha256': ''}
+            reviews.append({'candidate_id': requested['candidate_id'],
+                            'line_index': requested['line_index'],
+                            'response': response_for(fake)['payload']})
+        payload.update(filter_sha256=f['filter_sha256'], reviews=reviews)
+    elif job['stage'] == 'generate':
         texts = [line_for(c)]
         if two or not c['lines']:
             texts.append(line_for(c, 1))
         if fail_high and c['lines'] and '水' in c['lines'][0]:
             texts = ['错']
-        payload['candidates'] = [{'id': str(i), 'text': t, 'line_index': c['line_index']} for i, t in enumerate(texts)]
+        payload['candidates'] = [{
+            'id': str(i), 'text': t, 'line_index': c['line_index'],
+            **({'expression_path': '以当前景物推进诗意', 'semantic_increment': '增加当前句的具体认识',
+                'risks': [], 'semantic_lock': {'protected_meaning': '不改变用户事实', 'facts': [],
+                    'images': ['山中景物'], 'relations': [], 'emotion_direction': '由平静转为触动',
+                    'structural_function': c['planned_unit']['primary_task'], 'confirmed_allusions': []}}
+               if c.get('planned_unit') else {})}
+            for i, t in enumerate(texts)]
     elif job['stage'] == 'score':
         f = job['filtered']
         payload.update(filter_sha256=f['filter_sha256'], rubric_version='literary-1',
@@ -100,7 +195,8 @@ def main():
     parser.add_argument('--work-dir')
     args = parser.parse_args()
     configure_workspace(args.work_dir)
-    search = drive(Search.create(fixture_state(), engine=fixture_engine()), fail_high=True)
+    state = fixture_state()
+    search = drive(Search.create(state, poem_plan=fixture_plan(state), engine=fixture_engine()), fail_high=True)
     assert search.data['status'] == 'ready_for_review', search.data['events']
     assert search.data['used']['backtracks'] == 1
     write_new_json(output_path(args.output), search.to_dict())

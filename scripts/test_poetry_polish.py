@@ -17,15 +17,17 @@ from poetry_polish import Polish, REDLINE_CHECKS, validate_review, validate_redl
 from poetry_round import export_context
 from round_content import export_content_plan
 from rhyme_lexicon import RhymeLexicon
-from day4_example import fixture_state, fixture_engine, drive, line_for
+from day4_example import fixture_state, fixture_engine, fixture_plan, drive, line_for
 from day5_example import (review_for, package_for, envelope, comparison_for, content_for,
-                          redline_for, run_example)
+                          redline_for, no_change_for, run_example)
+from word_refinement import VERSION as REFINEMENT_VERSION
 
 
 class PolishTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.source = drive(Search.create(fixture_state(), engine=fixture_engine())).to_dict()
+        state = fixture_state()
+        cls.source = drive(Search.create(state, poem_plan=fixture_plan(state), engine=fixture_engine())).to_dict()
         cls.path = cls.source['search']['drafts'][0]['path_id']
 
     def create(self, **config):
@@ -43,15 +45,41 @@ class PolishTests(unittest.TestCase):
                           needs_user_change=False, reason='固定候选'))
 
     def finish(self, p):
-        if p.next_job()['stage'] == 'review':
-            self.send(p, review_for(p.data['accepted']))
-        while p.next_job() and p.next_job()['stage'] == 'final_content':
-            self.send(p, content_for(p.next_job()))
-        self.assertEqual(p.next_job()['stage'], 'redline')
+        self.reach_redline(p)
         self.send(p, redline_for(p.data['accepted']))
         self.assertEqual(p.next_job()['stage'], 'final')
         self.send(p, dict(title='测试题目', notes=[]))
         self.assertEqual(p.data['status'], 'completed', p.data['reason'])
+
+    def reach_redline(self, p):
+        while p.next_job() and p.next_job()['stage'] in ('review', 'refinement', 'final_content'):
+            if p.next_job()['stage'] == 'review':
+                self.send(p, review_for(p.data['accepted']))
+            elif p.next_job()['stage'] == 'refinement':
+                self.send(p, no_change_for(p.next_job()))
+            else:
+                self.send(p, content_for(p.next_job()))
+        self.assertEqual(p.next_job()['stage'], 'redline')
+
+    def refinement_for(self, job, status='REFINED'):
+        request = job['context']['refinement_request']
+        if status == 'REFLOW_REQUIRED':
+            return {'refinement_version': REFINEMENT_VERSION,
+                    'request_sha256': request['request_sha256'], 'status': status,
+                    'reason': '局部换字不足以修复语流', 'result': {
+                        'problem_type': '结构性语流问题', 'protected_content': ['保持原意'],
+                        'suggested_scope': 'couplet' if len(request['original_lines']) == 2 else 'line'}}
+        lines = deepcopy(request['original_lines'])
+        old = lines[0]['text'][0]
+        replacement = {'天': '地', '地': '天', '人': '天', '水': '火', '火': '水', '土': '水'}[old]
+        lines[0]['text'] = replacement + lines[0]['text'][1:]
+        return {'refinement_version': REFINEMENT_VERSION,
+                'request_sha256': request['request_sha256'], 'status': status,
+                'reason': '首字更具体', 'result': {'lines': lines, 'changes': [{
+                    'line_index': lines[0]['line_index'], 'position': 1, 'original': old,
+                    'selected': replacement, 'candidates': [old, replacement], 'reason': '比较原字后选择'}],
+                    'net_gain': {'dimension': '自然度', 'reason': '语气更顺', 'evidence': replacement},
+                    'tradeoffs': [], 'semantic_lock_preserved': True}}
 
     def content_source(self, mode='exact', kind='line', *, allusion=False):
         base = fixture_state()
@@ -72,7 +100,7 @@ class PolishTests(unittest.TestCase):
         plan = export_content_plan(state)
         if allusion:
             plan['assignments'][0].update(line_index=1, reason='第一句用典')
-        search = drive(Search.create(state, content_plan=plan, engine=fixture_engine()))
+        search = drive(Search.create(state, poem_plan=fixture_plan(state), content_plan=plan, engine=fixture_engine()))
         self.assertEqual(search.data['status'], 'ready_for_review')
         return Polish.create(search.to_dict(), search.data['drafts'][0]['path_id'], engine=fixture_engine())
 
@@ -82,22 +110,41 @@ class PolishTests(unittest.TestCase):
         self.finish(p)
         self.assertEqual(p.data['accepted']['lines'], original)
         self.assertEqual(p.data['history'], [])
-        self.assertEqual(p.data['used'], dict(rounds=0, interactions=3))
+        self.assertEqual(p.data['used'], dict(rounds=0, interactions=7))
         self.assertEqual(p.result(), dict(title='测试题目', lines=original, status='completed'))
+
+    def test_refined_unit_is_rechecked_compared_and_committed_atomically(self):
+        p = self.create()
+        self.send(p, review_for(p.data['accepted']))
+        old = deepcopy(p.data['accepted'])
+        self.send(p, self.refinement_for(p.next_job()))
+        self.assertEqual(p.next_job()['stage'], 'refinement_compare')
+        target = p.next_job()['context']['target']
+        self.send(p, {'candidate_review': review_for(target, score=.9), 'decision': 'adopt',
+                      'net_gain_confirmed': True, 'reason': '全诗复检确认有净增益且无回退'})
+        self.assertEqual(p.data['accepted']['revision'], old['revision'] + 1)
+        self.assertEqual(p.next_job()['stage'], 'review')
+        self.assertEqual(p.data['history'][-1]['decision'], 'adopted')
+
+    def test_reflow_required_returns_to_complete_unit_generation(self):
+        p = self.create()
+        self.send(p, review_for(p.data['accepted']))
+        self.send(p, self.refinement_for(p.next_job(), 'REFLOW_REQUIRED'))
+        self.assertEqual(p.next_job()['stage'], 'reflow')
+        self.assertEqual(p.next_job()['context']['refinement_request']['unit']['line_indices'], [1])
 
     def test_each_final_redline_and_unknown_blocks_output(self):
         for name in REDLINE_CHECKS:
             with self.subTest(check=name):
                 p = self.create()
-                self.send(p, review_for(p.data['accepted']))
-                self.assertEqual(p.next_job()['stage'], 'redline')
+                self.reach_redline(p)
                 self.send(p, redline_for(p.data['accepted'], answer='yes', check=name))
                 self.assertEqual(p.data['status'], 'incomplete')
                 self.assertEqual(p.data['reason'], 'FINAL_REDLINE_BLOCKED')
                 self.assertIsNone(p.data['output'])
                 self.assertEqual(p.data['accepted']['status'], 'reviewing')
         p = self.create()
-        self.send(p, review_for(p.data['accepted']))
+        self.reach_redline(p)
         self.send(p, redline_for(p.data['accepted'], answer='unknown',
                                  check='allusion_facts_reversed'))
         self.assertEqual(p.data['reason'], 'FINAL_REDLINE_BLOCKED')
@@ -306,7 +353,8 @@ class PolishTests(unittest.TestCase):
             validate_review(r, state)
 
     def test_lushi_both_semantic_and_syntactic_parallelism(self):
-        search = drive(Search.create(fixture_state('五言律诗'), engine=fixture_engine()))
+        state = fixture_state('五言律诗')
+        search = drive(Search.create(state, poem_plan=fixture_plan(state), engine=fixture_engine()))
         p = Polish.create(search.to_dict(), search.data['drafts'][0]['path_id'], engine=fixture_engine())
         r = review_for(p.data['accepted'])
         r['dimensions']['parallelism']['couplets'][1]['syntax'] = ''
@@ -412,9 +460,7 @@ class PolishTests(unittest.TestCase):
     def test_final_missing_review_content_and_tampered_restore(self):
         for key in ('review', 'content'):
             p = self.content_source('adapt')
-            self.send(p, review_for(p.data['accepted']))
-            while p.next_job()['stage'] == 'final_content':
-                self.send(p, content_for(p.next_job()))
+            self.reach_redline(p)
             self.send(p, redline_for(p.data['accepted']))
             p.data[key] = None
             with self.assertRaises(ValueError):
@@ -432,7 +478,7 @@ class PolishTests(unittest.TestCase):
 
     def test_final_rules_failure(self):
         p = self.create()
-        self.send(p, review_for(p.data['accepted']))
+        self.reach_redline(p)
         self.send(p, redline_for(p.data['accepted']))
         original = p.engine.check_poem
         def unknown(state):
@@ -448,11 +494,13 @@ class PolishTests(unittest.TestCase):
     def test_title_not_body_nor_content_evidence(self):
         p = self.content_source('adapt')
         self.send(p, review_for(p.data['accepted']))
+        while p.next_job()['stage'] == 'refinement':
+            self.send(p, no_change_for(p.next_job()))
         self.send(p, content_for(p.next_job(), 'violated'))
         self.assertEqual(p.data['status'], 'incomplete')
         self.assertIsNone(p.data['output'])
         p = self.create()
-        self.send(p, review_for(p.data['accepted']))
+        self.reach_redline(p)
         self.send(p, redline_for(p.data['accepted']))
         title = '题目可以很长也无需按五言或平水韵验收'
         self.send(p, dict(title=title, notes=[]))
@@ -623,7 +671,7 @@ class PolishTests(unittest.TestCase):
             lines.append(''.join(chars))
         for line in lines:
             state.append_line(line)
-        source = Search.create(state)  # Real project rhyme library, no injected verdicts.
+        source = Search.create(state, poem_plan=fixture_plan(state))  # Real project rhyme library, no injected verdicts.
         self.assertEqual(source.data['status'], 'ready_for_review')
         with tempfile.TemporaryDirectory() as temp:
             project = Path(temp) / 'moved'
@@ -648,9 +696,19 @@ class PolishTests(unittest.TestCase):
             job = read('job.json')
             write('review.json', envelope(job, review_for(job['context']['target'])))
             run('submit', '--input', root+'p1.json', '--response', root+'review.json', '--output', root+'p2.json')
-            job = read('p2.json')['polish']['pending']
+            current = 'p2.json'
+            for index in range(4):
+                job = read(current)['polish']['pending']
+                self.assertEqual(job['stage'], 'refinement')
+                response_name = f'refinement-{index}.json'
+                next_name = f'p-refinement-{index}.json'
+                write(response_name, envelope(job, no_change_for(job)))
+                run('submit', '--input', root+current, '--response', root+response_name,
+                    '--output', root+next_name)
+                current = next_name
+            job = read(current)['polish']['pending']
             write('redline.json', envelope(job, redline_for(job['context']['target'])))
-            run('submit', '--input', root+'p2.json', '--response', root+'redline.json', '--output', root+'p3.json')
+            run('submit', '--input', root+current, '--response', root+'redline.json', '--output', root+'p3.json')
             job = read('p3.json')['polish']['pending']
             write('final.json', envelope(job, dict(title='迁移流程测试', notes=[])))
             run('submit', '--input', root+'p3.json', '--response', root+'final.json', '--output', root+'p4.json')

@@ -303,8 +303,17 @@ class PoemState:
             self._commit(data, invalidate=True)
 
     def append_line(self, text):
+        self.append_unit([text])
+
+    def append_unit(self, texts):
+        """Append one structural unit in a single creative-context revision."""
+        if (not isinstance(texts, list) or not texts or
+                any(not isinstance(text, str) or not text.strip() for text in texts)):
+            raise ValueError("texts must be a nonempty array of nonempty strings")
         data = self.to_dict()
-        data["lines"].append(text)
+        if len(data["lines"]) + len(texts) > data["form"]["line_count"]:
+            raise ValueError("Unit exceeds the poem form")
+        data["lines"].extend(deepcopy(texts))
         self._commit(data, invalidate=True)
 
     def replace_line(self, line_index, text):
@@ -312,6 +321,18 @@ class PoemState:
             raise ValueError("line_index is one-based and must exist")
         data = self.to_dict()
         data["lines"][line_index - 1] = text
+        self._commit(data, invalidate=True)
+
+    def replace_unit(self, start_line, texts):
+        """Replace an existing line or couplet atomically in one revision."""
+        if (type(start_line) is not int or not isinstance(texts, list) or not texts or
+                any(not isinstance(text, str) or not text.strip() for text in texts)):
+            raise ValueError("Invalid unit replacement")
+        end = start_line + len(texts) - 1
+        if start_line < 1 or end > len(self._data["lines"]):
+            raise ValueError("Replacement unit must already exist")
+        data = self.to_dict()
+        data["lines"][start_line - 1:end] = deepcopy(texts)
         self._commit(data, invalidate=True)
 
     def truncate_lines(self, keep):

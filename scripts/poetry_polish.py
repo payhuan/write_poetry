@@ -13,8 +13,9 @@ from poetry_round import (require, read_json, write_new_json, ENVELOPE,
                           _context, _verify_filter, filter_candidates, review_content)
 from round_content import export_content_plan, validate_content_plan, requirements, _exact
 from runtime_workspace import configure_workspace, input_path, output_path
+from word_refinement import structural_units, refinement_request, validate_refinement
 
-VERSION = 'poetry-polish-2'
+VERSION = 'poetry-polish-3'
 REVIEW_VERSION = 'whole-poem-review-1'
 REDLINE_VERSION = 'final-redline-1'
 REDLINE_CHECKS = ('user_facts_reversed', 'allusion_facts_reversed',
@@ -190,7 +191,9 @@ class Polish:
                      config=deepcopy(config), assignments=deepcopy(assignments), accepted=state.to_dict(),
                      status='running', reason=None, used=dict(rounds=0, interactions=0), next_job=0,
                      pending=None, review=None, content=None, queue=[], candidate=None, history=[],
-                     reviews=[], redline=None, processed={}, invalid={}, transcript=[], output=None), engine)
+                     reviews=[], redline=None, processed={}, invalid={}, transcript=[], output=None,
+                     semantic_locks=deepcopy(p.get('semantic_locks', [])), refinement_cursor=0,
+                     refinements=[]), engine)
         s._job('review')
         return s
 
@@ -237,13 +240,15 @@ class Polish:
             return
         d['next_job'] += 1
         d['used']['interactions'] += 1
-        target = d['candidate']['state'] if stage in ('candidate_content', 'compare') else d['accepted']
+        target = d['candidate']['state'] if stage in ('candidate_content', 'compare', 'refinement_compare') else d['accepted']
         context = dict(accepted=deepcopy(d['accepted']), target=deepcopy(target),
                        assignments=deepcopy(d['assignments']), review=deepcopy(d['review']),
                        candidate=deepcopy(d['candidate']), config=deepcopy(d['config']),
                        search_run_id=d['source']['search']['run_id'],
                        handoff_sha256=d['source']['sha256'],
                        content_evidence=self._evidence(),
+                       semantic_locks=deepcopy(d['semantic_locks']),
+                       refinement_cursor=d['refinement_cursor'], refinements=deepcopy(d['refinements']),
                        weights=WEIGHTS.copy(), review_version=REVIEW_VERSION, **deepcopy(extra))
         job = dict(contract_version=VERSION, run_id=d['run_id'], job_id='w' + str(d['next_job']),
                    path_id=d['path_id'], revision=target['revision'], binding=make_binding(target),
@@ -256,7 +261,7 @@ class Polish:
 
     def _validate_job(self, job):
         d = self.data
-        target = d['candidate']['state'] if job['stage'] in ('candidate_content', 'compare') else d['accepted']
+        target = d['candidate']['state'] if job['stage'] in ('candidate_content', 'compare', 'refinement_compare') else d['accepted']
         require(job['work_sha256'] == digest({k: v for k, v in job.items() if k not in ('attempt', 'work_sha256')}),
                 'STALE_WORK', 'Pending work was changed')
         require(job['binding'] == make_binding(target) and job['revision'] == target['revision']
@@ -265,6 +270,10 @@ class Polish:
         for key in ('assignments', 'review', 'candidate', 'config'):
             require(job['context'][key] == d[key], 'STALE_WORK', key + ' changed after work issuance')
         require(job['context']['content_evidence'] == self._evidence(), 'STALE_WORK', 'Content evidence changed')
+        require(job['context']['semantic_locks'] == d['semantic_locks'] and
+                job['context']['refinement_cursor'] == d['refinement_cursor'] and
+                job['context']['refinements'] == d['refinements'],
+                'STALE_WORK', 'Refinement audit changed after work issuance')
 
     def _record_review(self, job, payload, target):
         review = validate_review(payload, target)
@@ -284,8 +293,139 @@ class Polish:
                 self.data['used']['rounds'] += 1
                 self._job('generate')
         else:
-            self.data['content'] = []
+            self._refinement_next()
+
+    def _unit_lock(self, unit):
+        matches = [x for x in self.data['semantic_locks'] if x['line_indices'] == unit['line_indices']]
+        if len(matches) == 1:
+            return matches[0]['lock']
+        parts = [x for index in unit['line_indices'] for x in self.data['semantic_locks']
+                 if x['line_indices'] == [index]]
+        require(len(parts) == len(unit['line_indices']), 'SEMANTIC_LOCK_MISSING',
+                'Every accepted structural unit needs complete semantic-lock coverage')
+        locks = [x['lock'] for x in parts]
+        return {'protected_meaning': '；'.join(x['protected_meaning'] for x in locks),
+                'facts': list(dict.fromkeys(v for x in locks for v in x['facts'])),
+                'images': list(dict.fromkeys(v for x in locks for v in x['images'])),
+                'relations': list(dict.fromkeys(v for x in locks for v in x['relations'])),
+                'emotion_direction': '；'.join(dict.fromkeys(x['emotion_direction'] for x in locks)),
+                'structural_function': unit['unit'],
+                'confirmed_allusions': list(dict.fromkeys(v for x in locks for v in x['confirmed_allusions']))}
+
+    def _refinement_next(self):
+        d = self.data
+        units = structural_units(d['accepted'])
+        if d['refinement_cursor'] >= len(units):
+            d['content'] = []
             self._content_next(False)
+            return
+        unit = units[d['refinement_cursor']]
+        request = refinement_request(d['accepted'], unit, self._unit_lock(unit), d['refinements'])
+        self._job('refinement', refinement_request=request)
+
+    def _begin_refinement_candidate(self, lines, audit, *, mode='refinement'):
+        d = self.data
+        if d['used']['rounds'] >= d['config']['max_rounds']:
+            self._stop('budget_exhausted', 'MAX_POLISH_ROUNDS')
+            return
+        unit = structural_units(d['accepted'])[d['refinement_cursor']]
+        state = self._state()
+        state.replace_unit(unit['line_indices'][0], [x['text'] for x in lines])
+        candidate = state.to_dict()
+        binding = make_binding(candidate)
+        require(not any(x.get('candidate_binding') == binding for x in d['refinements']),
+                'REFINEMENT_LOOP', 'This refinement body has already been considered')
+        d['candidate'] = {'mode': mode, 'audit': deepcopy(audit), 'unit': deepcopy(unit),
+                          'state': candidate, 'content': [], 'base': deepcopy(d['accepted'])}
+        for kind, item in requirements(candidate['request']):
+            if kind == 'fragment' and item['mode'] == 'exact':
+                index = next(x['line_index'] for x in d['assignments']
+                             if x['kind'] == kind and x['requirement_id'] == item['id'])
+                if (not _exact(item, candidate['lines'][index-1], index) or
+                        item['kind'] == 'line' and candidate['lines'][index-1] != item['text']):
+                    self._reject_refinement('LOCKED_EXACT_CONTENT')
+                    return
+        checks = self.engine.check_poem(state)
+        state.set_assessment(checks)
+        d['candidate']['state'] = state.to_dict()
+        if checks['valid'] is not True:
+            self._reject_refinement('RULES_FAILED_OR_UNKNOWN')
+            return
+        self._content_next(True)
+
+    def _refinement(self, job, payload):
+        request = job['context']['refinement_request']
+        result = validate_refinement(payload, request)
+        record = {'unit': deepcopy(request['unit']), 'response': deepcopy(result),
+                  'binding': deepcopy(request['binding'])}
+        if result['status'] == 'NO_CHANGE':
+            record['decision'] = 'retained'
+            self.data['refinements'].append(record)
+            self.data['refinement_cursor'] += 1
+            self._refinement_next()
+        elif result['status'] == 'REFLOW_REQUIRED':
+            self.data['refinements'].append({**record, 'decision': 'reflow_requested'})
+            self._job('reflow', refinement_request=request, reflow=result)
+        else:
+            self._begin_refinement_candidate(result['result']['lines'], record)
+
+    def _reflow(self, job, payload):
+        request = job['context']['refinement_request']
+        fields(payload, ('lines', 'semantic_lock_preserved', 'reason'))
+        original = request['original_lines']
+        require(isinstance(payload['lines'], list) and len(payload['lines']) == len(original) and
+                all(isinstance(x, dict) and set(x) == {'line_index', 'text'} and text(x['text'])
+                    for x in payload['lines']) and
+                [x['line_index'] for x in payload['lines']] == [x['line_index'] for x in original] and
+                all(len(x['text']) == len(y['text']) for x, y in zip(payload['lines'], original)) and
+                payload['lines'] != original and payload['semantic_lock_preserved'] is True and text(payload['reason']),
+                'INVALID_REFLOW', 'Reflow must replace the complete current unit while preserving its lock and form')
+        audit = {'unit': deepcopy(request['unit']), 'response': deepcopy(job['context']['reflow']),
+                 'proposal': deepcopy(payload), 'binding': deepcopy(request['binding'])}
+        self._begin_refinement_candidate(payload['lines'], audit, mode='reflow')
+
+    def _reject_refinement(self, reason):
+        d = self.data
+        candidate = d['candidate']
+        if candidate is not None:
+            d['history'].append({**deepcopy(candidate), 'decision': 'rejected', 'reason': reason})
+            d['refinements'].append({**deepcopy(candidate['audit']), 'decision': 'rejected',
+                                     'reason': reason, 'candidate_binding': make_binding(candidate['state'])})
+        d['candidate'] = None
+        d['refinement_cursor'] += 1
+        self._refinement_next()
+
+    def _refinement_compare(self, job, payload):
+        fields(payload, ('candidate_review', 'decision', 'net_gain_confirmed', 'reason'))
+        d, candidate = self.data, self.data['candidate']
+        reviewed = self._record_review(job, payload['candidate_review'], candidate['state'])
+        require(payload['decision'] in ('adopt', 'retain') and type(payload['net_gain_confirmed']) is bool
+                and text(payload['reason']), 'INVALID_REFINEMENT_COMPARISON', 'Explain the whole-poem comparison')
+        old, new = d['review']['review'], reviewed['review']
+        applicable = [name for name in WEIGHTS if old['dimensions'][name]['score'] is not None]
+        no_regression = all(new['dimensions'][name]['score'] >= old['dimensions'][name]['score'] for name in applicable)
+        eligible = (payload['decision'] == 'adopt' and payload['net_gain_confirmed'] and
+                    new['conclusion'] == 'ready' and no_regression and new['total'] > old['total'] + 1e-12)
+        candidate['review'] = reviewed
+        candidate['comparison'] = deepcopy(payload)
+        if not eligible:
+            self._reject_refinement(payload['reason'] if payload['decision'] == 'retain'
+                                    else 'REFINEMENT_GAIN_NOT_CONFIRMED')
+            return
+        state = PoemState.from_dict(candidate['state'])
+        checks = self.engine.check_poem(state)
+        if checks['valid'] is not True:
+            self._reject_refinement('RULES_FAILED_OR_UNKNOWN')
+            return
+        self._verify_content(state, candidate['content'], d['assignments'], self.engine)
+        state.set_assessment(checks)
+        d['used']['rounds'] += 1
+        d['history'].append({**deepcopy(candidate), 'decision': 'adopted', 'reason': payload['reason']})
+        d['refinements'].append({**deepcopy(candidate['audit']), 'decision': 'adopted',
+                                 'reason': payload['reason'], 'candidate_binding': make_binding(state.to_dict())})
+        d.update(accepted=state.to_dict(), candidate=None, queue=[], review=None, content=None,
+                 redline=None, refinement_cursor=0)
+        self._job('review')
 
     def _plan(self, state):
         p = export_content_plan(state)
@@ -330,7 +470,7 @@ class Polish:
                 self._stop('incomplete', getattr(exc, 'code', 'CONTENT_FAILED_OR_UNKNOWN'))
             return
         if candidate:
-            self._job('compare')
+            self._job('refinement_compare' if target.get('mode') in ('refinement', 'reflow') else 'compare')
         else:
             self._job('redline')
 
@@ -507,6 +647,10 @@ class Polish:
             self._after_review()
         elif stage == 'generate':
             self._packages(payload)
+        elif stage == 'refinement':
+            self._refinement(job, payload)
+        elif stage == 'reflow':
+            self._reflow(job, payload)
         elif stage in ('candidate_content', 'final_content'):
             candidate = stage == 'candidate_content'
             target = self.data['candidate'] if candidate else self.data
@@ -517,6 +661,8 @@ class Polish:
             self._content_next(candidate)
         elif stage == 'compare':
             self._compare(job, payload)
+        elif stage == 'refinement_compare':
+            self._refinement_compare(job, payload)
         elif stage == 'redline':
             self._redline(job, payload)
         elif stage == 'final':

@@ -58,7 +58,8 @@ restored = PoemState.load("draft-1.json")
 | `fork()` | 创建互不影响的状态副本，供后续搜索控制器使用 |
 | `set_plan(**changes)` | 更新主题、情绪、意象、结构、模板、韵律上下文或约束 |
 | `set_budget(**changes)` | 设置正整数预算；最大回溯次数允许为零 |
-| `append_line(text)` / `replace_line(index, text)` | 追加 / 替换诗句，索引从 1 开始 |
+| `append_line(text)` / `replace_line(index, text)` | 追加 / 替换单句，索引从 1 开始 |
+| `append_unit(texts)` / `replace_unit(start, texts)` | 原子追加或替换完整句／联；全部验证后只增加一次 revision |
 | `truncate_lines(keep)` | 仅保留前 keep 句，保留候选历史 |
 | `record_candidate(id, text, line_index, parent_path=None)` | 记录唯一候选及所属上下文版本 |
 | `evaluate_candidate(id, checks=..., quality_score=None, decision="pending", reason="")` | 记录检测、评分和决策；不能评价旧上下文候选 |

@@ -14,17 +14,19 @@ from poem_state import PoemState
 from poetry_search import Search
 from poetry_round import RoundError
 from round_content import export_content_plan
-from day4_example import fixture_state, fixture_engine, response_for, drive, line_for
+from day4_example import fixture_state, fixture_engine, fixture_plan, response_for, drive, line_for
 
 
 class SearchTests(unittest.TestCase):
     def create(self, **budget):
-        return Search.create(fixture_state(**budget), engine=fixture_engine())
+        state = fixture_state(**budget)
+        return Search.create(state, poem_plan=fixture_plan(state), engine=fixture_engine())
 
     def test_basic_and_four_forms(self):
         for form in ('五言绝句', '七言绝句', '五言律诗', '七言律诗'):
             with self.subTest(form=form):
-                s = drive(Search.create(fixture_state(form), engine=fixture_engine()))
+                state = fixture_state(form)
+                s = drive(Search.create(state, poem_plan=fixture_plan(state), engine=fixture_engine()))
                 self.assertEqual(s.data['status'], 'ready_for_review', s.data['events'])
                 draft = s.data['drafts'][0]['state']
                 self.assertEqual(len(draft['lines']), draft['form']['line_count'])
@@ -100,7 +102,8 @@ class SearchTests(unittest.TestCase):
         self.assertFalse(s.data['children'])
 
     def test_model_cap(self):
-        s = Search.create(fixture_state(), engine=fixture_engine(), max_interactions=1)
+        state = fixture_state()
+        s = Search.create(state, poem_plan=fixture_plan(state), engine=fixture_engine(), max_interactions=1)
         s.submit(response_for(s.next_job()))
         self.assertEqual(s.data['status'], 'budget_exhausted')
         self.assertEqual(s.data['used']['interactions'], 1)
@@ -144,7 +147,8 @@ class SearchTests(unittest.TestCase):
     def test_final_recheck(self):
         engine = fixture_engine()
         with patch.object(engine, 'check_poem', wraps=engine.check_poem) as check:
-            s = drive(Search.create(fixture_state(), engine=engine))
+            state = fixture_state()
+            s = drive(Search.create(state, poem_plan=fixture_plan(state), engine=engine))
             self.assertEqual(check.call_count, 1)
             p = s.data['drafts'][0]['state']
             for k, v in make_binding(p).items():
@@ -160,7 +164,8 @@ class SearchTests(unittest.TestCase):
             r['checks']['pingze']['status'] = 'unknown'
             return r
         with patch.object(engine, 'check_poem', side_effect=unknown):
-            s = drive(Search.create(fixture_state(max_backtracks=0), engine=engine))
+            state = fixture_state(max_backtracks=0)
+            s = drive(Search.create(state, poem_plan=fixture_plan(state), engine=engine))
         self.assertFalse(s.data['drafts'])
         self.assertEqual(s.data['status'], 'no_feasible_path')
 
@@ -230,7 +235,7 @@ class SearchTests(unittest.TestCase):
     def test_fixed_requirements_survive_recovery(self):
         state = self.content_state()
         text = state.to_dict()['request']['required_fragments'][0]['text']
-        s = drive(Search.create(state, engine=fixture_engine()), fail_high=True)
+        s = drive(Search.create(state, poem_plan=fixture_plan(state), engine=fixture_engine()), fail_high=True)
         self.assertEqual(s.data['status'], 'ready_for_review', s.data['events'])
         p = s.data['drafts'][0]
         self.assertEqual(p['state']['lines'][3], text)
@@ -239,7 +244,8 @@ class SearchTests(unittest.TestCase):
         self.assertEqual(s.data['used']['backtracks'], 1)
 
     def test_final_semantic_unknown_not_promoted(self):
-        s = Search.create(self.content_state('adapt'), engine=fixture_engine())
+        state = self.content_state('adapt')
+        s = Search.create(state, poem_plan=fixture_plan(state), engine=fixture_engine())
         while s.data['status'] == 'waiting_for_llm':
             j = s.next_job()
             r = response_for(j)
@@ -250,10 +256,12 @@ class SearchTests(unittest.TestCase):
         self.assertTrue(any(e['code'] == 'FINAL_CONTENT_FAILED_OR_UNKNOWN' for e in s.data['events']))
 
     def test_storage_bound_and_invalid_config(self):
-        s = drive(Search.create(fixture_state(), engine=fixture_engine(), max_alternatives=0))
+        state = fixture_state()
+        s = drive(Search.create(state, poem_plan=fixture_plan(state), engine=fixture_engine(), max_alternatives=0))
         self.assertFalse(s.data['alternatives'])
         with self.assertRaises(RoundError):
-            Search.create(fixture_state(), max_attempts=4, engine=fixture_engine())
+            state = fixture_state()
+            Search.create(state, poem_plan=fixture_plan(state), max_attempts=4, engine=fixture_engine())
         artifact = s.to_dict()
         artifact['search']['used']['rounds'] = 0
         with self.assertRaises(RoundError):
@@ -274,10 +282,10 @@ class SearchTests(unittest.TestCase):
         TemplateLibrary().bind(state)
         state.set_plan(rhyme=fixture_state().to_dict()['rhyme'])
         state.set_budget(beam_width=1)
-        self.assertEqual(Search.create(state, engine=fixture_engine()).data['status'], 'needs_clarification')
+        self.assertEqual(Search.create(state, poem_plan=fixture_plan(state), engine=fixture_engine()).data['status'], 'needs_clarification')
         plan = export_content_plan(state)
         plan['assignments'][0].update(line_index=4, reason='末句承担')
-        s = Search.create(state, content_plan=plan, engine=fixture_engine())
+        s = Search.create(state, poem_plan=fixture_plan(state), content_plan=plan, engine=fixture_engine())
         seen_final = False
         while s.data['status'] == 'waiting_for_llm':
             job = s.next_job()
@@ -297,7 +305,7 @@ class SearchTests(unittest.TestCase):
         from poetry_round import export_context
         prefix = line_for(export_context(state, 1))
         state.append_line(prefix)
-        s = Search.create(state, engine=fixture_engine())
+        s = Search.create(state, poem_plan=fixture_plan(state), engine=fixture_engine())
         while s.data['status'] == 'waiting_for_llm':
             job = s.next_job()
             r = response_for(job, two=job['context']['line_index'] == 2)
@@ -313,7 +321,7 @@ class SearchTests(unittest.TestCase):
         from poetry_round import export_context
         for index in range(1, 5):
             state.append_line(line_for(export_context(fixture_state(), index), variant=1))
-        s = Search.create(state, engine=fixture_engine())
+        s = Search.create(state, poem_plan=fixture_plan(state), engine=fixture_engine())
         self.assertEqual(s.data['status'], 'no_feasible_path')
         self.assertFalse(s.data['drafts'])
 

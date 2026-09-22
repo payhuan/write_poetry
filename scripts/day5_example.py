@@ -2,12 +2,13 @@
 import argparse
 import json
 from assessment_binding import make_binding
-from day4_example import fixture_state, fixture_engine, drive, response_for as search_response
+from day4_example import fixture_state, fixture_engine, fixture_plan, drive, response_for as search_response
 from poetry_search import Search
 from poetry_polish import (Polish, IDENTITY, WEIGHTS, REVIEW_VERSION,
                            REDLINE_VERSION, REDLINE_CHECKS)
 from poetry_round import write_new_json
 from runtime_workspace import configure_workspace, output_path
+from word_refinement import VERSION as REFINEMENT_VERSION
 
 
 def review_for(state, *, revise=False, positions=(1,), score=.8):
@@ -74,8 +75,17 @@ def redline_for(state, *, answer='no', check=None):
                 conclusion='pass' if all(x['answer'] == 'no' for x in checks.values()) else 'blocked')
 
 
+def no_change_for(job):
+    request = job['context']['refinement_request']
+    return {'refinement_version': REFINEMENT_VERSION,
+            'request_sha256': request['request_sha256'], 'status': 'NO_CHANGE',
+            'reason': '逐字比较后没有确认到足以承担代价的净增益。',
+            'result': {'lines': request['original_lines']}}
+
+
 def run_example(*, adopt=False):
-    search = drive(Search.create(fixture_state(), engine=fixture_engine()))
+    initial = fixture_state()
+    search = drive(Search.create(initial, poem_plan=fixture_plan(initial), engine=fixture_engine()))
     polish = Polish.create(search.to_dict(), search.data['drafts'][0]['path_id'], engine=fixture_engine())
     for _ in range(30):
         j = polish.next_job()
@@ -88,6 +98,8 @@ def run_example(*, adopt=False):
                      needs_user_change=False, reason='固定修改演示')
         elif j['stage'] == 'compare':
             p = comparison_for(j)
+        elif j['stage'] == 'refinement':
+            p = no_change_for(j)
         elif j['stage'].endswith('content'):
             p = content_for(j)
         elif j['stage'] == 'redline':

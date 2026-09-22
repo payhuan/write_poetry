@@ -6,6 +6,7 @@ import argparse
 import json
 
 from poem_state import PoemState
+from poem_planning import load_plan_artifact
 from constraint_engine import ConstraintEngine
 from assessment_binding import digest, make_binding
 from poetry_round import (export_context, filter_candidates, review_content, finish_round,
@@ -13,10 +14,12 @@ from poetry_round import (export_context, filter_candidates, review_content, fin
                           _validate_context)
 from runtime_workspace import configure_workspace, input_path, output_path
 from round_content import export_content_plan, validate_content_plan, requirements
+from poetry_unit import (is_atomic_couplet, export_unit_context, validate_unit_context,
+                         filter_units, review_unit_content, finish_units)
 
-VERSION = 'poetry-search-1'
+VERSION = 'poetry-search-2'
 TERMINAL = {'ready_for_review', 'budget_exhausted', 'no_feasible_path',
-            'needs_clarification', 'run_error'}
+            'needs_clarification', 'run_error', 'legacy_readonly'}
 
 
 class Search:
@@ -30,10 +33,13 @@ class Search:
         self.data = deepcopy(data)
 
     @classmethod
-    def create(cls, state, *, content_plan=None, max_interactions=None,
+    def create(cls, state, *, poem_plan=None, content_plan=None, max_interactions=None,
                max_alternatives=30, max_attempts=3, engine=None):
         initial = state.to_dict()
         require(initial['status'] != 'completed', 'INVALID_INITIAL_STATE', 'Use a planned or draft state')
+        require(poem_plan is not None, 'POEM_PLAN_REQUIRED',
+                'new search runs require a bound poem plan')
+        semantic_plan = load_plan_artifact(state, poem_plan)
         plan, unresolved = validate_content_plan(state, content_plan)
         config = {**initial['budget'], 'max_interactions': max_interactions if max_interactions is not None
                   else initial['budget']['max_rounds'] * 9 + initial['form']['line_count'] * 9,
@@ -42,10 +48,20 @@ class Search:
             require(type(v) is int and v >= (0 if k in ('max_backtracks', 'max_alternatives') else 1),
                     'INVALID_CONFIG', k)
         require(max_attempts <= 3, 'INVALID_CONFIG', 'Day 3 supports at most three attempts')
+        initial_locks = []
+        for unit in semantic_plan['structure_plan']:
+            if max(unit['line_indices']) <= len(initial['lines']):
+                initial_locks.append({'unit': unit['unit'], 'line_indices': deepcopy(unit['line_indices']),
+                    'lock': {'protected_meaning': '；'.join(unit['protected_meaning']) or unit['primary_task'],
+                             'facts': [], 'images': [], 'relations': [],
+                             'emotion_direction': semantic_plan['poem_core']['primary_emotion'],
+                             'structural_function': unit['primary_task'], 'confirmed_allusions': []}})
         root = {'path_id': 'p0', 'parent_path_id': None, 'state': initial,
-                'depth': len(initial['lines']), 'adoptions': [], 'score': 0.0, 'content': []}
+                'depth': len(initial['lines']), 'adoptions': [], 'score': 0.0, 'content': [],
+                'semantic_locks': initial_locks}
         s = cls({'version': VERSION, 'run_id': uuid4().hex, 'status': 'running',
-                 'initial': initial, 'assignments': plan['assignments'], 'config': config,
+                 'initial': initial, 'poem_plan': semantic_plan,
+                 'assignments': plan['assignments'], 'config': config,
                  'active': [root], 'alternatives': [], 'children': [], 'cursor': 0,
                  'pending': None, 'processed': {}, 'invalid_responses': {}, 'drafts': [], 'diagnostics': [],
                  'events': [], 'used': {'rounds': 0, 'interactions': 0, 'backtracks': 0},
@@ -68,9 +84,14 @@ class Search:
         require(isinstance(artifact, dict) and set(artifact) == {'search', 'sha256'}
                 and digest(artifact['search']) == artifact['sha256'], 'INVALID_SNAPSHOT', 'Snapshot checksum mismatch')
         d = artifact['search']
+        if isinstance(d, dict) and d.get('version') == 'poetry-search-1':
+            legacy = deepcopy(d)
+            legacy.update(version=VERSION, poem_plan=None, status='legacy_readonly', pending=None)
+            legacy['events'].append({'code': 'POEM_PLAN_REQUIRED', 'status': 'legacy_readonly'})
+            return cls(legacy, engine=engine)
         fields = {'version', 'run_id', 'status', 'initial', 'assignments', 'config', 'active',
                   'alternatives', 'children', 'cursor', 'pending', 'processed', 'invalid_responses',
-                  'drafts', 'diagnostics', 'events', 'used', 'next_path', 'next_job'}
+                  'drafts', 'diagnostics', 'events', 'used', 'next_path', 'next_job', 'poem_plan'}
         require(isinstance(d, dict) and set(d) == fields, 'INVALID_SNAPSHOT', 'Invalid search fields')
         require(d['version'] == VERSION, 'INVALID_VERSION', 'Unsupported search version')
         require(d['status'] in TERMINAL | {'running', 'waiting_for_llm'}, 'INVALID_SNAPSHOT', 'Invalid stage')
@@ -90,10 +111,14 @@ class Search:
                 and (d['pending'] is None or d['cursor'] < len(d['active'])),
                 'INVALID_SNAPSHOT', 'Invalid active cursor')
         s = cls(d, engine=engine)
-        PoemState.from_dict(d['initial'])
+        initial_state = PoemState.from_dict(d['initial'])
+        require(d['poem_plan'] is not None, 'POEM_PLAN_REQUIRED', 'New Search snapshots require a semantic plan')
+        from poem_planning import validate_plan
+        validate_plan(initial_state, d['poem_plan'])
         for p in d['active'] + d['alternatives'] + d['children'] + d['drafts'] + d['diagnostics']:
             require(isinstance(p, dict) and {'state', 'depth', 'path_id', 'parent_path_id',
-                    'score', 'adoptions', 'content'} <= set(p), 'INVALID_SNAPSHOT', 'Invalid path fields')
+                    'score', 'adoptions', 'content', 'semantic_locks'} <= set(p),
+                    'INVALID_SNAPSHOT', 'Invalid path fields')
             state = PoemState.from_dict(p['state'])
             require(p['depth'] == len(p['state']['lines']), 'INVALID_SNAPSHOT', 'Path depth mismatch')
             validate_content_plan(state, s._plan(state))
@@ -104,7 +129,11 @@ class Search:
             job = d['pending']
             p = s._current()
             require(job['path_id'] == p['path_id'] and job['run_id'] == d['run_id'], 'INVALID_SNAPSHOT', 'Wrong pending path')
-            _validate_context(PoemState.from_dict(p['state']), job['context'])
+            state = PoemState.from_dict(p['state'])
+            if job['context'].get('contract_version') == 'poetry-unit-1':
+                validate_unit_context(state, job['context'])
+            else:
+                _validate_context(state, job['context'])
         return s
 
     def save(self, path):
@@ -115,6 +144,8 @@ class Search:
         return cls.from_dict(read_json(input_path(path).read_text(encoding='utf-8-sig')), **kwargs)
 
     def next_job(self):
+        if self.data['status'] == 'legacy_readonly':
+            return None
         return deepcopy(self.data['pending'])
 
     def _current(self):
@@ -190,7 +221,13 @@ class Search:
             if d['used']['rounds'] >= d['config']['max_rounds']:
                 self._stop('budget_exhausted', 'MAX_ROUNDS')
                 return
-            context = export_context(state, p['depth'] + 1, content_plan=self._plan(state))
+            if is_atomic_couplet(state):
+                context = export_unit_context(state, d['poem_plan'], self._plan(state))
+                d['used']['rounds'] += 1
+                self._job('unit_generate', context)
+                continue
+            context = export_context(state, p['depth'] + 1, content_plan=self._plan(state),
+                                     poem_plan=d['poem_plan'])
             if context['status'] != 'ready':
                 self._stop('needs_clarification', context['reasons'])
                 return
@@ -232,7 +269,12 @@ class Search:
             score = float(sum(Fraction(str(x['record']['quality_score'])) for x in adoptions) / len(adoptions))
             child_path = {'path_id': f"p{self.data['next_path']}", 'parent_path_id': p['path_id'],
                           'state': child.to_dict(), 'depth': p['depth'] + 1, 'adoptions': adoptions,
-                          'score': score, 'content': deepcopy(r.get('content_result', {}))}
+                          'score': score, 'content': deepcopy(r.get('content_result', {})),
+                          'semantic_locks': deepcopy(p.get('semantic_locks', [])) + ([{
+                              'unit': filtered['context']['planned_unit']['unit'],
+                              'line_indices': [r['line_index']],
+                              'lock': deepcopy(r['semantic_lock'])}]
+                              if r.get('semantic_lock') else [])}
             self.data['next_path'] += 1
             self.data['children'].append(child_path)
         if not report['ranking']:
@@ -240,6 +282,46 @@ class Search:
             self._fail(report['code'])
         else:
             self.data['cursor'] += 1
+
+    def _after_unit_filter(self, filtered):
+        self._current()['round_artifact'] = deepcopy(filtered)
+        if filtered['status'] == 'replan_required':
+            self._current()['replan'] = deepcopy(filtered['replan'])
+            self._stop('needs_clarification', 'REPLAN_REQUIRED')
+        elif filtered['content_request']['requests']:
+            self._job('unit_content', filtered['context'], filtered)
+        elif filtered['score_request']['candidates']:
+            self._job('unit_score', filtered['context'], filtered)
+        else:
+            self._fail('NO_PASSED_UNIT')
+
+    def _commit_unit(self, filtered, scores):
+        p = self._current()
+        report = finish_units(filtered, scores)
+        for candidate_id in report['ranking']:
+            record = next(x for x in report['records'] if x['id'] == candidate_id)
+            child = PoemState.from_dict(p['state'])
+            texts = [x['text'] for x in record['lines']]
+            child.append_unit(texts)
+            adoptions = deepcopy(p['adoptions']) + [{
+                'record': deepcopy(record), 'report': deepcopy(report),
+                'parent_path_id': p['path_id'], 'parent_state': deepcopy(p['state'])}]
+            score = float(sum(Fraction(str(x['record']['quality_score'])) for x in adoptions) / len(adoptions))
+            child_path = {'path_id': f"p{self.data['next_path']}", 'parent_path_id': p['path_id'],
+                          'state': child.to_dict(), 'depth': p['depth'] + 2, 'adoptions': adoptions,
+                          'score': score, 'content': [deepcopy(f['records'][0].get('content_result', {}))
+                                                     for f in record['line_filters']],
+                          'semantic_locks': deepcopy(p.get('semantic_locks', [])) + [{
+                              'unit': filtered['context']['unit_name'],
+                              'line_indices': deepcopy(filtered['context']['line_indices']),
+                              'lock': deepcopy(record['semantic_lock'])}]}
+            self.data['next_path'] += 1
+            self.data['children'].append(child_path)
+        if report['ranking']:
+            self.data['cursor'] += 1
+        else:
+            p['failed_report'] = report
+            self._fail(report['code'])
 
     def _final_content(self, index):
         """Re-run Day 3 content checks on unchanged complete text, at every assigned line.
@@ -251,7 +333,8 @@ class Search:
         if not requirements(p['state']['request']):
             index = p['depth'] + 1
         while index <= p['depth']:
-            c = export_context(state, index, content_plan=self._plan(state))
+            c = export_context(state, index, content_plan=self._plan(state),
+                               poem_plan=self.data['poem_plan'])
             if c['locked_candidate'] and c['locked_candidate']['text'] != p['state']['lines'][index-1]:
                 self._fail('FINAL_LOCKED_TEXT_MISMATCH')
                 return
@@ -284,6 +367,8 @@ class Search:
         payloads consume a bounded repair issuance, never commit partial children.
         Replays of successful jobs return idempotently; changed replays are rejected.
         """
+        require(self.data['status'] != 'legacy_readonly', 'POEM_PLAN_REQUIRED',
+                'Legacy snapshots are read-only; start a new planned search')
         require(isinstance(response, dict), 'INVALID_RESPONSE', 'Expected response object')
         identity = ('run_id', 'job_id', 'path_id', 'batch_id', 'context_sha256')
         require(set(response) == set(identity) | {'payload'}, 'INVALID_RESPONSE', 'Invalid response fields')
@@ -303,7 +388,11 @@ class Search:
         staged.data['pending'] = None
         staged.data['status'] = 'running'
         try:
-            _validate_context(PoemState.from_dict(staged._current()['state']), job['context'])
+            current_state = PoemState.from_dict(staged._current()['state'])
+            if job['context'].get('contract_version') == 'poetry-unit-1':
+                validate_unit_context(current_state, job['context'])
+            else:
+                _validate_context(current_state, job['context'])
             payload = response['payload']
             if isinstance(payload, dict) and set(payload) == {'attempt', 'raw_json'}:
                 require(payload['attempt'] == job['attempt'] and isinstance(payload['raw_json'], str),
@@ -348,7 +437,23 @@ class Search:
     def _receive(self, job, payload):
         state = PoemState.from_dict(self._current()['state'])
         stage, c, f = job['stage'], job['context'], job['filtered']
-        if stage == 'generate':
+        if stage == 'unit_generate':
+            self._after_unit_filter(filter_units(state, c, payload, engine=self.engine))
+        elif stage == 'unit_content':
+            reviewed = review_unit_content(state, f, payload, engine=self.engine)
+            if reviewed['score_request']['candidates']:
+                self._job('unit_score', c, reviewed)
+            else:
+                self._fail('UNIT_CONTENT_FAILED_OR_UNKNOWN')
+        elif stage == 'unit_score':
+            self._commit_unit(f, payload)
+        elif stage == 'generate':
+            if c.get('planned_unit') is not None and c.get('locked_candidate') is None:
+                enhanced = {'id', 'text', 'line_index', 'expression_path', 'semantic_increment',
+                            'risks', 'semantic_lock'}
+                require(isinstance(payload.get('candidates'), list) and
+                        all(isinstance(x, dict) and set(x) == enhanced for x in payload['candidates']),
+                        'SEMANTIC_LOCK_REQUIRED', 'Planned generation candidates require expression metadata and semantic_lock')
             self._after_filter(c, filter_candidates(state, c, payload, engine=self.engine))
         elif stage in ('content', 'final_content'):
             reviewed = review_content(state, f, payload, engine=self.engine)
@@ -371,6 +476,7 @@ def main():
     parser.add_argument('--input', required=True)
     parser.add_argument('--output', required=True)
     parser.add_argument('--content-plan')
+    parser.add_argument('--poem-plan')
     parser.add_argument('--response')
     parser.add_argument('--work-dir')
     args = parser.parse_args()
@@ -378,7 +484,9 @@ def main():
     def load(path):
         return read_json(input_path(path).read_text(encoding='utf-8-sig'))
     if args.command == 'start':
-        s = Search.create(PoemState.from_dict(load(args.input)),
+        if not args.poem_plan:
+            raise ValueError('--poem-plan is required for new searches')
+        s = Search.create(PoemState.from_dict(load(args.input)), poem_plan=load(args.poem_plan),
                           content_plan=load(args.content_plan) if args.content_plan else None)
     else:
         s = Search.from_dict(load(args.input))
