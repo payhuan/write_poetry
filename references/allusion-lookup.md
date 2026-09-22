@@ -30,6 +30,6 @@ Day 3 导出上下文时，为每项 `request.allusions` 生成一条 `allusion_
 - `ambiguous` 不能判 satisfied。可选典故可以跳过，但若要使用仍须先消歧。
 - `not_found` 不阻断创作，因为本地快照不完整；没有可靠补充依据时必须判 unknown，不能编造出处或含义。
 
-`content_request` 会在用典要求中携带对应 `allusion_reference`。这些引用随候选内容证据进入 Day 5，终稿红线中的 `allusion_facts_reversed` 应同时核对当前诗句、用户要求和规范典故证据。任何事实方向相反或无法可靠判断的情况都不能通过最终出口。
+`content_request` 会在用典要求中携带对应 `allusion_reference`。查到哪一条典故之后，按 [用典规范](allusion-usage.md) 完成事实门、映射门、质量记录和错误分类。这些引用与评价随候选内容证据进入 Day 5，终稿红线中的 `allusion_facts_reversed` 应同时核对当前诗句、用户要求和规范典故证据。任何事实方向相反或无法可靠判断的情况都不能通过最终出口。
 
 程序只保证数据完整性、唯一精确解析、歧义阻断和证据归属；它不靠关键词自动宣称用典成功，也不替代模型的上下文语义判断。

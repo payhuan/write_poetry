@@ -37,7 +37,7 @@ python scripts/poetry_round.py finish --state examples/content-run/state.json --
 
 ```json
 {
-  "content_version": "round-content-1",
+  "content_version": "round-content-2",
   "revision": 2,
   "context_sha256": "<照抄 plan 导出值>",
   "assignments": [
@@ -72,7 +72,7 @@ exact 匹配复用 text_normalizer.normalize_line 的既有空白、标点和句
 
 ## LLM 语义评价契约
 
-只评价程序 content_request.candidates 指定的候选与要求。必用典故必须解释**具体表达如何体现典故的含义**；仅出现典故名称不算程序已确认。`resolved` 用典以同项引用中的规范主典、简释与出处原文为依据；`ambiguous` 必须先消歧，程序拒绝 satisfied；`not_found` 是局部语料未命中，须用可靠外部来源核实，否则为 unknown。adapt 判断主要意思是否保留，不要求逐字相同。inspiration 判断启发关系，不要求原文出现；即使关系不明显也不阻断。不编造解释或出处。
+只评价程序 content_request.candidates 指定的候选与要求。必用典故必须解释**具体表达如何体现典故的含义**；仅出现典故名称不算程序已确认。`resolved` 用典以同项引用中的规范主典、简释与出处原文为依据；`ambiguous` 必须先消歧，程序拒绝 satisfied；`not_found` 是局部语料未命中，须用可靠外部来源核实，否则为 unknown。每条用典评价还必须按 [用典规范](allusion-usage.md) 提交 `allusion_analysis`；两道门任一项失败或未知、没有原典到诗境的具体映射、存在 E01-E12，均不得判 satisfied。adapt 判断主要意思是否保留，不要求逐字相同。inspiration 判断启发关系，不要求原文出现；即使关系不明显也不阻断。不编造解释或出处。
 
 ```json
 {
@@ -81,7 +81,7 @@ exact 匹配复用 text_normalizer.normalize_line 的既有空白、标点和句
   "context_sha256": "<照抄值>",
   "generation_sha256": "<照抄值>",
   "filter_sha256": "<照抄 content_request 值>",
-  "content_version": "round-content-1",
+  "content_version": "round-content-2",
   "attempt": 1,
   "reviews": [
     {
@@ -92,7 +92,32 @@ exact 匹配复用 text_normalizer.normalize_line 的既有空白、标点和句
         {
           "kind": "allusion", "requirement_id": "a1", "status": "unknown",
           "reason": "尚不能确定此处表达是否涉及梦蝶的物我关系，需要进一步确认含义。",
-          "interpretation": "", "evidence": []
+          "interpretation": "", "evidence": [],
+          "allusion_analysis": {
+            "source_basis": {"kind": "unverified", "references": []},
+            "classification": {"source_type": "unknown", "visibility": "unknown", "semantic_relation": "unknown", "transformation": "unknown"},
+            "fact_checks": {
+              "persons": {"status": "unknown", "reason": "待核实"},
+              "relationships": {"status": "unknown", "reason": "待核实"},
+              "event": {"status": "unknown", "reason": "待核实"},
+              "source": {"status": "unknown", "reason": "待核实"},
+              "core_meaning": {"status": "unknown", "reason": "待核实"}
+            },
+            "mapping": [],
+            "fit_checks": {
+              "semantic": {"status": "unknown", "reason": "待判断"},
+              "situation": {"status": "unknown", "reason": "待判断"},
+              "emotion": {"status": "unknown", "reason": "待判断"},
+              "identity": {"status": "unknown", "reason": "待判断"},
+              "function": {"status": "unknown", "reason": "待判断"}
+            },
+            "function": "尚不能确认表达功能",
+            "reversal_signals": [], "error_codes": [],
+            "quality": {
+              "dimensions": {"semantic_fit": 0, "context_fit": 0, "coherence": 0, "naturalness": 0, "semantic_gain": 0, "transformation": 0},
+              "penalties": {"obtrusiveness": 0, "redundancy": 0}, "total": 0
+            }
+          }
         }
       ]
     }

@@ -56,14 +56,43 @@ def planned(state, positions):
 
 def semantic_payload(filtered, status='satisfied'):
     request = filtered['content_request']
+    def verdict(candidate, requirement):
+        item = {'kind': requirement['kind'], 'requirement_id': requirement['requirement_id'],
+                'status': status, 'reason': '固定语义评价夹具；并非程序判断典故。',
+                'interpretation': '以此候选的表达承接用户意象与主要意思。' if status == 'satisfied' else '',
+                'evidence': [{'line_index': candidate['line_index'], 'quote': candidate['text']}]
+                            if status == 'satisfied' else []}
+        if requirement['kind'] != 'allusion':
+            return item
+        reference = requirement['allusion_reference']
+        if status == 'satisfied' and reference['status'] == 'resolved':
+            basis = {'kind': 'bundled', 'references': [reference['record']['record_sha256']]}
+        elif status == 'satisfied' and reference['status'] == 'not_found':
+            basis = {'kind': 'external', 'references': ['固定测试外部出处']}
+        else:
+            basis = {'kind': 'unverified', 'references': []}
+        check_status = 'pass' if status != 'unknown' else 'unknown'
+        item['allusion_analysis'] = {
+            'source_basis': basis,
+            'classification': {'source_type': 'event' if status != 'unknown' else 'unknown',
+                               'visibility': 'implicit' if status != 'unknown' else 'unknown',
+                               'semantic_relation': 'direct' if status != 'unknown' else 'unknown',
+                               'transformation': 'allusive_transform' if status != 'unknown' else 'unknown'},
+            'fact_checks': {name: {'status': check_status, 'reason': '固定事实门夹具。'}
+                            for name in ('persons', 'relationships', 'event', 'source', 'core_meaning')},
+            'mapping': ([{'source_element': '原典结构', 'current_element': '当前诗境',
+                          'quote': candidate['text']}] if status == 'satisfied' else []),
+            'fit_checks': {name: {'status': check_status, 'reason': '固定映射门夹具。'}
+                           for name in ('semantic', 'situation', 'emotion', 'identity', 'function')},
+            'function': '压缩表达并增加原典背景。', 'reversal_signals': [], 'error_codes': [],
+            'quality': {'dimensions': {'semantic_fit': 3, 'context_fit': 3, 'coherence': 2,
+                                       'naturalness': 2, 'semantic_gain': 2, 'transformation': 2},
+                        'penalties': {'obtrusiveness': 0, 'redundancy': 0}, 'total': 14}}
+        return item
     return {**{k: request[k] for k in ENVELOPE}, 'filter_sha256': request['filter_sha256'],
             'content_version': CONTENT_VERSION, 'attempt': 1,
             'reviews': [{'id': c['id'], 'line_index': c['line_index'], 'text_sha256': c['text_sha256'],
-                         'requirements': [{'kind': r['kind'], 'requirement_id': r['requirement_id'],
-                                           'status': status, 'reason': '固定语义评价夹具；并非程序判断典故。',
-                                           'interpretation': '以此候选的表达承接用户意象与主要意思。' if status == 'satisfied' else '',
-                                           'evidence': [{'line_index': c['line_index'], 'quote': c['text']}] if status == 'satisfied' else []}
-                                          for r in c['requirements']]}
+                         'requirements': [verdict(c, r) for r in c['requirements']]}
                         for c in request['candidates']]}
 
 
@@ -281,6 +310,7 @@ class ContentRoundTests(unittest.TestCase):
         bad = deepcopy(good); bad['reviews'][0]['line_index'] = 3; cases.append(bad)
         bad = deepcopy(good); bad['filter_sha256'] = '0' * 64; cases.append(bad)
         bad = deepcopy(good); bad['reviews'][0]['requirements'] = []; cases.append(bad)
+        bad = deepcopy(good); bad['reviews'][0]['requirements'][0] = None; cases.append(bad)
         for key, value in [('status', 'pending'), ('requirement_id', 'absent'), ('reason', ''),
                             ('interpretation', ''), ('evidence', []),
                             ('evidence', [{'line_index': 2, 'quote': '不在原句'}])]:
@@ -301,6 +331,44 @@ class ContentRoundTests(unittest.TestCase):
         self.assertEqual(req['evidence'], [])
         report = finish_round(state, reviewed, engine=self.engine)
         self.assertEqual(report['code'], 'CONTENT_REQUIREMENTS_UNKNOWN')
+
+    def test_allusion_satisfaction_requires_fact_gate_mapping_fit_and_valid_quality(self):
+        state = state_with(allusions=[allusion(name='王质观棋')])
+        filtered = self.batch(state, positions={('allusion', 'a1'): 2})
+        good = semantic_payload(filtered)
+        analysis = good['reviews'][0]['requirements'][0]['allusion_analysis']
+        cases = []
+        bad = deepcopy(good); bad['reviews'][0]['requirements'][0]['allusion_analysis']['mapping'] = []; cases.append(bad)
+        bad = deepcopy(good); bad['reviews'][0]['requirements'][0]['allusion_analysis']['fact_checks']['event']['status'] = 'unknown'; cases.append(bad)
+        bad = deepcopy(good); bad['reviews'][0]['requirements'][0]['allusion_analysis']['fit_checks']['situation']['status'] = 'unknown'; cases.append(bad)
+        bad = deepcopy(good); bad['reviews'][0]['requirements'][0]['allusion_analysis']['quality']['total'] += 1; cases.append(bad)
+        bad = deepcopy(good); bad['reviews'][0]['requirements'][0]['allusion_analysis']['source_basis']['references'] = []; cases.append(bad)
+        bad = deepcopy(good); bad['reviews'][0]['requirements'][0]['allusion_analysis']['classification']['semantic_relation'] = 'unknown'; cases.append(bad)
+        bad = deepcopy(good); a = bad['reviews'][0]['requirements'][0]['allusion_analysis']; a['quality']['dimensions']['semantic_gain'] = 0; a['quality']['total'] -= 2; cases.append(bad)
+        self.assertEqual(analysis['quality']['total'], 14)
+        for payload in cases:
+            with self.subTest(payload=payload), self.assertRaises(ValueError):
+                review_content(state, filtered, payload, engine=self.engine)
+
+    def test_allusion_fact_error_codes_and_inverse_use_need_proof(self):
+        state = state_with(allusions=[allusion(name='王质观棋')])
+        filtered = self.batch(state, positions={('allusion', 'a1'): 2})
+        missing_code = semantic_payload(filtered, 'violated')
+        analysis = missing_code['reviews'][0]['requirements'][0]['allusion_analysis']
+        analysis['fact_checks']['relationships']['status'] = 'fail'
+        with self.assertRaisesRegex(ValueError, 'E01'):
+            review_content(state, filtered, missing_code, engine=self.engine)
+        inverse = semantic_payload(filtered)
+        analysis = inverse['reviews'][0]['requirements'][0]['allusion_analysis']
+        analysis['classification']['semantic_relation'] = 'inverse'
+        with self.assertRaisesRegex(ValueError, 'reversal'):
+            review_content(state, filtered, inverse, engine=self.engine)
+        analysis['reversal_signals'] = [{'quote': filtered['records'][0]['text'],
+                                         'explanation': '候选以明确上下文反转原典方向。'}]
+        reviewed = review_content(state, filtered, inverse, engine=self.engine)
+        saved = reviewed['records'][0]['content_result']['requirements'][0]['allusion_analysis']
+        self.assertEqual(saved['classification']['semantic_relation'], 'inverse')
+        self.assertTrue(saved['reversal_signals'])
 
     def test_semantics_and_scores_bound_to_batch_and_review_version(self):
         state = state_with(allusions=[allusion()])

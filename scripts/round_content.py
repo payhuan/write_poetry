@@ -10,7 +10,13 @@ from assessment_binding import digest, make_binding, require_binding
 from content_requirements import check_fragment_structure
 from text_normalizer import normalize_line
 
-CONTENT_VERSION = 'round-content-1'
+CONTENT_VERSION = 'round-content-2'
+ALLUSION_FACTS = ('persons', 'relationships', 'event', 'source', 'core_meaning')
+ALLUSION_FITS = ('semantic', 'situation', 'emotion', 'identity', 'function')
+ALLUSION_DIMENSIONS = {'semantic_fit': 4, 'context_fit': 4, 'coherence': 3,
+                       'naturalness': 3, 'semantic_gain': 3, 'transformation': 3}
+ALLUSION_PENALTIES = {'obtrusiveness': 3, 'redundancy': 3}
+ALLUSION_ERRORS = {f'E{i:02d}' for i in range(1, 13)}
 
 
 class ContentError(ValueError):
@@ -157,6 +163,113 @@ def content_eligible(record):
     return record['category'] == 'passed' and record.get('content_result', {}).get('valid', True) is True
 
 
+def _allusion_check_map(value, keys, code):
+    need(isinstance(value, dict) and set(value) == set(keys), code, 'Missing allusion checks')
+    result = {}
+    for name, item in value.items():
+        need(isinstance(item, dict) and set(item) == {'status', 'reason'} and
+             item['status'] in ('pass', 'fail', 'unknown') and
+             isinstance(item['reason'], str) and bool(item['reason'].strip()) and len(item['reason']) <= 1000,
+             code, 'Every allusion check needs pass/fail/unknown and a reason')
+        result[name] = deepcopy(item)
+    return result
+
+
+def _allusion_analysis(value, expected, candidate, verdict):
+    """Validate two gates and quality evidence; never infer literary truth."""
+    fields = {'source_basis', 'classification', 'fact_checks', 'mapping', 'fit_checks',
+              'function', 'reversal_signals', 'error_codes', 'quality'}
+    need(isinstance(value, dict) and set(value) == fields,
+         'INVALID_ALLUSION_ANALYSIS', 'Allusion verdict requires the complete analysis object')
+    reference = expected['allusion_reference']
+    basis = value['source_basis']
+    need(isinstance(basis, dict) and set(basis) == {'kind', 'references'} and
+         basis['kind'] in ('bundled', 'external', 'unverified') and
+         isinstance(basis['references'], list) and
+         all(isinstance(x, str) and bool(x.strip()) and len(x) <= 1000 for x in basis['references']),
+         'INVALID_ALLUSION_SOURCE', 'Declare bundled, external or unverified source basis')
+    if reference['status'] == 'resolved' and verdict == 'satisfied':
+        need(basis == {'kind': 'bundled', 'references': [reference['record']['record_sha256']]},
+             'ALLUSION_SOURCE_UNBOUND', 'Resolved allusion must cite its bundled record digest')
+    if reference['status'] == 'not_found' and verdict == 'satisfied':
+        need(basis['kind'] == 'external' and bool(basis['references']),
+             'ALLUSION_SOURCE_REQUIRED', 'A local miss needs explicit reliable external references')
+    need(reference['status'] != 'ambiguous' or verdict != 'satisfied',
+         'ALLUSION_AMBIGUOUS', 'Ambiguous allusion must be resolved before it can be satisfied')
+
+    classification = value['classification']
+    need(isinstance(classification, dict) and set(classification) ==
+         {'source_type', 'visibility', 'semantic_relation', 'transformation'} and
+         classification['source_type'] in ('event', 'phrase', 'unknown') and
+         classification['visibility'] in ('explicit', 'implicit', 'unknown') and
+         classification['semantic_relation'] in ('direct', 'inverse', 'borrowed', 'adaptive', 'unknown') and
+         classification['transformation'] in ('quotation', 'rewrite', 'allusive_transform', 'unknown'),
+         'INVALID_ALLUSION_CLASSIFICATION', 'Invalid independent allusion classification dimensions')
+    facts = _allusion_check_map(value['fact_checks'], ALLUSION_FACTS, 'INVALID_ALLUSION_FACTS')
+    fits = _allusion_check_map(value['fit_checks'], ALLUSION_FITS, 'INVALID_ALLUSION_FIT')
+
+    need(isinstance(value['function'], str) and bool(value['function'].strip()) and len(value['function']) <= 1000,
+         'INVALID_ALLUSION_FUNCTION', 'Explain what the allusion adds to this poem')
+    mapping = value['mapping']
+    need(isinstance(mapping, list), 'INVALID_ALLUSION_MAPPING', 'mapping must be an array')
+    for item in mapping:
+        need(isinstance(item, dict) and set(item) == {'source_element', 'current_element', 'quote'} and
+             all(isinstance(item[k], str) and bool(item[k].strip()) and len(item[k]) <= 1000
+                 for k in ('source_element', 'current_element', 'quote')) and
+             item['quote'] in candidate['text'], 'INVALID_ALLUSION_MAPPING',
+             'Mapping must connect a source element to the current scene and quote this candidate')
+    signals = value['reversal_signals']
+    need(isinstance(signals, list), 'INVALID_ALLUSION_REVERSAL', 'reversal_signals must be an array')
+    for item in signals:
+        need(isinstance(item, dict) and set(item) == {'quote', 'explanation'} and
+             isinstance(item['quote'], str) and bool(item['quote'].strip()) and item['quote'] in candidate['text'] and
+             isinstance(item['explanation'], str) and bool(item['explanation'].strip()) and len(item['explanation']) <= 1000,
+             'INVALID_ALLUSION_REVERSAL', 'Inverse use needs a quoted reversal or contrast signal')
+    need(classification['semantic_relation'] != 'inverse' or bool(signals),
+         'ALLUSION_REVERSAL_UNPROVEN', 'Inverse use needs explicit textual reversal evidence')
+    need(classification['semantic_relation'] == 'inverse' or not signals,
+         'INVALID_ALLUSION_REVERSAL', 'Reversal signals only belong to inverse use')
+
+    errors = value['error_codes']
+    need(isinstance(errors, list) and len(errors) == len(set(errors)) and
+         all(isinstance(x, str) and x in ALLUSION_ERRORS for x in errors),
+         'INVALID_ALLUSION_ERRORS', 'Use unique allusion error codes E01-E12')
+    failed_facts = {k for k, v in facts.items() if v['status'] == 'fail'}
+    failed_fits = {k for k, v in fits.items() if v['status'] == 'fail'}
+    need(not (failed_facts & {'persons', 'relationships', 'event', 'source'}) or 'E01' in errors,
+         'ALLUSION_ERROR_CODE_MISSING', 'Fact failures require E01')
+    need(facts['core_meaning']['status'] != 'fail' or 'E02' in errors,
+         'ALLUSION_ERROR_CODE_MISSING', 'Core-meaning failure requires E02')
+    need(not (failed_fits & {'semantic', 'situation'}) or 'E03' in errors,
+         'ALLUSION_ERROR_CODE_MISSING', 'Semantic or situation mismatch requires E03')
+
+    quality = value['quality']
+    need(isinstance(quality, dict) and set(quality) == {'dimensions', 'penalties', 'total'},
+         'INVALID_ALLUSION_QUALITY', 'Invalid allusion quality object')
+    dimensions, penalties = quality['dimensions'], quality['penalties']
+    need(isinstance(dimensions, dict) and set(dimensions) == set(ALLUSION_DIMENSIONS) and
+         all(type(v) is int and 0 <= v <= ALLUSION_DIMENSIONS[k] for k, v in dimensions.items()) and
+         isinstance(penalties, dict) and set(penalties) == set(ALLUSION_PENALTIES) and
+         all(type(v) is int and 0 <= v <= ALLUSION_PENALTIES[k] for k, v in penalties.items()),
+         'INVALID_ALLUSION_QUALITY', 'Allusion scores must be integers within their declared ranges')
+    total = sum(dimensions.values()) - sum(penalties.values())
+    need(type(quality['total']) is int and quality['total'] == total,
+         'INVALID_ALLUSION_QUALITY', 'Allusion quality total must equal dimensions minus penalties')
+
+    if verdict == 'satisfied':
+        need(all(value != 'unknown' for value in classification.values()),
+             'ALLUSION_CLASSIFICATION_UNKNOWN', 'Satisfied allusion needs complete independent classifications')
+        need(bool(mapping), 'ALLUSION_MAPPING_REQUIRED', 'Satisfied allusion needs a source-to-scene mapping')
+        need(all(x['status'] == 'pass' for x in facts.values()),
+             'ALLUSION_FACTS_FAILED_OR_UNKNOWN', 'Satisfied allusion requires all fact checks to pass')
+        need(all(x['status'] == 'pass' for x in fits.values()),
+             'ALLUSION_FIT_FAILED_OR_UNKNOWN', 'Satisfied allusion requires all fit checks to pass')
+        need(not errors, 'ALLUSION_QUALITY_ERROR', 'A detected allusion error cannot be satisfied')
+        need(all(dimensions[name] > 0 for name in ('semantic_fit', 'context_fit', 'semantic_gain')),
+             'ALLUSION_GAIN_REQUIRED', 'Satisfied allusion needs semantic, contextual and gain value')
+    return deepcopy(value)
+
+
 def semantic_request(filtered):
     candidates = []
     context = filtered['context']
@@ -183,6 +296,8 @@ def semantic_request(filtered):
                            'ambiguous 先消歧，不能判 satisfied；not_found 仅表示局部语料未收录，'
                            '须另行可靠核实，否则保留 unknown，不编造出处。'
                            'adapt 不要求原字相同；inspiration 不要求出现原文；可选典故不阻断。'
+                           '用典必须先完成事实门与诗境映射门，再记录分类、功能、E01-E12、质量维度和惩罚项；'
+                           '反用必须引用明确反转信号，总分不能覆盖硬错误。'
                            'satisfied 须引用候选原文并给出具体解释。照抄候选文本摘要、句位和要求 ID。'}
 
 
@@ -209,7 +324,10 @@ def apply_semantic_reviews(filtered, payload):
         covered = set()
         target = {(x['kind'], x['requirement_id']): x for x in by_id[cid]['content_result']['requirements']}
         for item in review['requirements']:
-            need(isinstance(item, dict) and set(item) == {'kind', 'requirement_id', 'status', 'reason', 'interpretation', 'evidence'},
+            base_fields = {'kind', 'requirement_id', 'status', 'reason', 'interpretation', 'evidence'}
+            kind = item.get('kind') if isinstance(item, dict) else None
+            expected_fields = base_fields | ({'allusion_analysis'} if kind == 'allusion' else set())
+            need(isinstance(item, dict) and set(item) == expected_fields,
                  'INVALID_CONTENT_VERDICT', 'Invalid semantic verdict fields')
             need(isinstance(item['kind'], str) and isinstance(item['requirement_id'], str),
                  'INVALID_CONTENT_VERDICT', 'Requirement identity must be strings')
@@ -223,6 +341,7 @@ def apply_semantic_reviews(filtered, payload):
                 reference = expected_item['allusion_reference']
                 need(reference['status'] != 'ambiguous' or item['status'] != 'satisfied',
                      'ALLUSION_AMBIGUOUS', 'Ambiguous allusion must be resolved before it can be satisfied')
+                analysis = _allusion_analysis(item['allusion_analysis'], expected_item, candidate, item['status'])
             for field in ('reason', 'interpretation'):
                 need(isinstance(item[field], str) and len(item[field]) <= 1000,
                      'INVALID_CONTENT_EXPLANATION', 'Explanation must be a short string')
@@ -238,6 +357,8 @@ def apply_semantic_reviews(filtered, payload):
                 need(bool(evidence) and bool(item['interpretation'].strip()), 'CONTENT_EVIDENCE_REQUIRED',
                      'Satisfaction needs quoted expression and its semantic relationship to the requirement')
             target[key].update({k: deepcopy(item[k]) for k in ('status', 'reason', 'interpretation', 'evidence')})
+            if key[0] == 'allusion':
+                target[key]['allusion_analysis'] = analysis
         need(covered == expected, 'MISSING_CONTENT_REQUIREMENT', 'Every due semantic requirement needs a verdict, unknown is allowed')
         summarize(by_id[cid]['content_result'])
     need(seen == set(known), 'MISSING_CONTENT_REVIEW', 'Every requested candidate needs a semantic review')

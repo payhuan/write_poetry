@@ -7,6 +7,7 @@ from constraint_engine import ConstraintEngine
 from rhyme_lexicon import RhymeLexicon
 from poetry_round import ENVELOPE, WEIGHTS, write_new_json
 from poetry_search import Search
+from round_content import CONTENT_VERSION
 from runtime_workspace import configure_workspace, output_path
 
 LEXICON = {'上平声部': {'一东': list('天地人')}, '上声部': {'一董': list('水火土')}}
@@ -54,12 +55,33 @@ def response_for(job, *, fail_high=False, two=False, value=0.8):
                                'reason': '确定性控制流程夹具评分。'}} for i, item in enumerate(f['score_request']['candidates'])])
     else:
         f = job['filtered']
-        payload.update(filter_sha256=f['filter_sha256'], content_version='round-content-1', reviews=[
+        def verdict(item, requirement):
+            result = {'kind': requirement['kind'], 'requirement_id': requirement['requirement_id'],
+                      'status': 'satisfied', 'reason': '固定语义夹具', 'interpretation': '仅验证契约',
+                      'evidence': [{'line_index': item['line_index'], 'quote': item['text']}]}
+            if requirement['kind'] == 'allusion':
+                reference = requirement['allusion_reference']
+                basis = ({'kind': 'bundled', 'references': [reference['record']['record_sha256']]}
+                         if reference['status'] == 'resolved' else
+                         {'kind': 'external', 'references': ['固定测试外部出处']})
+                result['allusion_analysis'] = {
+                    'source_basis': basis,
+                    'classification': {'source_type': 'event', 'visibility': 'implicit',
+                                       'semantic_relation': 'direct', 'transformation': 'allusive_transform'},
+                    'fact_checks': {name: {'status': 'pass', 'reason': '固定事实门夹具'} for name in
+                                    ('persons', 'relationships', 'event', 'source', 'core_meaning')},
+                    'mapping': [{'source_element': '原典结构', 'current_element': '当前诗境',
+                                 'quote': item['text']}],
+                    'fit_checks': {name: {'status': 'pass', 'reason': '固定映射门夹具'} for name in
+                                   ('semantic', 'situation', 'emotion', 'identity', 'function')},
+                    'function': '压缩表达并增加原典背景。', 'reversal_signals': [], 'error_codes': [],
+                    'quality': {'dimensions': {'semantic_fit': 3, 'context_fit': 3, 'coherence': 2,
+                                               'naturalness': 2, 'semantic_gain': 2, 'transformation': 2},
+                                'penalties': {'obtrusiveness': 0, 'redundancy': 0}, 'total': 14}}
+            return result
+        payload.update(filter_sha256=f['filter_sha256'], content_version=CONTENT_VERSION, reviews=[
             {'id': item['id'], 'line_index': item['line_index'], 'text_sha256': item['text_sha256'],
-             'requirements': [{'kind': r['kind'], 'requirement_id': r['requirement_id'], 'status': 'satisfied',
-                               'reason': '固定语义夹具', 'interpretation': '仅验证契约',
-                               'evidence': [{'line_index': item['line_index'], 'quote': item['text']}]}
-                              for r in item['requirements']]}
+             'requirements': [verdict(item, r) for r in item['requirements']]}
             for item in f['content_request']['candidates']])
     return {**{k: job[k] for k in ('run_id', 'job_id', 'path_id', 'batch_id', 'context_sha256')}, 'payload': payload}
 
