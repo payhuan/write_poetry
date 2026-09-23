@@ -6,7 +6,7 @@
 {"raw_request":"写一首秋日山寺七绝，清冷一些","theme":"秋日山寺","scene":"山寺","emotion":["清冷"],"characters":[],"time":"秋日","poem_type":"七言绝句","constraints":[]}
 ```
 
-`raw_request`、`theme` 为必填非空字符串；`scene`、`time` 为字符串；`emotion`、`characters`、`constraints` 为字符串数组。诗体使用四种全称，省略时默认七言绝句。未知字段报错，无法推断的可选信息留空。
+`raw_request`、`theme` 为必填非空字符串；`scene`、`time` 为字符串；`emotion`、`characters`、`constraints` 为字符串数组。诗体使用四种全称，省略时默认七言律诗。未知字段报错，无法推断的可选信息留空。
 
 PoemState 包含版本、原始结构化需求、缺省决策、诗体结构、模板标识、主题、情绪、意象、结构规划、韵书和韵部、正文、候选历史、约束、评分、检测结果、预算及当前阶段。
 

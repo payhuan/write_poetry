@@ -42,7 +42,7 @@ def _initial_data(request, *, validate_library=True):
             raise ValueError("Unknown or conflicting requested template")
         normalized["poem_type"] = candidates[0]["type"]
         inferred_from_template = True
-    poem_type = normalized.setdefault("poem_type", "七言绝句")
+    poem_type = normalized.setdefault("poem_type", "七言律诗")
     if not isinstance(poem_type, str) or poem_type not in forms:
         raise ValueError("Unsupported poem_type")
     check_fragment_structure(normalized.get("required_fragments", []), forms[poem_type])
@@ -53,7 +53,7 @@ def _initial_data(request, *, validate_library=True):
     return {
         "schema_version": "0.3.0", "request": normalized,
         "assumptions": (["根据指定模板确定诗体"] if inferred_from_template else
-                        ["未指定诗体，默认七言绝句"] if "poem_type" not in request else []),
+                        ["未指定诗体，默认七言律诗"] if "poem_type" not in request else []),
         "poem_type": poem_type, "form": forms[poem_type], "template_id": None,
         "theme": normalized["theme"], "emotion": list(normalized["emotion"]),
         "imagery": [], "structure": [],

@@ -10,7 +10,7 @@ from assessment_binding import make_binding
 
 class PoemStateTests(unittest.TestCase):
     def state(self):
-        return PoemState.create({"raw_request": "咏梅", "theme": "梅"})
+        return PoemState.create({"raw_request": "咏梅", "theme": "梅", "poem_type": "五言绝句"})
 
     def assessment(self, state, candidate_id=None):
         data = state.to_dict()

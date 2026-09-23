@@ -89,14 +89,14 @@ def parse_request(raw_request, extraction, *, input_envelope=None):
             request["poem_type"] = ALIASES[poem_type]
     library = TemplateLibrary()
     inferred_from_template = False
-    # A concrete template identifies its poem type; do not first default to 七绝.
+    # A concrete template identifies its poem type; do not first apply the default.
     if meter["template_id"] is not None and "poem_type" not in request:
         candidates = library.candidates(meter=meter)
         if len(candidates) != 1:
             raise ClarificationRequired("指定模板不存在或与起式、首句押韵要求冲突，请核对。")
         request["poem_type"] = candidates[0]["type"]
         inferred_from_template = True
-    candidates = library.candidates(request.get("poem_type", "七言绝句"), meter=meter)
+    candidates = library.candidates(request.get("poem_type", "七言律诗"), meter=meter)
     if not candidates:
         raise ClarificationRequired("诗体、模板、起式或首句押韵要求互相冲突，请确定采用哪一种。")
     evidence = extraction.get("evidence", {})

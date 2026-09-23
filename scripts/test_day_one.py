@@ -18,6 +18,15 @@ class DayOneTests(unittest.TestCase):
             self.assertIs(state["request"]["meter"]["first_line_rhymes"], first)
             self.assertEqual(state["meter_template"]["data"]["pattern"], start + ("首句入韵" if first else "首句不入韵"))
 
+    def test_unspecified_form_defaults_to_seven_character_regulated_verse(self):
+        parsed = parse_request("写一首山中诗", {"theme": "山中"})
+        direct = PoemState.create({"raw_request": "写一首山中诗", "theme": "山中"}).to_dict()
+        for state in (parsed, direct):
+            self.assertEqual(state["poem_type"], "七言律诗")
+            self.assertEqual(state["form"]["line_count"], 8)
+            self.assertEqual(state["form"]["line_length"], 7)
+        self.assertIn("未指定诗体，默认七言律诗", parsed["assumptions"])
+
     def test_partial_preferences(self):
         for meter in ({"start": "平起"}, {"first_line_rhymes": False}, {}):
             state = self.parse(meter)
@@ -68,7 +77,7 @@ class DayOneTests(unittest.TestCase):
                 parse_request(raw, {"theme": "梅"}, input_envelope=bad)
 
     def test_old_snapshot_does_not_invent_user_preferences(self):
-        model = PoemState.create({"raw_request": "梅", "theme": "梅"})
+        model = PoemState.create({"raw_request": "梅", "theme": "梅", "poem_type": "七言绝句"})
         TemplateLibrary().bind(model, template_id="qj_p_y")
         old = model.to_dict()
         old["schema_version"] = "0.2.0"

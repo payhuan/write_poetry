@@ -33,7 +33,7 @@ class InputParsingTests(unittest.TestCase):
 
     def test_missing_optional_values(self):
         state = parse_request("咏梅", {"theme": "梅", "poem_type": None, "emotion": None})
-        self.assertEqual(state["poem_type"], "七言绝句")
+        self.assertEqual(state["poem_type"], "七言律诗")
         self.assertTrue(state["assumptions"])
         self.assertEqual(state["request"]["scene"], "")
         self.assertEqual(state["emotion"], [])
