@@ -1,13 +1,13 @@
 # Day 5：全诗审校、局部炼句与最终润色
 
-> 当前快照版本为 `poetry-polish-5`。全诗 review ready 后不能直接进入最终出口，必须先完成
+> 当前快照版本为 `poetry-polish-6`。全诗 review ready 后不能直接进入最终出口，必须先完成
 > [逐结构单位炼字](word-refinement.md)：绝句逐句、律诗按四联依次返回 `NO_CHANGE`、`REFINED` 或
 > `REFLOW_REQUIRED`。下文原有 issue 驱动的 generate/compare 仍用于全诗审校明确指出的问题；逐字审查使用
 > refinement/reflow/refinement_compare，并受更严格的两字符范围、语义锁和净增益规则约束。
 
 ## 职责与入口
 
-`scripts/poetry_polish.py` 提供 `Polish`，快照与工作封套版本为 `poetry-polish-5`，审校量表为 `whole-poem-review-2`，最终红线版本为 `final-redline-1`。运行 Skill 的 LLM 阅读工作并提供 JSON；程序不调用模型 API、不编造评分、不重做搜索、不处理图片。
+`scripts/poetry_polish.py` 提供 `Polish`，快照与工作封套版本为 `poetry-polish-6`，审校量表为 `whole-poem-review-3`，最终红线版本为 `final-redline-1`。运行 Skill 的 LLM 阅读工作并提供 JSON；程序不调用模型 API、不编造评分、不重做搜索、不处理图片。
 
 LLM 负责主题、情绪、时间、视角、意象、结构和语言，律诗中间两联的语义及句法对仗，用典及 adapt 语义，修改建议、候选、全诗比较和诗题。程序负责交接、绑定、范围、锁定要求、规则复检、内容契约、事务采纳、预算、持久化和完成条件。语义报告的真伪及文学质量不能由 JSON 校验器证明。
 
@@ -38,7 +38,7 @@ polish.result(include_notes=False)
 
 | 字段 | 规则 |
 | --- | --- |
-| contract_version | poetry-polish-5 |
+| contract_version | poetry-polish-6 |
 | run_id / job_id | 当前运行与工作 ID；格式修复保持 job_id |
 | path_id | 显式选定的 Day 4 草稿分支 |
 | revision | 工作 target 的版本，整数 |
@@ -70,14 +70,14 @@ payload 严格包含以下字段，模型不输出 total。这里用占位文字
 
 ```json
 {
-  "review_version": "whole-poem-review-2",
+  "review_version": "whole-poem-review-3",
   "binding": "照抄 target 的完整 binding 对象",
   "revision": 8,
   "dimensions": {
     "theme": {"status":"assessed","score":0.8,"reason":"具体主题评价理由","couplets":[]},
     "naturalness": {"status":"assessed","score":0.8,"reason":"具体语言评价理由","couplets":[]},
     "imagery": {"status":"assessed","score":0.8,"reason":"意象关联及重复情况","couplets":[]},
-    "structure": {"status":"assessed","score":0.8,"reason":"推进与结尾评价","couplets":[]},
+    "structure": {"status":"assessed","score":0.8,"reason":"逐联对照规划职责评价推进与结尾","couplets":[],"arc_assessment":{"units":[],"neck_turn":{}}},
     "consistency": {"status":"assessed","score":0.8,"reason":"情绪时间视角评价","couplets":[]},
     "expression": {"status":"assessed","score":0.8,"reason":"关键表达评价","couplets":[]},
     "parallelism": {"status":"not_applicable","score":null,"reason":"绝句不要求中间两联对仗","couplets":[]}
@@ -97,12 +97,12 @@ payload 严格包含以下字段，模型不输出 total。这里用占位文字
 | theme | .20 | 主题契合及表达是否含蓄准确，不计主题词频 |
 | naturalness | .20 | 全诗语法、语气、用字自然，是否凑韵 |
 | imagery | .15 | 意象协调、关联及有意义/无意义的重复 |
-| structure | .15 | 全诗推进、转折与结尾，不强制统一起承转合 |
+| structure | .15 | 对照绑定规划逐联审查律诗起承转合；绝句沿用自身结构规划 |
 | consistency | .10 | 情绪、时间、空间视角与叙述主体一致性 |
 | expression | .10 | 关键表达的准确性、力度和余味，不计华丽词数 |
 | parallelism | .10 | 律诗颔联、颈联的逐字位对应及整联关系 |
 
-0=不成立，.25=明显薄弱，.5=基本成立但有明显不足，.75=良好而有局部不足，1=在当前上下文充分且准确；中间值允许。全部适用维度均须给有限 0–1 数值和非空理由。绝句 parallelism 明确 not_applicable/null，从分母排除：`total = Σ(score × weight) / Σ(applicable weight)`，由程序使用十进制分数计算。不适用不等于高分。律诗 parallelism 必须 assessed，并提供两条 couplets；每条必须逐字位列出实际上下句字符、两字各自的句法功能、对应状态及理由，字符和位置须与正文相符。还须给出整联语义关系、意象关系和合掌判断：
+0=不成立，.25=明显薄弱，.5=基本成立但有明显不足，.75=良好而有局部不足，1=在当前上下文充分且准确；中间值允许。全部适用维度均须给有限 0–1 数值和非空理由。绝句 parallelism 明确 not_applicable/null，从分母排除：`total = Σ(score × weight) / Σ(applicable weight)`，由程序使用十进制分数计算。不适用不等于高分。律诗 structure 的 `arc_assessment.units` 须依次审查起（1–2）、承（3–4）、转（5–6）、合（7–8），每项含职责、状态、理由和本联引文。`neck_turn` 须说明转向轴、转前／转后状态、铺垫、与绑定 turn_plan 的关系，并引用颈联正文。单纯顺叙下一事件不足；同一场景中的行动、情绪、认知或意义变化可成立，不得仅因未换景判失败。若增强转向会损害事实、典故或语义锁，应记录取舍或要求重规划，不得硬补跳景。绝句 `arc_assessment` 为 null。律诗 parallelism 必须 assessed，并提供两条 couplets；每条必须逐字位列出实际上下句字符、两字各自的句法功能、对应状态及理由，字符和位置须与正文相符。还须给出整联语义关系、意象关系和合掌判断：
 
 ```json
 [

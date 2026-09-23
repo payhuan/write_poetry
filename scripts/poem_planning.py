@@ -6,9 +6,11 @@ import json
 from assessment_binding import digest
 
 
-PLAN_VERSION = 'poem-plan-1'
+PLAN_VERSION = 'poem-plan-2'
 RELATIONS = {'parallel', 'contrast', 'far_near', 'motion_stillness', 'past_present',
              'reality_imagination', 'cause_effect', 'two_perspectives'}
+TURN_AXES = {'action_state', 'emotion_stance', 'cognition', 'meaning',
+             'spatiotemporal', 'imagery_relation', 'other'}
 
 
 class PlanError(ValueError):
@@ -61,7 +63,8 @@ def export_plan_request(state):
             'expected_units': expected_units(d['form']),
             'instruction': ('只规划全诗语义蓝图，不写完整诗句。区分用户事实与合理推断；'
                             '每个单位说明新增信息、保护语义和暂不应提前表达的内容。'
-                            '律诗颔联、颈联须规划语义关系、语义轴、句法策略与避免合掌。')}
+                            '律诗四联依次承担起、承、转、合，并说明各自如何服务核心命题；颔联、颈联须规划语义关系、语义轴、句法策略与避免合掌。'
+                            '颈联须规划真实方向变化及其铺垫和收束作用；变化可以是行动、立场、情绪、认知或意义重释，不要求换景换意象。')}
 
 
 def _validate_checklist(value, names, code):
@@ -124,11 +127,14 @@ def validate_plan(state, payload):
          'INVALID_STRUCTURE_PLAN', 'Plan must cover every structural unit exactly once')
     unit_ids = set()
     for item, identity in zip(units, expected):
-        fields = {'unit_id', 'unit', 'line_indices', 'primary_task', 'content_scope',
+        fields = {'unit_id', 'unit', 'line_indices', 'arc_role', 'primary_task', 'content_scope',
                   'semantic_increment', 'relation_to_previous', 'relation_to_next',
-                  'protected_meaning', 'must_not_say_yet', 'antithesis'}
+                  'protected_meaning', 'must_not_say_yet', 'antithesis', 'turn_plan'}
+        lushi = d['form']['line_count'] == 8
+        expected_role = ('起', '承', '转', '合')[expected.index(identity)] if lushi else None
         need(isinstance(item, dict) and set(item) == fields and
              all(item[k] == identity[k] for k in ('unit_id', 'unit', 'line_indices')) and
+             item['arc_role'] == expected_role and
              item['unit_id'] not in unit_ids and all(text(item[k]) for k in
              ('primary_task', 'content_scope', 'semantic_increment',
               'relation_to_previous', 'relation_to_next')) and
@@ -137,6 +143,21 @@ def validate_plan(state, payload):
         unit_ids.add(item['unit_id'])
         middle = d['form']['line_count'] == 8 and item['line_indices'] in ([3, 4], [5, 6])
         antithesis = item['antithesis']
+        turn_plan = item['turn_plan']
+        if lushi and expected_role == '转':
+            turn_fields = {'axis', 'before_state', 'change', 'after_state', 'grounding',
+                           'relation_to_previous', 'relation_to_next', 'task_connection',
+                           'increment_connection', 'protected_meaning_relation',
+                           'new_meaning_or_tension'}
+            need(isinstance(turn_plan, dict) and set(turn_plan) == turn_fields and
+                 turn_plan['axis'] in TURN_AXES and
+                 all(text(turn_plan[k]) for k in turn_fields - {'axis'}) and
+                 turn_plan['before_state'].strip() != turn_plan['after_state'].strip() and
+                 turn_plan['relation_to_previous'] == item['relation_to_previous'] and
+                 turn_plan['relation_to_next'] == item['relation_to_next'],
+                 'TURN_PLAN_REQUIRED', 'Neck couplet needs a grounded direction change bound to its task and adjacent-unit relations')
+        else:
+            need(turn_plan is None, 'INVALID_TURN_PLAN', 'Only the regulated-verse neck couplet has a turn plan')
         if middle:
             need(isinstance(antithesis, dict) and set(antithesis) ==
                  {'relation', 'semantic_axes', 'syntactic_strategy', 'avoid_hangzhang'} and
@@ -188,9 +209,12 @@ def validate_plan(state, payload):
          prosody['form'] == d['poem_type'] and text(prosody['rhyme_requirement']) and
          prosody['antithesis_positions'] == d['form']['antithesis_pairs'],
          'INVALID_PROSODY_BOUNDARY', 'Prosody boundary conflicts with selected form')
-    _validate_checklist(payload['self_check'],
-                        ('independent_units', 'semantic_progression', 'grounded_images',
-                         'viewpoint_continuity', 'ending_prepared', 'allusion_necessary'),
+    checklist = ('independent_units', 'semantic_progression', 'grounded_images',
+                 'viewpoint_continuity', 'ending_prepared', 'allusion_necessary')
+    if d['form']['line_count'] == 8:
+        checklist += ('arc_roles_assigned', 'neck_couplet_changes_direction',
+                      'turn_is_more_than_next_event', 'ending_resolves_or_reframes')
+    _validate_checklist(payload['self_check'], checklist,
                         'PLAN_SELF_CHECK_FAILED')
     return deepcopy(payload)
 

@@ -34,13 +34,34 @@ def fixture_plan(state):
     units = []
     for item in expected_units(d['form']):
         middle = d['form']['line_count'] == 8 and item['line_indices'] in ([3, 4], [5, 6])
-        units.append({**item, 'primary_task': '完成当前结构任务', 'content_scope': '当前可感知内容',
-                      'semantic_increment': '相对前文增加一层具体认识',
-                      'relation_to_previous': '承接前一单位', 'relation_to_next': '为后一单位留出空间',
+        lushi = d['form']['line_count'] == 8
+        role = ('起', '承', '转', '合')[len(units)] if lushi else None
+        previous = '由前文拒饮状态铺垫转变' if role == '转' else '承接前一单位'
+        following = '为尾联解释这一转变留出收束空间' if role == '转' else '为后一单位留出空间'
+        increment = '由拒绝转为接受，完成行动与立场变化' if role == '转' else '相对前文增加一层具体认识'
+        unit = {**item, 'arc_role': role, 'primary_task': f'完成{role or "当前"}的结构任务',
+                'content_scope': '当前可感知内容', 'semantic_increment': increment,
+                'relation_to_previous': previous, 'relation_to_next': following,
                       'protected_meaning': ['不改变用户事实'], 'must_not_say_yet': [],
                       'antithesis': ({'relation': 'contrast', 'semantic_axes': ['远与近'],
                                       'syntactic_strategy': '上下句采用对应句法骨架',
-                                      'avoid_hangzhang': '两句提供不同信息，不作同义复述'} if middle else None)})
+                                      'avoid_hangzhang': '两句提供不同信息，不作同义复述'} if middle else None),
+                'turn_plan': ({'axis': 'action_state', 'before_state': '仍在拒饮',
+                               'change': '由拒绝转为接受', 'after_state': '接受盛情而饮',
+                               'grounding': '前联已交代不饮与盛情相劝',
+                               'relation_to_previous': previous,
+                               'relation_to_next': following,
+                               'task_connection': '通过拒饮到接受完成人物态度转变',
+                               'increment_connection': '把关系冲突推进为实际接受',
+                               'protected_meaning_relation': '保留盛情难却与人物不饮的背景',
+                               'new_meaning_or_tension': '接受使拒饮背景转为盛情难却的情意'}
+                              if role == '转' else None)}
+        units.append(unit)
+    check_names = ('independent_units', 'semantic_progression', 'grounded_images',
+                   'viewpoint_continuity', 'ending_prepared', 'allusion_necessary')
+    if d['form']['line_count'] == 8:
+        check_names += ('arc_roles_assigned', 'neck_couplet_changes_direction',
+                        'turn_is_more_than_next_event', 'ending_resolves_or_reframes')
     allusions = d['request'].get('allusions', [])
     plan = {'plan_version': PLAN_VERSION, 'binding': planning_basis(state),
             'provenance': [{'field': 'theme', 'value': d['theme'], 'source': 'user',
@@ -66,9 +87,7 @@ def fixture_plan(state):
             'implicit_content': [], 'risk_list': [{'risk': '意象堆积', 'prevention': '只发展核心意象'}],
             'prosody_boundary': {'form': d['poem_type'], 'rhyme_requirement': '遵守已选平水韵',
                                   'antithesis_positions': d['form']['antithesis_pairs']},
-            'self_check': {name: {'status': 'pass', 'reason': '固定规划夹具通过'} for name in
-                           ('independent_units', 'semantic_progression', 'grounded_images',
-                            'viewpoint_continuity', 'ending_prepared', 'allusion_necessary')}}
+            'self_check': {name: {'status': 'pass', 'reason': '固定规划夹具通过'} for name in check_names}}
     return make_plan_artifact(state, plan)
 
 

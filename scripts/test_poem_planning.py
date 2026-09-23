@@ -30,6 +30,25 @@ class PoemPlanningTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 validate_plan(state, bad)
 
+    def test_regulated_verse_requires_arc_roles_and_grounded_turn_state_change(self):
+        state = fixture_state('七言律诗')
+        valid = fixture_plan(state)['plan']
+        self.assertEqual([x['arc_role'] for x in valid['structure_plan']], ['起', '承', '转', '合'])
+        bad_plans = []
+        bad = fixture_plan(state)['plan']; bad['structure_plan'][2]['arc_role'] = '承'; bad_plans.append(bad)
+        bad = fixture_plan(state)['plan']; bad['structure_plan'][2]['turn_plan'] = None; bad_plans.append(bad)
+        bad = fixture_plan(state)['plan']; bad['structure_plan'][2]['turn_plan']['after_state'] = '仍在拒饮'; bad_plans.append(bad)
+        bad = fixture_plan(state)['plan']; bad['self_check']['turn_is_more_than_next_event']['status'] = 'fail'; bad_plans.append(bad)
+        for bad in bad_plans:
+            with self.assertRaises(ValueError):
+                validate_plan(state, bad)
+
+    def test_quatrain_has_no_formal_arc_roles_or_turn_plan(self):
+        state = fixture_state('五言绝句')
+        plan = validate_plan(state, fixture_plan(state)['plan'])
+        self.assertTrue(all(unit['arc_role'] is None and unit['turn_plan'] is None
+                            for unit in plan['structure_plan']))
+
     def test_wrong_allusion_arrangement_binding_is_rejected(self):
         from poem_state import PoemState
         from poem_templates import TemplateLibrary

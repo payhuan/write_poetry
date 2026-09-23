@@ -299,6 +299,15 @@ class SearchTests(unittest.TestCase):
         with self.assertRaises(RoundError):
             Search.from_dict({'search': {}, 'sha256': digest({})})
 
+    def test_search_v4_is_audit_only(self):
+        from assessment_binding import digest
+        artifact = self.create().to_dict()
+        artifact['search']['version'] = 'poetry-search-4'
+        artifact['sha256'] = digest(artifact['search'])
+        legacy = Search.from_dict(artifact, engine=fixture_engine())
+        self.assertEqual(legacy.data['status'], 'legacy_readonly')
+        self.assertIsNone(legacy.next_job())
+
     def test_allusion_arrangement_and_optional_unknown(self):
         req = fixture_state().to_dict()['request']
         req.pop('input')

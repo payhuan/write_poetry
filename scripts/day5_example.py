@@ -17,6 +17,18 @@ def review_for(state, *, revise=False, positions=(1,), score=.8):
         na = name == 'parallelism' and state['form']['line_count'] == 4
         dimensions[name] = dict(status='not_applicable' if na else 'assessed',
                                 score=None if na else score, reason='确定性流程夹具理由', couplets=[])
+        if name == 'structure':
+            dimensions[name]['arc_assessment'] = None if state['form']['line_count'] == 4 else {
+                'units': [dict(arc_role=role, line_indices=positions, status='pass',
+                               evidence=[dict(line_index=i, quote=state['lines'][i-1]) for i in positions],
+                               reason='确定性结构职责检查夹具')
+                          for role, positions in zip(('起', '承', '转', '合'),
+                                                     ([1, 2], [3, 4], [5, 6], [7, 8]))],
+                'neck_turn': dict(axis='action_state', status='pass', before_state='仍在拒饮',
+                                  after_state='接受盛情而饮', grounding='前两联交代拒饮及盛情',
+                                  relation_to_plan='按规划由拒绝转为接受，并留待尾联收束',
+                                  evidence=[dict(line_index=i, quote=state['lines'][i-1]) for i in (5, 6)],
+                                  reason='状态变化由前文铺垫；场景不变不影响转向判断')}
         if name == 'parallelism' and not na:
             details = []
             for positions in ([3, 4], [5, 6]):

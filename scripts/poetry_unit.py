@@ -19,7 +19,7 @@ from round_content import export_content_plan
 from character_alignment import validate_character_alignment
 
 CONTRACT_VERSION = 'poetry-unit-1'
-RUBRIC_VERSION = 'literary-3'
+RUBRIC_VERSION = 'literary-4'
 WEIGHTS = {'task_completion': .16, 'semantic_progression': .13,
            'image_relation': .10, 'context_consistency': .11,
            'implicitness': .08, 'naturalness': .11, 'freshness': .05,
@@ -67,6 +67,9 @@ def _unit_context(state, poem_plan, content_plan, batch_id):
         'candidate_count': {'min': 1, 'max': data['budget']['candidates_per_round'],
                             'target': min(5, data['budget']['candidates_per_round'])},
         'generation_instruction': ('一次生成完整一联。先选择表达路径，再写两句；两句共同完成规划增量，'
+                                   + ('本联承担承接职责，须接住首联并扩展而非复述；' if unit.get('arc_role') == '承' else
+                                      '本联承担转向职责，须依据 turn_plan 改变前文状态或解释、说明铺垫并为尾联留出收束空间；不可只续写下一事件。' if unit.get('arc_role') == '转' else '')
+                                   + '若转向会破坏用户事实、典故或保护语义，返回 replan_required，不得硬补跳景。'
                                    '提交风险与 semantic_lock。对仗须逐字位核对上下句字符、句法功能与对应关系，'
                                    '同时评价整联语义和意象关系，避免合掌；'
                                    '不得为对仗或押韵改变事实、典故、情感方向或提前使用后文内容。'),
@@ -298,6 +301,13 @@ def review_unit_content(state, filtered, payload, *, engine=None):
 def unit_score_request(filtered):
     return {**_envelope(filtered['context']), 'filter_sha256': filtered['filter_sha256'],
             'rubric_version': RUBRIC_VERSION, 'weights': deepcopy(WEIGHTS),
+            'arc_role': filtered['context']['planned_unit'].get('arc_role'),
+            'turn_plan': deepcopy(filtered['context']['planned_unit'].get('turn_plan')),
+            'assessment_instruction': (
+                '按本联规划职责评价。颈联须结合 turn_plan 和诗稿证据判断是否发生状态、立场、认知或意义变化；'
+                '仅有下一事件不算转向。不得仅因未换场景或意象判失败。'
+                if filtered['context']['planned_unit'].get('arc_role') == '转'
+                else '评价本联如何完成规划职责及其语义增量。'),
             'candidates': [{k: deepcopy(record[k]) for k in
                             ('id', 'lines', 'expression_path', 'semantic_increment', 'risks', 'semantic_lock')}
                            for record in filtered['records'] if _eligible(record)],
@@ -322,7 +332,7 @@ def validate_unit_scores(filtered, payload):
         dims = item['dimensions']
         require(isinstance(dims, dict) and set(dims) == set(WEIGHTS) and
                 all(type(v) in (int, float) and math.isfinite(v) and 0 <= v <= 1 for v in dims.values()),
-                'INVALID_UNIT_SCORE', 'All literary-3 dimensions require finite 0..1 values')
+                'INVALID_UNIT_SCORE', 'All literary-4 dimensions require finite 0..1 values')
         parallel = item['parallelism']
         require(isinstance(parallel, dict) and set(parallel) == PARALLEL_FIELDS,
                 'INVALID_PARALLELISM', 'Middle couplets require complete character-level parallelism analysis')

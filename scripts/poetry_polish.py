@@ -17,8 +17,8 @@ from word_refinement import structural_units, refinement_request, validate_refin
 from reading_disambiguation import make_request as make_reading_request, apply_review as apply_reading_review
 from character_alignment import validate_character_alignment
 
-VERSION = 'poetry-polish-5'
-REVIEW_VERSION = 'whole-poem-review-2'
+VERSION = 'poetry-polish-6'
+REVIEW_VERSION = 'whole-poem-review-3'
 REDLINE_VERSION = 'final-redline-1'
 REDLINE_CHECKS = ('user_facts_reversed', 'allusion_facts_reversed',
                   'meaning_sacrificed_for_rhyme', 'scene_identity_tone_mismatch')
@@ -50,7 +50,7 @@ def quotes(items, state):
     return seen
 
 
-def validate_review(payload, state):
+def validate_review(payload, state, poem_plan=None):
     """Model reasons are evidence to inspect, not independently proven literary truth."""
     fields(payload, ('review_version', 'binding', 'revision', 'dimensions', 'issues',
                      'uncertainties', 'recommend_revision', 'conclusion', 'user_constraints'))
@@ -62,7 +62,8 @@ def validate_review(payload, state):
     fields(dims, WEIGHTS)
     scores = {}
     for name, entry in dims.items():
-        fields(entry, ('status', 'score', 'reason', 'couplets'))
+        expected_entry = ('status', 'score', 'reason', 'couplets', 'arc_assessment') if name == 'structure' else ('status', 'score', 'reason', 'couplets')
+        fields(entry, expected_entry)
         require(text(entry['reason']), 'MISSING_REASON', name)
         na = name == 'parallelism' and state['form']['line_count'] == 4
         require(entry['status'] == ('not_applicable' if na else 'assessed'),
@@ -91,6 +92,39 @@ def validate_review(payload, state):
                                                  state['form']['line_length'])
                 except ValueError as exc:
                     require(False, 'INVALID_CHARACTER_ALIGNMENT', str(exc))
+        elif name == 'structure':
+            if state['form']['line_count'] == 8:
+                arc = entry['arc_assessment']
+                fields(arc, ('units', 'neck_turn'))
+                require(isinstance(arc['units'], list) and len(arc['units']) == 4,
+                        'ARC_REVIEW_REQUIRED', 'Assess all four planned regulated-verse couplets')
+                for item, role, positions in zip(arc['units'], ('起', '承', '转', '合'),
+                                                 ([1, 2], [3, 4], [5, 6], [7, 8])):
+                    fields(item, ('arc_role', 'line_indices', 'status', 'evidence', 'reason'))
+                    require(item['arc_role'] == role and item['line_indices'] == positions and
+                            item['status'] in ('pass', 'weak', 'fail', 'unknown') and text(item['reason']),
+                            'ARC_REVIEW_REQUIRED', 'Review roles, positions and reasons in order')
+                    require(set(quotes(item['evidence'], state)) <= set(positions),
+                            'ARC_REVIEW_EVIDENCE', 'Each role needs evidence from its own couplet')
+                turn = arc['neck_turn']
+                fields(turn, ('axis', 'status', 'before_state', 'after_state', 'grounding',
+                              'relation_to_plan', 'evidence', 'reason'))
+                require(turn['axis'] in {'action_state', 'emotion_stance', 'cognition', 'meaning',
+                                         'spatiotemporal', 'imagery_relation', 'other'} and
+                        turn['status'] in ('pass', 'weak', 'fail', 'unknown') and
+                        all(text(turn[k]) for k in ('before_state', 'after_state', 'grounding',
+                                                    'relation_to_plan', 'reason')) and
+                        turn['before_state'].strip() != turn['after_state'].strip() and
+                        set(quotes(turn['evidence'], state)) <= {5, 6},
+                        'ARC_TURN_REVIEW_REQUIRED', 'Explain and quote a direction change in lines 5-6')
+                if poem_plan is not None:
+                    planned = poem_plan['structure_plan'][2]['turn_plan']
+                    require(turn['axis'] == planned['axis'], 'ARC_TURN_PLAN_MISMATCH',
+                            'Review axis must match the bound plan')
+            else:
+                require(entry['arc_assessment'] is None, 'ARC_REVIEW_NOT_APPLICABLE',
+                        'Quatrains do not require formal 起承转合 labels')
+            require(entry['couplets'] == [], 'INVALID_COUPLETS', name)
         else:
             require(entry['couplets'] == [], 'INVALID_COUPLETS', name)
     require(isinstance(payload['issues'], list), 'INVALID_ISSUES', 'issues must be an array')
@@ -260,6 +294,12 @@ class Polish:
                        assignments=deepcopy(d['assignments']), review=deepcopy(d['review']),
                        candidate=deepcopy(d['candidate']), config=deepcopy(d['config']),
                        search_run_id=d['source']['search']['run_id'],
+                       poem_plan=deepcopy(d['source']['search']['poem_plan']),
+                       arc_review_instruction=('逐联对照 poem_plan 的起承转合职责并引用诗稿证据。对颈联说明转向轴、转前后状态、铺垫和尾联收束关系；'
+                                              '行动、情绪、认知或意义变化均可构成转，不要求换场景或意象。低转向评价须指出缺少何种变化；'
+                                              '若增强转向会损害事实、典故或语义锁，记录代价并保留合适路径或要求重规划。')
+                                              if d['accepted']['form']['line_count'] == 8 else
+                                              '绝句按自身结构规划审校，不套用起承转合。',
                        handoff_sha256=d['source']['sha256'],
                        content_evidence=self._evidence(),
                        semantic_locks=deepcopy(d['semantic_locks']),
@@ -286,6 +326,8 @@ class Polish:
                 'STALE_WORK', 'Current accepted/candidate body or context changed after work issuance')
         for key in ('assignments', 'review', 'candidate', 'config'):
             require(job['context'][key] == d[key], 'STALE_WORK', key + ' changed after work issuance')
+        require(job['context']['poem_plan'] == d['source']['search']['poem_plan'],
+                'STALE_WORK', 'Bound poem plan changed after work issuance')
         require(job['context']['content_evidence'] == self._evidence(), 'STALE_WORK', 'Content evidence changed')
         require(job['context']['semantic_locks'] == d['semantic_locks'] and
                 job['context']['readings'] == d['readings'] and
@@ -294,7 +336,7 @@ class Polish:
                 'STALE_WORK', 'Refinement audit changed after work issuance')
 
     def _record_review(self, job, payload, target):
-        review = validate_review(payload, target)
+        review = validate_review(payload, target, job['context']['poem_plan'])
         record = dict(identity={k: deepcopy(job[k]) for k in IDENTITY}, review=review)
         self.data['reviews'].append(deepcopy(record))
         return record
@@ -654,7 +696,7 @@ class Polish:
                 d['redline']['identity']['revision'] == state.to_dict()['revision'],
                 'STALE_REDLINE', 'Wrong red-line run/path/body')
         raw = {k: v for k, v in d['review']['review'].items() if k != 'total'}
-        review = validate_review(raw, state.to_dict())
+        review = validate_review(raw, state.to_dict(), self.data['source']['search']['poem_plan'])
         require(review['conclusion'] == 'ready', 'FINAL_REVIEW_BLOCKED', 'Review is not ready')
         require(d['review']['identity']['run_id'] == d['run_id'] and
                 d['review']['identity']['path_id'] == d['path_id'], 'STALE_REVIEW', 'Wrong review run/path')
