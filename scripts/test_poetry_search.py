@@ -123,6 +123,20 @@ class SearchTests(unittest.TestCase):
         s.submit(response_for(s.next_job()))
         self.assertEqual(s.next_job()['stage'], 'score')
 
+    def test_existing_complete_poem_gets_bound_reading_review(self):
+        state = fixture_state()
+        from poetry_round import export_context
+        for index in range(1, 5):
+            line = line_for(export_context(state, index))
+            if index == 1:
+                line = '风' + line[1:]
+            state.append_line(line)
+        s = Search.create(state, poem_plan=fixture_plan(state), engine=fixture_engine())
+        self.assertEqual(s.next_job()['stage'], 'poem_reading')
+        s.submit(response_for(s.next_job()))
+        self.assertEqual(s.data['status'], 'ready_for_review', s.data['events'])
+        self.assertTrue(s.data['drafts'][0]['readings'])
+
     def test_wrong_path_atomic(self):
         s = self.create()
         before = s.to_dict()

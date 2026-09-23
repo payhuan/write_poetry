@@ -176,6 +176,18 @@ def response_for(job, *, fail_high=False, two=False, value=0.8):
         payload.update(filter_sha256=f['filter_sha256'], rubric_version='literary-1',
                        scores=[{'id': item['id'], 'evaluation': {'dimensions': {k: value - i * .1 for k in WEIGHTS},
                                'reason': '确定性控制流程夹具评分。'}} for i, item in enumerate(f['score_request']['candidates'])])
+    elif job['stage'] == 'poem_reading':
+        request = job['reading_request']
+        decisions = []
+        for occurrence in request['occurrences']:
+            option = next((x for x in occurrence['options'] if x['tone'] == '平'),
+                          occurrence['options'][0])
+            decisions.append({'coordinate': occurrence['coordinate'], 'char': occurrence['char'],
+                              'status': 'selected', 'section': option['section'],
+                              'group': option['group'], 'reason': '固定夹具按句义选择已收录义项'})
+        payload = {'attempt': job['attempt'], 'review': {
+            'review_version': request['review_version'],
+            'request_sha256': request['request_sha256'], 'decisions': decisions}}
     elif job['stage'] == 'reading':
         payload = reading_payload(job['filtered'], job['attempt'])
     else:

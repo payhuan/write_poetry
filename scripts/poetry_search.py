@@ -16,6 +16,7 @@ from runtime_workspace import configure_workspace, input_path, output_path
 from round_content import export_content_plan, validate_content_plan, requirements
 from poetry_unit import (is_atomic_couplet, export_unit_context, validate_unit_context,
                          filter_units, review_unit_readings, review_unit_content, finish_units)
+from reading_disambiguation import make_request as make_reading_request, apply_review as apply_reading_review
 
 VERSION = 'poetry-search-3'
 TERMINAL = {'ready_for_review', 'budget_exhausted', 'no_feasible_path',
@@ -160,7 +161,7 @@ class Search:
         self.data['status'] = status
         self.data['events'].append({'code': code, 'status': status})
 
-    def _job(self, stage, context, filtered=None, final_index=None):
+    def _job(self, stage, context, filtered=None, final_index=None, reading_request=None):
         d = self.data
         if d['used']['interactions'] >= d['config']['max_interactions']:
             self._stop('budget_exhausted', 'MAX_INTERACTIONS')
@@ -171,7 +172,7 @@ class Search:
                         'path_id': self._current()['path_id'], 'batch_id': context['batch_id'],
                         'context_sha256': context['context_sha256'], 'stage': stage, 'attempt': 1,
                         'context': deepcopy(context), 'filtered': deepcopy(filtered),
-                        'final_index': final_index}
+                        'final_index': final_index, 'reading_request': deepcopy(reading_request)}
         d['status'] = 'waiting_for_llm'
 
     @staticmethod
@@ -212,6 +213,11 @@ class Search:
                 checks = self.engine.check_poem(state, readings=p.get('readings'))
                 state.set_assessment(checks)
                 p['state'] = state.to_dict()
+                if checks['valid'] is None and checks['checks']['reading']['status'] == 'unknown':
+                    context = export_context(state, 1, content_plan=self._plan(state),
+                                             poem_plan=d['poem_plan'])
+                    self._job('poem_reading', context, reading_request=make_reading_request(checks))
+                    continue
                 if checks['valid'] is not True:
                     self._fail('FINAL_RULES_FAILED_OR_UNKNOWN')
                     continue
@@ -452,6 +458,14 @@ class Search:
         stage, c, f = job['stage'], job['context'], job['filtered']
         if stage == 'unit_generate':
             self._after_unit_filter(filter_units(state, c, payload, engine=self.engine))
+        elif stage == 'poem_reading':
+            require(set(payload) == {'attempt', 'review'} and payload['attempt'] == job['attempt'],
+                    'INVALID_POEM_READING', 'Use the issued attempt and reading review')
+            review = apply_reading_review(job['reading_request'], payload['review'])
+            if not review['complete']:
+                self._fail('FINAL_READING_UNRESOLVED')
+            else:
+                self._current()['readings'].update(review['readings'])
         elif stage == 'unit_reading':
             self._after_unit_filter(review_unit_readings(state, f, payload, engine=self.engine))
         elif stage == 'unit_content':
