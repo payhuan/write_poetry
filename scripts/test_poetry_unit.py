@@ -8,6 +8,9 @@ from assessment_binding import digest
 from poem_state import PoemState
 from poem_templates import TemplateLibrary
 from round_content import export_content_plan
+from constraint_engine import ConstraintEngine
+from rhyme_lexicon import RhymeLexicon
+from poetry_unit import filter_units, review_unit_duplicates
 
 
 class PoetryUnitTests(unittest.TestCase):
@@ -85,6 +88,43 @@ class PoetryUnitTests(unittest.TestCase):
         self.assertEqual(search.next_job()['stage'], 'unit_reading')
         search.submit(response_for(search.next_job()))
         self.assertEqual(search.next_job()['stage'], 'unit_score')
+
+    def test_duplicate_reviews_bind_each_line_of_atomic_couplet(self):
+        search = self.at_middle_couplet()
+        job = search.next_job()
+        payload = response_for(job)['payload']
+        payload['candidates'][0]['lines'][0]['text'] = '天地水火天'
+        engine = ConstraintEngine(RhymeLexicon({'上平声部': {'一东': list('天地人风')},
+                                                '上声部': {'一董': list('水火土风')}}))
+        state = PoemState.from_dict(search.data['active'][search.data['cursor']]['state'])
+        filtered = filter_units(state, job['context'], payload, engine=engine)
+        requests = filtered['duplicate_request']['requests']
+        self.assertEqual([item['line_index'] for item in requests], [3, 4])
+        self.assertFalse(filtered['score_request']['candidates'])
+        reviews = []
+        for item in requests:
+            line_filter = next(f for f in filtered['records'][0]['line_filters']
+                               if f['context']['line_index'] == item['line_index'])
+            request = item['request']['reviews'][0]['request']
+            response = {'review_version': request['review_version'],
+                        'request_sha256': request['request_sha256'],
+                        'decisions': [{'char': occurrence['char'], 'relation': 'parallel',
+                                       'reason': '测试夹具：两处属于并列意群。'}
+                                      for occurrence in request['occurrences']]}
+            reviews.append({'candidate_id': item['candidate_id'], 'line_index': item['line_index'],
+                            'response': {**{k: line_filter['context'][k] for k in
+                                           ('contract_version', 'batch_id', 'context_sha256', 'generation_sha256')},
+                                         'attempt': 1, 'filter_sha256': line_filter['filter_sha256'],
+                                         'reviews': [{'id': item['request']['reviews'][0]['id'],
+                                                      'review': response}]}})
+        result = review_unit_duplicates(state, filtered,
+            {**{k: job['context'][k] for k in
+                ('contract_version', 'batch_id', 'context_sha256', 'generation_sha256')},
+             'attempt': 1, 'filter_sha256': filtered['filter_sha256'], 'reviews': reviews},
+            engine=engine)
+        for record in result['records']:
+            for line_filter in record['line_filters']:
+                self.assertNotEqual(line_filter['records'][0]['checks']['checks']['duplicate']['status'], 'unknown')
 
     def test_new_search_requires_plan(self):
         with self.assertRaises(RoundError) as caught:

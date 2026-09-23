@@ -15,7 +15,7 @@ from parse_input import parse_request
 from poem_state import PoemState
 from poem_templates import TemplateLibrary
 from poetry_round import (ENVELOPE, RUBRIC_VERSION, WEIGHTS, RoundError, export_context,
-                          filter_candidates, review_readings, finish_round, read_json,
+                          filter_candidates, review_readings, review_duplicates, finish_round, read_json,
                           validate_scores, write_new_json)
 from rhyme_lexicon import RhymeLexicon
 
@@ -132,6 +132,31 @@ class RoundTests(unittest.TestCase):
         self.assertEqual(self.state.to_dict(), before)
         self.assertTrue(filtered['records'][2]['reasons'])
         self.assertTrue(filtered['records'][3]['reasons'])
+
+    def test_duplicate_review_is_candidate_bound_and_precedes_eligibility(self):
+        engine = ConstraintEngine(RhymeLexicon(FIXTURE))
+        filtered = filter_candidates(self.state, self.context,
+                                     model_candidates(self.context, ['天地水火天']), engine=engine)
+        record = filtered['records'][0]
+        self.assertEqual(record['checks']['checks']['duplicate']['status'], 'unknown')
+        self.assertEqual(filtered['duplicate_request']['reviews'][0]['id'], record['id'])
+        self.assertNotIn(record['id'], [x['id'] for x in filtered['score_request']['candidates']])
+        request = filtered['duplicate_request']['reviews'][0]['request']
+        response = {'review_version': request['review_version'],
+                    'request_sha256': request['request_sha256'],
+                    'decisions': [{'char': item['char'], 'relation': 'parallel',
+                                   'reason': '测试夹具：两处属于并列意群。'}
+                                  for item in request['occurrences']]}
+        payload = {**{k: self.context[k] for k in ENVELOPE}, 'attempt': 1,
+                   'filter_sha256': filtered['filter_sha256'],
+                   'reviews': [{'id': record['id'], 'review': response}]}
+        reviewed = review_duplicates(self.state, filtered, payload, engine=engine)
+        self.assertEqual(reviewed['records'][0]['checks']['checks']['duplicate']['status'], 'pass')
+        self.assertEqual(reviewed['records'][0]['category'], 'passed')
+        stale_state = self.state.fork()
+        stale_state.set_plan(imagery=['山', '水'], structure=[{'unit': '颔联', 'intent': '变化'}])
+        with self.assertRaises(RoundError):
+            review_duplicates(stale_state, filtered, payload, engine=engine)
 
     def test_one_engine_and_snapshot_no_append(self):
         before = self.state.to_dict()

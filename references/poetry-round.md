@@ -3,7 +3,9 @@
 新 Search 在 `context.planned_unit` 非空时，单句候选除 id/text/line_index 外还必须提交
 `expression_path`、`semantic_increment`、`risks` 和完整 `semantic_lock`。直接调用旧式单轮且未传 poem_plan 时仍可
 读取旧三字段候选。律诗颔联、颈联不使用逐句生成入口，改用[完整句／联生成](unit-generation.md)；其中采用
-`poetry-unit-2` 使用 `literary-5`，强制逐字位与逐结构位双层对仗评价并分别打分；律诗颔联承接、颈联转向职责随规划绑定到评分请求。对仗权重为 .25，状态分数上限影响排名，但不直接硬淘汰候选。
+`poetry-unit-3` 使用 `literary-5`，强制逐字位与逐结构位双层对仗评价并分别打分；律诗颔联承接、颈联转向职责随规划绑定到评分请求。对仗权重为 .25，状态分数上限影响排名，但不直接硬淘汰候选。
+
+单句候选的 `semantic_lock` 字段类型与整联相同，见[完整句／联生成](unit-generation.md)。特别注意，候选锁 `semantic_lock.protected_meaning` 是非空字符串，PoemPlan 的 `protected_meaning` 则是字符串数组；校验器不会自动转换类型。
 
 运行 Skill 的 agent 充当 LLM，不依赖外部模型 API。Python 处理导出上下文、格式校验、去重、规则过滤、评分校验和排序；只完成一个句位的一轮处理。`export` 和 `filter` 不修改状态，`finish` 一次性记录候选历史。正文、规划、revision、全诗 checks、quality_score 和 status 保持原值。
 
@@ -36,7 +38,7 @@ report = finish_round(state, filtered, score_json, engine=engine)
 
 export_context 返回 ready 或 planning_required；缺模板和非法句位抛 RoundError。句位允许诗体内任一合法位置，包括已有句的替代候选，与现有引擎一致；不会填充缺失正文。韵脚句未选韵部返回 RHYME_GROUP_UNSELECTED，不猜选；非韵脚句可继续，未选韵部仍为 null。律诗上下文列出当前联名、结构规划中同名联的 intent、对应句位及已有文本；无规划 intent 时为空数组，不捏造作用。
 
-filter_candidates 整批校验后才检查规则，复用一个引擎和一个状态快照，检查时不追加正文。`filtered.context` 是权威创作上下文；派生的 `score_request`／`content_request` 仅含候选、要求与上下文摘要，不重复内嵌整份上下文。finish_round 重新过滤并比对保存的中间结果，防止把改写的规则输出当作通过结果；同一 Python 流程可复用同一个 engine/lexicon，CLI 不同进程各加载一次。不会每个候选重新加载韵库。本阶段的候选生成封套不接收 readings 或 duplicate_review，额外字段会被拒绝。真正影响规则结论的多归属字会产生 `reading_request`；控制器通过独立的 `review_readings`（CLI 为 `review-reading`）导入绑定的 `reading-review-1` 结果，再把选择交回引擎复检。读音选择保存在 `reading_input`／`reading_review` 中，不混入模型候选字段。重字语义未审查时仍保持 unresolved。
+filter_candidates 整批校验后才检查规则，复用一个引擎和一个状态快照，检查时不追加正文。`filtered.context` 是权威创作上下文；派生的 `score_request`／`content_request` 仅含候选、要求与上下文摘要，不重复内嵌整份上下文。finish_round 重新过滤并比对保存的中间结果，防止把改写的规则输出当作通过结果；同一 Python 流程可复用同一个 engine/lexicon，CLI 不同进程各加载一次。不会每个候选重新加载韵库。本阶段的候选生成封套不接收 `readings` 或 `duplicate_review`，额外字段会被拒绝。规则过滤产生 `reading_request` 与 `duplicate_request`；控制器分别通过 `review_readings`（CLI `review-reading`）和 `review_duplicates`（CLI `review-duplicate`）导入范围绑定的结果，再交回引擎复检。正文变化后旧证明失效。两类复核都通过后，才会生成内容语义或评分请求。Day 3 旧 filtered 工件须从原状态重新导出和过滤，不能手工补版本号。
 
 ## CLI 和完整示例
 
@@ -70,7 +72,7 @@ python scripts/poetry_round.py finish --state examples/day3/run-new/state.json -
 
 ```json
 {
-  "contract_version": "poetry-round-1",
+  "contract_version": "poetry-round-2",
   "batch_id": "<照抄导出值>",
   "context_sha256": "<照抄导出值>",
   "generation_sha256": "<照抄导出值>",
@@ -106,7 +108,7 @@ id 是批次内唯一非空字符串，不修剪或改写；line_index 必须是
 
 ```json
 {
-  "contract_version": "poetry-round-1",
+  "contract_version": "poetry-round-2",
   "batch_id": "<照抄值>",
   "context_sha256": "<照抄值>",
   "generation_sha256": "<照抄值>",

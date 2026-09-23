@@ -78,7 +78,7 @@ exact 匹配复用 text_normalizer.normalize_line 的既有空白、标点和句
 
 ```json
 {
-  "contract_version": "poetry-round-1",
+  "contract_version": "poetry-round-2",
   "batch_id": "<照抄值>",
   "context_sha256": "<照抄值>",
   "generation_sha256": "<照抄值>",

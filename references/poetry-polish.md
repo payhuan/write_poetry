@@ -1,13 +1,13 @@
 # Day 5：全诗审校、局部炼句与最终润色
 
-> 当前快照版本为 `poetry-polish-7`。全诗 review ready 后不能直接进入最终出口，必须先完成
+> 当前快照版本为 `poetry-polish-8`。全诗 review ready 后不能直接进入最终出口，必须先完成
 > [逐结构单位炼字](word-refinement.md)：绝句逐句、律诗按四联依次返回 `NO_CHANGE`、`REFINED` 或
 > `REFLOW_REQUIRED`。下文原有 issue 驱动的 generate/compare 仍用于全诗审校明确指出的问题；逐字审查使用
 > refinement/reflow/refinement_compare，并受更严格的两字符范围、语义锁和净增益规则约束。
 
 ## 职责与入口
 
-`scripts/poetry_polish.py` 提供 `Polish`，快照与工作封套版本为 `poetry-polish-7`，审校量表为 `whole-poem-review-4`，最终红线版本为 `final-redline-1`。运行 Skill 的 LLM 阅读工作并提供 JSON；程序不调用模型 API、不编造评分、不重做搜索、不处理图片。
+`scripts/poetry_polish.py` 提供 `Polish`，快照与工作封套版本为 `poetry-polish-8`，审校量表为 `whole-poem-review-4`，最终红线版本为 `final-redline-1`。运行 Skill 的 LLM 阅读工作并提供 JSON；程序不调用模型 API、不编造评分、不重做搜索、不处理图片。
 
 LLM 负责主题、情绪、时间、视角、意象、结构和语言，律诗中间两联的语义及句法对仗，用典及 adapt 语义，修改建议、候选、全诗比较和诗题。程序负责交接、绑定、范围、锁定要求、规则复检、内容契约、事务采纳、预算、持久化和完成条件。语义报告的真伪及文学质量不能由 JSON 校验器证明。
 
@@ -38,7 +38,7 @@ polish.result(include_notes=False)
 
 | 字段 | 规则 |
 | --- | --- |
-| contract_version | poetry-polish-7 |
+| contract_version | poetry-polish-8 |
 | run_id / job_id | 当前运行与工作 ID；格式修复保持 job_id |
 | path_id | 显式选定的 Day 4 草稿分支 |
 | revision | 工作 target 的版本，整数 |
@@ -55,10 +55,12 @@ binding 复用现有规则摘要；没有第二套正文摘要算法。完整相
 | refinement | 当前句／联的 NO_CHANGE、REFINED 或 REFLOW_REQUIRED | 保留、最小炼字或转 reflow |
 | reflow | 当前完整句／联及语义锁保持声明 | 规则与内容复检后 refinement_compare |
 | candidate_reading | 绑定的 `reading-review-1` 决策 | 合并已确认坐标并重新执行全诗规则检查 |
+| candidate_duplicate | 绑定的 `duplicate-review-1` 决策 | 仅针对该改稿完整正文复检；不复用 Day 4 的证明 |
+| candidate_content_reading / candidate_content_duplicate | 逐句内容过滤产生的范围绑定复核 | 对当前全诗中的该句位独立复核后，再进入语义内容工作 |
 | candidate_content | 原 Day 3 review-content JSON | 全部必须项通过才 compare |
 | compare | 候选全诗审校、全维度比较和采用建议 | 采用或保留原稿 |
 | refinement_compare | 候选全诗审校、净增益确认和采用建议 | 采用后重新 review 与逐单位审查 |
-| final_content | 原 Day 3 review-content JSON | 当前必须内容全部通过才 redline |
+| final_content_reading / final_content_duplicate / final_content | 当前正文句位的读音、重字或 Day 3 review-content JSON | 相关检查通过后继续；全部必须内容通过才 redline |
 | redline | 四项最终语义红线 | 四项全为 no 才 final；yes/unknown 阻断 |
 | final | 独立诗题与可选说明 | 最终程序检查后 completed |
 
@@ -252,6 +254,8 @@ final payload：`{"title":"独立诗题","notes":["用户需要时展示的简�
 status 为 waiting_for_llm / completed / needs_clarification / incomplete / budget_exhausted；内部 running 只在事务中出现。预算耗尽、格式修复耗尽、必须项失败/unknown 时保留最后接受版本、已有候选检查与历史，给出 reason，不扩预算、不标 completed。pending 只在 waiting_for_llm 非空。因缺模型结果暂停无需做终止操作，保存并稍后恢复即可。
 
 完整快照为 `{polish, sha256}`，包含原 Search 快照、run_id、配置、已用预算、accepted、当前审校/内容、候选队列、pending、history、reviews、原响应 transcript、幂等记录和最终 output。恢复时从交接重新构造并重放已保存响应，逐项比较重建运行；不只相信摘要或 completed 标签。重放不调用模型、不新增实际预算，结果须与原状态完全相同。当前规则资源与原证明不一致时拒绝恢复（SNAPSHOT_REPLAY_MISMATCH 或交接错误），不能继续沿用旧通过标记。该回放成本随有界工作记录增长，保存文件也包含完整审计信息。
+
+`poetry-polish-7` 快照缺少当前范围绑定的重字复核链，不能恢复为新版本；应从原始 PoemState 重新建立 Day 4 运行，再交接 Day 5。
 
 save/load 和 CLI 复用 Day 3 的[独立工作区](runtime-workspace.md)解析及原子新文件写入，禁止覆盖、禁止向 Skill 目录写入。所有内置模板和韵库相对脚本定位，无开发机绝对路径。恢复前一接受版本可从对应历史快照及 transcript 找到采用前检查点；不能把单独 base 字典当作已通过 Day 5 的新运行。
 

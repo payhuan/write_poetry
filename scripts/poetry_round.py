@@ -27,9 +27,10 @@ from round_content import (CONTENT_VERSION, ContentError, export_content_plan,
                            read_content_fulfillment)
 from runtime_workspace import configure_workspace, input_path, output_path
 from reading_disambiguation import make_request as make_reading_request, apply_review as apply_reading_review
+from duplicate_disambiguation import make_request as make_duplicate_request, apply_review as apply_duplicate_review
 
 PROJECT = Path(__file__).resolve().parent.parent
-CONTRACT_VERSION = 'poetry-round-1'
+CONTRACT_VERSION = 'poetry-round-2'
 RUBRIC_VERSION = 'literary-1'
 WEIGHTS = {'theme': 0.25, 'naturalness': 0.25, 'imagery': 0.20,
            'continuity': 0.15, 'expression': 0.15}
@@ -251,7 +252,7 @@ def _rule_reasons(checks):
                 for error in checks['errors'] if error.startswith('duplicate:')]
 
 
-def filter_candidates(state, context, payload=None, *, engine=None, readings=None):
+def filter_candidates(state, context, payload=None, *, engine=None, readings=None, duplicate_reviews=None):
     """Validate the entire input first, then check all unique lines on one snapshot.
 
     Day 3 deliberately does not accept model-supplied pronunciation selectors.
@@ -279,7 +280,8 @@ def filter_candidates(state, context, payload=None, *, engine=None, readings=Non
             seen[normalized] = candidate['id']
             checks = engine.check_candidate({'id': record['history_id'], 'text': candidate['text'],
                                               'line_index': candidate['line_index']}, snapshot,
-                                             readings=readings)
+                                             readings=readings,
+                                             duplicate_review=(duplicate_reviews or {}).get(record['id']))
             record.update(checks=checks, category=('passed' if checks['valid'] is True else
                           'failed' if checks['valid'] is False else 'unresolved'),
                           reasons=_rule_reasons(checks))
@@ -299,6 +301,7 @@ def filter_candidates(state, context, payload=None, *, engine=None, readings=Non
     if request['reviews']:
         result['reading_input'] = None
         result['reading_request'] = request
+    result['duplicate_request'] = _duplicate_request(result)
     if context['content_plan'] is not None:
         result['content_request'] = semantic_request(result)
     return result
@@ -307,7 +310,7 @@ def filter_candidates(state, context, payload=None, *, engine=None, readings=Non
 def _seal_filter(result):
     result['filter_sha256'] = digest({k: v for k, v in result.items()
                                       if k not in ('filter_sha256', 'score_request', 'content_request',
-                                                   'reading_request')})
+                                                   'reading_request', 'duplicate_request')})
     result['score_request'] = _score_request(result)
 
 
@@ -325,6 +328,17 @@ def _reading_request(filtered):
             'reviews': reviews,
             'instruction': ('逐候选按 reading-review-1 结合句义选择韵表已提供的归属。'
                             '不得依据哪个选项更合格律倒推读音；证据不足返回 unknown。')}
+
+
+def _duplicate_request(filtered):
+    reviews = []
+    for record in filtered['records']:
+        checks = record.get('checks')
+        duplicate = (checks or {}).get('checks', {}).get('duplicate') or {}
+        if duplicate.get('status') == 'unknown':
+            reviews.append({'id': record['id'], 'request': make_duplicate_request(checks)})
+    return {**_envelope(filtered['context']), 'filter_sha256': filtered['filter_sha256'],
+            'reviews': reviews}
 
 
 def _apply_readings(state, filtered, payload, engine):
@@ -359,6 +373,46 @@ def _apply_readings(state, filtered, payload, engine):
     result['reading_request'] = _reading_request(result)
     if result['context']['content_plan'] is not None:
         result['content_request'] = semantic_request(result)
+    result['duplicate_request'] = _duplicate_request(result)
+    return result
+
+
+def _apply_duplicates(state, filtered, payload, engine):
+    require('duplicate_request' in filtered, 'NO_DUPLICATE_REVIEW', 'This batch has no unresolved repeated characters')
+    _validate_envelope(payload, filtered['context'], {'filter_sha256', 'reviews'})
+    require(payload['filter_sha256'] == filtered['filter_sha256'], 'WRONG_FILTER',
+            'Duplicate review belongs to another filtered batch')
+    expected = {item['id']: item['request'] for item in filtered['duplicate_request']['reviews']}
+    require(isinstance(payload['reviews'], list) and len(payload['reviews']) == len(expected),
+            'INVALID_DUPLICATE_REVIEWS', 'Every unresolved candidate needs one duplicate review')
+    supplied = {}
+    for item in payload['reviews']:
+        require(isinstance(item, dict) and set(item) == {'id', 'review'} and
+                item['id'] in expected and item['id'] not in supplied,
+                'INVALID_DUPLICATE_REVIEWS', 'Unknown, duplicate or malformed duplicate review')
+        supplied[item['id']] = item['review']
+    result = deepcopy(filtered)
+    snapshot = PoemState.from_dict(state.to_dict())
+    for record in result['records']:
+        if record['id'] not in expected:
+            continue
+        request = expected[record['id']]
+        review = apply_duplicate_review(request, supplied[record['id']])
+        reading_review = record.get('reading_review') or {}
+        checks = engine.check_candidate({'id': record['history_id'], 'text': record['text'],
+                                          'line_index': record['line_index']}, snapshot,
+                                         readings={**deepcopy(filtered['reading_seed'] or {}),
+                                                   **deepcopy(reading_review.get('readings', {}))},
+                                         duplicate_review=review)
+        record.update(checks=checks, duplicate_review=review,
+                      category=('passed' if checks['valid'] is True else
+                                'failed' if checks['valid'] is False else 'unresolved'),
+                      reasons=_rule_reasons(checks))
+    result['duplicate_input'] = deepcopy(payload)
+    _seal_filter(result)
+    result['duplicate_request'] = _duplicate_request(result)
+    if result['context']['content_plan'] is not None:
+        result['content_request'] = semantic_request(result)
     return result
 
 
@@ -371,19 +425,23 @@ def _apply_content(filtered, payload):
     result['records'] = apply_semantic_reviews(filtered, payload)
     result['content_input'] = deepcopy(payload)
     _seal_filter(result)
+    result['duplicate_request'] = _duplicate_request(result)
     return result
 
 
 def _verify_filter(state, filtered, engine):
     finite_json(filtered)
     base = {'context', 'candidate_input', 'reading_seed', 'records', 'filter_sha256', 'score_request'}
-    optional = {'content_input', 'content_request', 'reading_input', 'reading_request'}
+    optional = {'content_input', 'content_request', 'reading_input', 'reading_request',
+                'duplicate_input', 'duplicate_request'}
     require(isinstance(filtered, dict) and base <= set(filtered) and not set(filtered) - base - optional,
             'INVALID_FILTER', 'Expected a complete program-generated filter artifact')
     verified = filter_candidates(state, filtered['context'], filtered['candidate_input'], engine=engine,
                                  readings=filtered['reading_seed'])
     if filtered.get('reading_input') is not None:
         verified = _apply_readings(state, verified, filtered['reading_input'], engine)
+    if filtered.get('duplicate_input') is not None:
+        verified = _apply_duplicates(state, verified, filtered['duplicate_input'], engine)
     if filtered.get('content_input') is not None:
         verified = _apply_content(verified, filtered['content_input'])
     require(_filter_comparison_view(verified) == _filter_comparison_view(filtered),
@@ -415,6 +473,14 @@ def review_readings(state, filtered, payload, *, engine=None):
     require(verified.get('reading_input') is None, 'READING_ALREADY_REVIEWED',
             'Review the original filter artifact when correcting reading choices')
     return _apply_readings(state, verified, payload, engine)
+
+
+def review_duplicates(state, filtered, payload, *, engine=None):
+    engine = engine if engine is not None else ConstraintEngine()
+    verified = _verify_filter(state, filtered, engine)
+    require(verified.get('duplicate_input') is None, 'DUPLICATE_ALREADY_REVIEWED',
+            'Review the original filter artifact when correcting a duplicate review')
+    return _apply_duplicates(state, verified, payload, engine)
 
 
 def _score_request(filtered):
@@ -575,7 +641,7 @@ def main():
         sys.stdout.reconfigure(encoding='utf-8')
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
-    for name in ('plan', 'export', 'filter', 'review-reading', 'review-content', 'finish'):
+    for name in ('plan', 'export', 'filter', 'review-reading', 'review-duplicate', 'review-content', 'finish'):
         command = commands.add_parser(name)
         command.add_argument('--work-dir')
         command.add_argument('--state', required=True)
@@ -586,7 +652,7 @@ def main():
         elif name == 'filter':
             command.add_argument('--context', required=True)
             command.add_argument('--candidates')
-        elif name in ('review-reading', 'review-content'):
+        elif name in ('review-reading', 'review-duplicate', 'review-content'):
             command.add_argument('--filtered', required=True)
             command.add_argument('--reviews', required=True)
         elif name == 'finish':
@@ -607,6 +673,8 @@ def main():
             result = filter_candidates(state, _load(args.context), _load(args.candidates) if args.candidates else None)
         elif args.command == 'review-reading':
             result = review_readings(state, _load(args.filtered), _load(args.reviews))
+        elif args.command == 'review-duplicate':
+            result = review_duplicates(state, _load(args.filtered), _load(args.reviews))
         elif args.command == 'review-content':
             result = review_content(state, _load(args.filtered), _load(args.reviews))
         else:
@@ -622,6 +690,7 @@ def main():
             summary.update(status='plan_exported')
         else:
             summary.update(status=('reading_reviewed' if args.command == 'review-reading' else
+                                   'duplicate_reviewed' if args.command == 'review-duplicate' else
                                    'content_reviewed' if args.command == 'review-content' else 'filtered'),
                            score_candidates=len(result['score_request']['candidates']))
         print(json.dumps(summary, ensure_ascii=False))

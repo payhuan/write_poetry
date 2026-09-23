@@ -4,9 +4,11 @@
 
 `scripts/poetry_search.py` 的 `Search` 把 Day 3 句／联流程连成可暂停的多路径搜索。运行 Skill 的 agent 提供模型 JSON，不要求模型 API。支持五绝、七绝、五律、七律；律诗颔联、颈联按整联推进，其余位置按句推进。
 
-开始前完成模板、韵部、[全诗语义规划](poem-planning.md)与内容安排。`Search.create(state, poem_plan=poem_plan, content_plan=content_plan)` 中 poem_plan 为新运行必需参数；已有正文作为不可删除前缀，未定位的必需内容须先按 Day 3 plan 契约安排。搜索固定这些安排，只在追加正文后按当前 revision 重绑定同一组 assignments，不修改用户原文、指定句位或诗格。
+开始前完成模板、韵部、[全诗语义规划](poem-planning.md)与内容安排。`Search.create(state, poem_plan=poem_plan, content_plan=content_plan)` 中 poem_plan 为新运行必需参数。已有完整初稿可作为不可删除前缀播种：先把全部原句写入 PoemState，再以这个完整状态为依据重新生成并验证 PoemPlan 与内容安排；不能只改旧计划的 `binding`。固定正文不产生虚构的候选评分，初始分数保持 0。未定位的必需内容须先按 Day 3 plan 契约安排。搜索固定这些安排，只在追加正文后按当前 revision 重绑定同一组 assignments，不修改用户原文、指定句位或诗格。
 
-完整路径在当前上下文调用实际 `engine.check_poem`，保存 checks、warnings 与 unknown；通过后在完整且不再修改的正文上逐句复用 Day 3 内容检查和语义 review。早先候选上的 satisfied 仅为历史，不作全诗证明。所有必需项必须在指定承担句位得到 satisfied；可选典故和 inspiration 不阻断。此处仅核对内容要求，无全诗文学评分、炼句或最终润色。
+完整路径在当前上下文调用实际 `engine.check_poem`，保存 checks、warnings 与 unknown；读音和全诗重字分别按整诗范围复核。随后对每句重跑确定性内容检查；仅对存在 `semantic_review_due` 的要求发语义工作（包括必需项以及被选作内容依据的可选典故或灵感项）。早先候选上的 satisfied 仅为历史，不作全诗证明。所有必需项必须在指定承担句位得到 satisfied；可选典故和 inspiration 不阻断。此处仅核对内容要求，无全诗文学评分、炼句或最终润色。
+
+初稿播种前可选做一次规则预检：`python scripts/constraint_engine.py --state draft-state.json`。它能提前显示确定性格律问题及待复核项，但不会替代控制器中的 reading、duplicate 或语义复核。
 
 输出 `ready_for_review` 时，`drafts[*].state.status` 为 `reviewing`，`quality_score` 不冒充全诗文学评价。绝不设置 completed。未知或失败的完整路径进入 diagnostics。
 
@@ -30,7 +32,7 @@ search.save('examples/search-01.json')
 search = Search.load('examples/search-01.json')
 ```
 
-普通句 stage 为 generate → 可选 reading → 可选 content → score；律诗中间联为 unit_generate → 可选 unit_reading → 可选 unit_content → unit_score。reading 阶段只接收控制器生成的绑定消歧请求，候选生成结果仍禁止携带 readings。确认后的坐标选择随路径保存，后续完整正文和 Day 5 复检复用。若 Search 从已有正文启动且到整诗检查时才发现未决读音，则发出 poem_reading，复检通过后再验收正文。整联候选和 `literary-5` 逐字、逐结构双层对仗评价见[完整句／联生成](unit-generation.md)。完整正文的语义复核使用 final_content。每个新阶段有新 job_id；格式修复保持 job_id，attempt 递增。不得在没有实际模型响应时填充评分或运行空生成循环。
+普通句 stage 为 generate → 可选 reading → 可选 duplicate → 可选 content → score；律诗中间联为 unit_generate → 可选 unit_reading → 可选 unit_duplicate → 可选 unit_content → unit_score。读音和重字复核只接收控制器生成的范围绑定请求，候选生成结果仍禁止携带相应证明。两项规则复核完成后才可进入内容语义或评分。确认的全诗重字证明仅适用于原正文；句位候选、联内逐句候选和完整初稿按各自检查范围独立复核。Search 从已有完整正文启动时，若检查出现重字 unknown，则发出 poem_duplicate。完整出口的内容行还可能依次发出 final_reading、final_duplicate、final_content。改稿或正文变化会使旧证明失效，必须对新文本重审。整联候选和 `literary-5` 逐字、逐结构双层对仗评价见[完整句／联生成](unit-generation.md)。每个新阶段有新 job_id；格式修复保持 job_id，attempt 递增。不得在没有实际模型响应时填充评分或运行空生成循环。
 
 模型输出尚未解析时，使用 `payload={"attempt": job.attempt, "raw_json": 原始模型字符串}`，控制器使用 Day 3 严格解析器解析，语法错误同样进入有限格式修复计数。attempt 区分新修复响应和重复导入，即使模型再次返回完全相同的坏 JSON 也能有界结束。外层工作封套由调用者构造，必须是合法 JSON；不要在控制器外无限修复模型输出。
 
@@ -77,7 +79,7 @@ search = Search.load('examples/search-01.json')
 
 ## 保存恢复与 CLI
 
-`to_dict/from_dict` 使用 `{search, sha256}` 完整包，版本 `poetry-search-6`。search 额外保存完整 `poem-plan-2`；路径保存 semantic_locks 与已复检 readings。`poetry-search-1` 至 `poetry-search-5` 可载入为 `legacy_readonly` 供审计，但 next_job 为空、submit 被拒绝；须基于原始状态建立新规划和新运行，不能把旧快照静默升级为可继续创作的证明。
+`to_dict/from_dict` 使用 `{search, sha256}` 完整包，版本 `poetry-search-7`。search 额外保存完整 `poem-plan-2`；路径保存 semantic_locks、已复检 readings 与整诗重字证明。`poetry-search-1` 至 `poetry-search-6` 可载入为 `legacy_readonly` 供审计，但 next_job 为空、submit 被拒绝；须基于原始状态建立新规划和新运行，不能把旧快照静默升级为可继续创作的证明。Day 3 旧过滤工件必须重新导出并复核。
 
 保存原子发布新文件，禁止覆盖；CLI 相对数据路径按[独立工作区](runtime-workspace.md)解析，并禁止向 Skill 目录写入。整个项目可迁移，脚本定位内置资源相对于自身目录。
 

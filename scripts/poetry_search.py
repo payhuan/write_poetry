@@ -16,10 +16,13 @@ from runtime_workspace import configure_workspace, input_path, output_path
 from round_content import export_content_plan, validate_content_plan, requirements
 from poetry_unit import (CONTRACT_VERSION as UNIT_CONTRACT_VERSION, is_atomic_couplet,
                          export_unit_context, validate_unit_context,
-                         filter_units, review_unit_readings, review_unit_content, finish_units)
+                         filter_units, review_unit_readings, review_unit_duplicates,
+                         review_unit_content, finish_units)
 from reading_disambiguation import make_request as make_reading_request, apply_review as apply_reading_review
+from duplicate_disambiguation import make_request as make_duplicate_request, apply_review as apply_duplicate_review
+from poetry_round import review_duplicates
 
-VERSION = 'poetry-search-6'
+VERSION = 'poetry-search-7'
 TERMINAL = {'ready_for_review', 'budget_exhausted', 'no_feasible_path',
             'needs_clarification', 'run_error', 'legacy_readonly'}
 
@@ -60,7 +63,7 @@ class Search:
                              'structural_function': unit['primary_task'], 'confirmed_allusions': []}})
         root = {'path_id': 'p0', 'parent_path_id': None, 'state': initial,
                 'depth': len(initial['lines']), 'adoptions': [], 'score': 0.0, 'content': [],
-                'semantic_locks': initial_locks, 'readings': {}}
+                'semantic_locks': initial_locks, 'readings': {}, 'duplicate_review': None}
         s = cls({'version': VERSION, 'run_id': uuid4().hex, 'status': 'running',
                  'initial': initial, 'poem_plan': semantic_plan,
                  'assignments': plan['assignments'], 'config': config,
@@ -86,7 +89,7 @@ class Search:
         require(isinstance(artifact, dict) and set(artifact) == {'search', 'sha256'}
                 and digest(artifact['search']) == artifact['sha256'], 'INVALID_SNAPSHOT', 'Snapshot checksum mismatch')
         d = artifact['search']
-        if isinstance(d, dict) and d.get('version') in ('poetry-search-1', 'poetry-search-2', 'poetry-search-3', 'poetry-search-4', 'poetry-search-5'):
+        if isinstance(d, dict) and d.get('version') in ('poetry-search-1', 'poetry-search-2', 'poetry-search-3', 'poetry-search-4', 'poetry-search-5', 'poetry-search-6'):
             legacy = deepcopy(d)
             legacy.update(version=VERSION, poem_plan=None, status='legacy_readonly', pending=None)
             legacy['events'].append({'code': 'POEM_PLAN_REQUIRED', 'status': 'legacy_readonly'})
@@ -119,7 +122,7 @@ class Search:
         validate_plan(initial_state, d['poem_plan'])
         for p in d['active'] + d['alternatives'] + d['children'] + d['drafts'] + d['diagnostics']:
             require(isinstance(p, dict) and {'state', 'depth', 'path_id', 'parent_path_id',
-                    'score', 'adoptions', 'content', 'semantic_locks', 'readings'} <= set(p),
+                    'score', 'adoptions', 'content', 'semantic_locks', 'readings', 'duplicate_review'} <= set(p),
                     'INVALID_SNAPSHOT', 'Invalid path fields')
             state = PoemState.from_dict(p['state'])
             require(p['depth'] == len(p['state']['lines']), 'INVALID_SNAPSHOT', 'Path depth mismatch')
@@ -162,7 +165,7 @@ class Search:
         self.data['status'] = status
         self.data['events'].append({'code': code, 'status': status})
 
-    def _job(self, stage, context, filtered=None, final_index=None, reading_request=None):
+    def _job(self, stage, context, filtered=None, final_index=None, reading_request=None, duplicate_request=None):
         d = self.data
         if d['used']['interactions'] >= d['config']['max_interactions']:
             self._stop('budget_exhausted', 'MAX_INTERACTIONS')
@@ -173,7 +176,8 @@ class Search:
                         'path_id': self._current()['path_id'], 'batch_id': context['batch_id'],
                         'context_sha256': context['context_sha256'], 'stage': stage, 'attempt': 1,
                         'context': deepcopy(context), 'filtered': deepcopy(filtered),
-                        'final_index': final_index, 'reading_request': deepcopy(reading_request)}
+                        'final_index': final_index, 'reading_request': deepcopy(reading_request),
+                        'duplicate_request': deepcopy(duplicate_request)}
         d['status'] = 'waiting_for_llm'
 
     @staticmethod
@@ -211,13 +215,19 @@ class Search:
             p = self._current()
             state = PoemState.from_dict(p['state'])
             if p['depth'] == p['state']['form']['line_count']:
-                checks = self.engine.check_poem(state, readings=p.get('readings'))
+                checks = self.engine.check_poem(state, readings=p.get('readings'),
+                                                 duplicate_review=p.get('duplicate_review'))
                 state.set_assessment(checks)
                 p['state'] = state.to_dict()
                 if checks['valid'] is None and checks['checks']['reading']['status'] == 'unknown':
                     context = export_context(state, 1, content_plan=self._plan(state),
                                              poem_plan=d['poem_plan'])
                     self._job('poem_reading', context, reading_request=make_reading_request(checks))
+                    continue
+                if checks['valid'] is None and checks['checks']['duplicate']['status'] == 'unknown':
+                    context = export_context(state, 1, content_plan=self._plan(state),
+                                             poem_plan=d['poem_plan'])
+                    self._job('poem_duplicate', context, duplicate_request=make_duplicate_request(checks))
                     continue
                 if checks['valid'] is not True:
                     self._fail('FINAL_RULES_FAILED_OR_UNKNOWN')
@@ -256,6 +266,8 @@ class Search:
         self._current()['round_artifact'] = deepcopy(filtered)
         if filtered.get('reading_request', {}).get('reviews') and filtered.get('reading_input') is None:
             self._job('reading', context, filtered)
+        elif filtered.get('duplicate_request', {}).get('reviews') and filtered.get('duplicate_input') is None:
+            self._job('duplicate', context, filtered)
         elif filtered.get('content_request', {}).get('candidates'):
             self._job('content', context, filtered)
         elif filtered['score_request']['candidates']:
@@ -286,7 +298,8 @@ class Search:
                               'lock': deepcopy(r['semantic_lock'])}]
                               if r.get('semantic_lock') else []),
                           'readings': {**deepcopy(p.get('readings', {})),
-                                       **deepcopy(r.get('reading_review', {}).get('readings', {}))}}
+                                       **deepcopy(r.get('reading_review', {}).get('readings', {}))},
+                          'duplicate_review': None}
             self.data['next_path'] += 1
             self.data['children'].append(child_path)
         if not report['ranking']:
@@ -302,6 +315,8 @@ class Search:
             self._stop('needs_clarification', 'REPLAN_REQUIRED')
         elif filtered['reading_request']['requests'] and filtered.get('reading_input') is None:
             self._job('unit_reading', filtered['context'], filtered)
+        elif filtered['duplicate_request']['requests'] and filtered.get('duplicate_input') is None:
+            self._job('unit_duplicate', filtered['context'], filtered)
         elif filtered['content_request']['requests']:
             self._job('unit_content', filtered['context'], filtered)
         elif filtered['score_request']['candidates']:
@@ -333,7 +348,8 @@ class Search:
                                        **{coordinate: selector
                                           for line_filter in record['line_filters']
                                           for coordinate, selector in line_filter['records'][0]
-                                          .get('reading_review', {}).get('readings', {}).items()}}}
+                                          .get('reading_review', {}).get('readings', {}).items()}},
+                          'duplicate_review': None}
             self.data['next_path'] += 1
             self.data['children'].append(child_path)
         if report['ranking']:
@@ -362,6 +378,12 @@ class Search:
                        'candidates': [{'id': 'final', 'text': p['state']['lines'][index-1], 'line_index': index}]}
             f = filter_candidates(state, c, None if c['locked_candidate'] else payload,
                                   engine=self.engine, readings=p.get('readings'))
+            if f.get('duplicate_request', {}).get('reviews'):
+                self._job('final_duplicate', c, f, index)
+                return
+            if f.get('reading_request', {}).get('reviews'):
+                self._job('final_reading', c, f, index)
+                return
             if f.get('content_request', {}).get('candidates'):
                 self._job('final_content', c, f, index)
                 return
@@ -459,6 +481,32 @@ class Search:
         stage, c, f = job['stage'], job['context'], job['filtered']
         if stage == 'unit_generate':
             self._after_unit_filter(filter_units(state, c, payload, engine=self.engine))
+        elif stage == 'poem_duplicate':
+            require(set(payload) == {'attempt', 'review'} and payload['attempt'] == job['attempt'],
+                    'INVALID_POEM_DUPLICATE', 'Use issued attempt and duplicate review')
+            review = apply_duplicate_review(job['duplicate_request'], payload['review'])
+            if not review['complete']:
+                self._fail('FINAL_DUPLICATE_UNRESOLVED')
+            else:
+                self._current()['duplicate_review'] = review
+        elif stage == 'final_duplicate':
+            reviewed = review_duplicates(state, f, payload, engine=self.engine)
+            if reviewed.get('reading_request', {}).get('reviews'):
+                self._job('final_reading', c, reviewed, job['final_index'])
+            elif reviewed.get('content_request', {}).get('candidates'):
+                self._job('final_content', c, reviewed, job['final_index'])
+            else:
+                self._current()['final_content'].append(reviewed)
+                self._final_content(job['final_index'] + 1)
+        elif stage == 'final_reading':
+            reviewed = review_readings(state, f, payload, engine=self.engine)
+            if reviewed.get('duplicate_request', {}).get('reviews') and reviewed.get('duplicate_input') is None:
+                self._job('final_duplicate', c, reviewed, job['final_index'])
+            elif reviewed.get('content_request', {}).get('candidates'):
+                self._job('final_content', c, reviewed, job['final_index'])
+            else:
+                self._current()['final_content'].append(reviewed)
+                self._final_content(job['final_index'] + 1)
         elif stage == 'poem_reading':
             require(set(payload) == {'attempt', 'review'} and payload['attempt'] == job['attempt'],
                     'INVALID_POEM_READING', 'Use the issued attempt and reading review')
@@ -467,8 +515,12 @@ class Search:
                 self._fail('FINAL_READING_UNRESOLVED')
             else:
                 self._current()['readings'].update(review['readings'])
+        elif stage == 'duplicate':
+            self._after_filter(c, review_duplicates(state, f, payload, engine=self.engine))
         elif stage == 'unit_reading':
             self._after_unit_filter(review_unit_readings(state, f, payload, engine=self.engine))
+        elif stage == 'unit_duplicate':
+            self._after_unit_filter(review_unit_duplicates(state, f, payload, engine=self.engine))
         elif stage == 'unit_content':
             reviewed = review_unit_content(state, f, payload, engine=self.engine)
             if reviewed['score_request']['candidates']:

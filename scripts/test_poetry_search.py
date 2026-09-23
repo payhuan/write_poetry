@@ -10,11 +10,15 @@ import unittest
 from unittest.mock import patch
 
 from assessment_binding import make_binding
+from constraint_engine import ConstraintEngine
 from poem_state import PoemState
+from poem_templates import TemplateLibrary
 from poetry_search import Search
-from poetry_round import RoundError
+from poetry_round import RoundError, export_context
 from round_content import export_content_plan
 from day4_example import fixture_state, fixture_engine, fixture_plan, response_for, drive, line_for
+from day4_example import LEXICON
+from rhyme_lexicon import RhymeLexicon
 
 
 class SearchTests(unittest.TestCase):
@@ -136,6 +140,76 @@ class SearchTests(unittest.TestCase):
         s.submit(response_for(s.next_job()))
         self.assertEqual(s.data['status'], 'ready_for_review', s.data['events'])
         self.assertTrue(s.data['drafts'][0]['readings'])
+
+    def test_existing_complete_poem_gets_separate_duplicate_review(self):
+        state = fixture_state()
+        from poetry_round import export_context
+        for index in range(1, 5):
+            state.append_line(line_for(export_context(state, index)))
+        engine = ConstraintEngine(RhymeLexicon(LEXICON))
+        s = Search.create(state, poem_plan=fixture_plan(state), engine=engine)
+        job = s.next_job()
+        self.assertEqual(job['stage'], 'poem_duplicate')
+        request = job['duplicate_request']
+        payload = {'attempt': job['attempt'], 'review': {
+            'review_version': request['review_version'],
+            'request_sha256': request['request_sha256'],
+            'decisions': [{'char': occurrence['char'], 'relation': 'parallel',
+                           'reason': '测试夹具：重复字位于并列意群。'}
+                          for occurrence in request['occurrences']]}}
+        identity = {k: job[k] for k in ('run_id', 'job_id', 'path_id', 'batch_id', 'context_sha256')}
+        s.submit({**identity, 'payload': payload})
+        self.assertEqual(s.data['status'], 'ready_for_review', s.data['events'])
+        self.assertIsNotNone(s.data['drafts'][0]['duplicate_review'])
+
+    def test_seeded_content_semantics_wait_for_candidate_scope_duplicate_review(self):
+        request_data = {'raw_request': '写山中五绝，第一句化用“天”', 'theme': '山中',
+                        'poem_type': '五言绝句', 'meter': {'start': '仄起', 'first_line_rhymes': False},
+                        'required_fragments': [{'id': 'f1', 'text': '天', 'kind': 'phrase',
+                                               'mode': 'adapt', 'line_index': 1,
+                                               'source_excerpt': '天'}]}
+        state = PoemState.create(request_data)
+        TemplateLibrary().bind(state)
+        state.set_plan(rhyme={'system': '平水韵', 'group': '一东', 'first_line_rhymes': False})
+        for index in range(1, 5):
+            state.append_line(line_for(export_context(state, index)))
+        content_plan = export_content_plan(state)
+        content_plan['assignments'][0]['reason'] = '用户指定首句'
+        engine = ConstraintEngine(RhymeLexicon(LEXICON))
+        search = Search.create(state, poem_plan=fixture_plan(state),
+                               content_plan=content_plan, engine=engine)
+        self.assertEqual(search.next_job()['stage'], 'poem_duplicate')
+        self._submit_poem_duplicate(search)
+        job = search.next_job()
+        self.assertEqual(job['stage'], 'final_duplicate')
+        filtered = job['filtered']
+        item = filtered['duplicate_request']['reviews'][0]
+        req = item['request']
+        review = {'review_version': req['review_version'], 'request_sha256': req['request_sha256'],
+                  'decisions': [{'char': occurrence['char'], 'relation': 'parallel',
+                                 'reason': '测试夹具：重复字用于并列意群。'}
+                                for occurrence in req['occurrences']]}
+        line_context = filtered['context']
+        line_payload = {**{k: line_context[k] for k in
+                           ('contract_version', 'batch_id', 'context_sha256', 'generation_sha256')},
+                        'attempt': 1, 'filter_sha256': filtered['filter_sha256'],
+                        'reviews': [{'id': item['id'], 'review': review}]}
+        envelope = {k: job[k] for k in ('run_id', 'job_id', 'path_id', 'batch_id', 'context_sha256')}
+        search.submit({**envelope, 'payload': line_payload})
+        self.assertEqual(search.next_job()['stage'], 'final_content')
+
+    @staticmethod
+    def _submit_poem_duplicate(search):
+        job = search.next_job()
+        request = job['duplicate_request']
+        payload = {'attempt': job['attempt'], 'review': {
+            'review_version': request['review_version'],
+            'request_sha256': request['request_sha256'],
+            'decisions': [{'char': occurrence['char'], 'relation': 'parallel',
+                           'reason': '测试夹具：重复字用于并列意群。'}
+                          for occurrence in request['occurrences']]}}
+        envelope = {k: job[k] for k in ('run_id', 'job_id', 'path_id', 'batch_id', 'context_sha256')}
+        search.submit({**envelope, 'payload': payload})
 
     def test_wrong_path_atomic(self):
         s = self.create()
@@ -299,14 +373,16 @@ class SearchTests(unittest.TestCase):
         with self.assertRaises(RoundError):
             Search.from_dict({'search': {}, 'sha256': digest({})})
 
-    def test_search_v4_is_audit_only(self):
+    def test_search_v1_through_v6_are_audit_only(self):
         from assessment_binding import digest
-        artifact = self.create().to_dict()
-        artifact['search']['version'] = 'poetry-search-4'
-        artifact['sha256'] = digest(artifact['search'])
-        legacy = Search.from_dict(artifact, engine=fixture_engine())
-        self.assertEqual(legacy.data['status'], 'legacy_readonly')
-        self.assertIsNone(legacy.next_job())
+        for version in range(1, 7):
+            with self.subTest(version=version):
+                artifact = self.create().to_dict()
+                artifact['search']['version'] = f'poetry-search-{version}'
+                artifact['sha256'] = digest(artifact['search'])
+                legacy = Search.from_dict(artifact, engine=fixture_engine())
+                self.assertEqual(legacy.data['status'], 'legacy_readonly')
+                self.assertIsNone(legacy.next_job())
 
     def test_allusion_arrangement_and_optional_unknown(self):
         req = fixture_state().to_dict()['request']

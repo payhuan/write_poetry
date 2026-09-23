@@ -10,6 +10,7 @@ import unittest
 from unittest.mock import patch
 
 from assessment_binding import digest, make_binding
+from constraint_engine import ConstraintEngine
 from poem_state import PoemState
 from poem_templates import TemplateLibrary
 from poetry_search import Search
@@ -17,7 +18,7 @@ from poetry_polish import Polish, REDLINE_CHECKS, validate_review, validate_redl
 from poetry_round import export_context
 from round_content import export_content_plan
 from rhyme_lexicon import RhymeLexicon
-from day4_example import fixture_state, fixture_engine, fixture_plan, drive, line_for
+from day4_example import fixture_state, fixture_engine, fixture_plan, drive, line_for, LEXICON
 from day5_example import (review_for, package_for, envelope, comparison_for, content_for,
                           redline_for, no_change_for, run_example)
 from word_refinement import VERSION as REFINEMENT_VERSION
@@ -32,6 +33,55 @@ class PolishTests(unittest.TestCase):
 
     def create(self, **config):
         return Polish.create(self.source, self.path, engine=fixture_engine(), **config)
+
+    def test_search_duplicate_proof_is_rechecked_and_bound_at_handoff(self):
+        state = fixture_state()
+        for index in range(1, 5):
+            state.append_line(line_for(export_context(state, index)))
+        engine = ConstraintEngine(RhymeLexicon(LEXICON))
+        search = Search.create(state, poem_plan=fixture_plan(state), engine=engine)
+        job = search.next_job()
+        self.assertEqual(job['stage'], 'poem_duplicate')
+        request = job['duplicate_request']
+        payload = {'attempt': job['attempt'], 'review': {
+            'review_version': request['review_version'],
+            'request_sha256': request['request_sha256'],
+            'decisions': [{'char': occurrence['char'], 'relation': 'parallel',
+                           'reason': '测试夹具：重复字用于并列意群。'}
+                          for occurrence in request['occurrences']]}}
+        search.submit({**{k: job[k] for k in
+                          ('run_id', 'job_id', 'path_id', 'batch_id', 'context_sha256')},
+                       'payload': payload})
+        polish = Polish.create(search.to_dict(), 'p0', engine=engine)
+        self.assertEqual(polish.data['duplicate_review'], search.data['drafts'][0]['duplicate_review'])
+        self.assertEqual(polish.next_job()['stage'], 'review')
+        self.assertEqual(polish.next_job()['context']['duplicate_review'], polish.data['duplicate_review'])
+
+    def test_changed_body_does_not_reuse_handoff_duplicate_proof(self):
+        state = fixture_state()
+        for index in range(1, 5):
+            state.append_line(line_for(export_context(state, index)))
+        engine = ConstraintEngine(RhymeLexicon(LEXICON))
+        search = Search.create(state, poem_plan=fixture_plan(state), engine=engine)
+        job = search.next_job()
+        request = job['duplicate_request']
+        payload = {'attempt': job['attempt'], 'review': {
+            'review_version': request['review_version'],
+            'request_sha256': request['request_sha256'],
+            'decisions': [{'char': occurrence['char'], 'relation': 'parallel',
+                           'reason': '测试夹具：重复字用于并列意群。'}
+                          for occurrence in request['occurrences']]}}
+        search.submit({**{k: job[k] for k in
+                          ('run_id', 'job_id', 'path_id', 'batch_id', 'context_sha256')},
+                       'payload': payload})
+        polish = Polish.create(search.to_dict(), 'p0', engine=engine)
+        self.send(polish, review_for(polish.data['accepted'], revise=True, positions=(1,)))
+        package = package_for(polish.data['accepted'], positions=(1,))
+        current = PoemState.from_dict(polish.data['accepted'])
+        package['edits'][0]['new'] = line_for(export_context(current, 1), variant=1)
+        self.generate(polish, package)
+        self.assertEqual(polish.next_job()['stage'], 'candidate_duplicate')
+        self.assertIsNone(polish.data['candidate']['duplicate_review'])
 
     def send(self, p, payload):
         return p.submit(envelope(p.next_job(), payload))
@@ -599,6 +649,13 @@ class PolishTests(unittest.TestCase):
         self.assertEqual(p.data['accepted']['status'], 'reviewing')
         self.assertIsNone(p.result()['title'])
         self.assertEqual(Polish.from_dict(p.to_dict(), engine=fixture_engine()).to_dict(), p.to_dict())
+
+    def test_polish_v7_snapshot_is_rejected(self):
+        artifact = self.create().to_dict()
+        artifact['polish']['version'] = 'poetry-polish-7'
+        artifact['sha256'] = digest(artifact['polish'])
+        with self.assertRaises(ValueError):
+            Polish.from_dict(artifact, engine=fixture_engine())
 
     def test_semantic_pending_restore_and_final_recheck(self):
         p = self.content_source('adapt')

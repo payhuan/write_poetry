@@ -10,15 +10,17 @@ from poem_state import PoemState
 from constraint_engine import ConstraintEngine
 from poetry_search import Search
 from poetry_round import (require, read_json, write_new_json, ENVELOPE,
-                          _context, _verify_filter, filter_candidates, review_content)
+                          _context, _verify_filter, filter_candidates, review_content,
+                          review_readings, review_duplicates)
 from round_content import export_content_plan, validate_content_plan, requirements, _exact
 from runtime_workspace import configure_workspace, input_path, output_path
 from word_refinement import structural_units, refinement_request, validate_refinement
 from reading_disambiguation import make_request as make_reading_request, apply_review as apply_reading_review
+from duplicate_disambiguation import make_request as make_duplicate_request, apply_review as apply_duplicate_review
 from character_alignment import (validate_character_alignment, validate_structure_alignment,
                                  validate_soft_rating)
 
-VERSION = 'poetry-polish-7'
+VERSION = 'poetry-polish-8'
 REVIEW_VERSION = 'whole-poem-review-4'
 REDLINE_VERSION = 'final-redline-1'
 REDLINE_CHECKS = ('user_facts_reversed', 'allusion_facts_reversed',
@@ -247,7 +249,8 @@ class Polish:
         require(d['checks'].get('revision') == d['revision'] and d['checks'].get('valid') is True,
                 'INVALID_HANDOFF', 'Current Day 4 checks required')
         readings = deepcopy(p.get('readings', {}))
-        fresh = engine.check_poem(state, readings=readings)
+        duplicate_review = deepcopy(p.get('duplicate_review'))
+        fresh = engine.check_poem(state, readings=readings, duplicate_review=duplicate_review)
         require(fresh['valid'] is True, 'HANDOFF_RULES_FAILED_OR_UNKNOWN', 'Current rule engine must pass')
         assignments = search.data['assignments']
         cls._verify_content(state, p.get('final_content'), assignments, engine)
@@ -257,7 +260,8 @@ class Polish:
                      status='running', reason=None, used=dict(rounds=0, interactions=0), next_job=0,
                      pending=None, review=None, content=None, queue=[], candidate=None, history=[],
                      reviews=[], redline=None, processed={}, invalid={}, transcript=[], output=None,
-                     semantic_locks=deepcopy(p.get('semantic_locks', [])), refinement_cursor=0,
+                     semantic_locks=deepcopy(p.get('semantic_locks', [])), duplicate_review=duplicate_review,
+                     refinement_cursor=0,
                      refinements=[]), engine)
         s.data['readings'] = readings
         s._job('review')
@@ -306,7 +310,9 @@ class Polish:
             return
         d['next_job'] += 1
         d['used']['interactions'] += 1
-        target = d['candidate']['state'] if stage in ('candidate_reading', 'candidate_content',
+        target = d['candidate']['state'] if stage in ('candidate_reading', 'candidate_duplicate',
+                                                       'candidate_content', 'candidate_content_duplicate',
+                                                       'candidate_content_reading',
                                                        'compare', 'refinement_compare') else d['accepted']
         context = dict(accepted=deepcopy(d['accepted']), target=deepcopy(target),
                        assignments=deepcopy(d['assignments']), review=deepcopy(d['review']),
@@ -322,6 +328,7 @@ class Polish:
                        content_evidence=self._evidence(),
                        semantic_locks=deepcopy(d['semantic_locks']),
                        readings=deepcopy(d['readings']),
+                       duplicate_review=deepcopy(d['duplicate_review']),
                        refinement_cursor=d['refinement_cursor'], refinements=deepcopy(d['refinements']),
                        weights=WEIGHTS.copy(), review_version=REVIEW_VERSION, **deepcopy(extra))
         job = dict(contract_version=VERSION, run_id=d['run_id'], job_id='w' + str(d['next_job']),
@@ -335,7 +342,9 @@ class Polish:
 
     def _validate_job(self, job):
         d = self.data
-        target = d['candidate']['state'] if job['stage'] in ('candidate_reading', 'candidate_content',
+        target = d['candidate']['state'] if job['stage'] in ('candidate_reading', 'candidate_duplicate',
+                                                              'candidate_content', 'candidate_content_duplicate',
+                                                              'candidate_content_reading',
                                                               'compare', 'refinement_compare') else d['accepted']
         require(job['work_sha256'] == digest({k: v for k, v in job.items() if k not in ('attempt', 'work_sha256')}),
                 'STALE_WORK', 'Pending work was changed')
@@ -349,6 +358,7 @@ class Polish:
         require(job['context']['content_evidence'] == self._evidence(), 'STALE_WORK', 'Content evidence changed')
         require(job['context']['semantic_locks'] == d['semantic_locks'] and
                 job['context']['readings'] == d['readings'] and
+                job['context']['duplicate_review'] == d['duplicate_review'] and
                 job['context']['refinement_cursor'] == d['refinement_cursor'] and
                 job['context']['refinements'] == d['refinements'],
                 'STALE_WORK', 'Refinement audit changed after work issuance')
@@ -418,7 +428,7 @@ class Polish:
         readings = {k: v for k, v in readings.items() if int(k.split(':')[0]) not in changed_lines}
         d['candidate'] = {'mode': mode, 'audit': deepcopy(audit), 'unit': deepcopy(unit),
                           'state': candidate, 'content': [], 'base': deepcopy(d['accepted']),
-                          'readings': readings}
+                          'readings': readings, 'duplicate_review': None}
         for kind, item in requirements(candidate['request']):
             if kind == 'fragment' and item['mode'] == 'exact':
                 index = next(x['line_index'] for x in d['assignments']
@@ -432,6 +442,9 @@ class Polish:
         d['candidate']['state'] = state.to_dict()
         if checks['valid'] is None and checks['checks']['reading']['status'] == 'unknown':
             self._job('candidate_reading', reading_request=make_reading_request(checks))
+            return
+        if checks['valid'] is None and checks['checks']['duplicate']['status'] == 'unknown':
+            self._job('candidate_duplicate', duplicate_request=make_duplicate_request(checks))
             return
         if checks['valid'] is not True:
             self._reject_refinement('RULES_FAILED_OR_UNKNOWN')
@@ -498,7 +511,8 @@ class Polish:
                                     else 'REFINEMENT_GAIN_NOT_CONFIRMED')
             return
         state = PoemState.from_dict(candidate['state'])
-        checks = self.engine.check_poem(state, readings=candidate['readings'])
+        checks = self.engine.check_poem(state, readings=candidate['readings'],
+                                         duplicate_review=candidate.get('duplicate_review'))
         if checks['valid'] is not True:
             self._reject_refinement('RULES_FAILED_OR_UNKNOWN')
             return
@@ -508,7 +522,8 @@ class Polish:
         d['history'].append({**deepcopy(candidate), 'decision': 'adopted', 'reason': payload['reason']})
         d['refinements'].append({**deepcopy(candidate['audit']), 'decision': 'adopted',
                                  'reason': payload['reason'], 'candidate_binding': make_binding(state.to_dict())})
-        d.update(accepted=state.to_dict(), readings=deepcopy(candidate['readings']), candidate=None,
+        d.update(accepted=state.to_dict(), readings=deepcopy(candidate['readings']),
+                 duplicate_review=deepcopy(candidate.get('duplicate_review')), candidate=None,
                  queue=[], review=None, content=None, redline=None, refinement_cursor=0)
         self._job('review')
 
@@ -538,6 +553,14 @@ class Polish:
             readings = target.get('readings', d['readings'])
             f = filter_candidates(state, c, None if c['locked_candidate'] else p,
                                   engine=self.engine, readings=readings)
+            if f.get('reading_request', {}).get('reviews'):
+                self._job('candidate_content_reading' if candidate else 'final_content_reading',
+                          filtered=f, line_index=i)
+                return
+            if f.get('duplicate_request', {}).get('reviews'):
+                self._job('candidate_content_duplicate' if candidate else 'final_content_duplicate',
+                          filtered=f, line_index=i)
+                return
             if f['content_request']['candidates']:
                 self._job('candidate_content' if candidate else 'final_content', filtered=f)
                 return
@@ -618,7 +641,8 @@ class Polish:
         changed_lines = {edit['line_index'] for edit in package['edits']}
         readings = {k: v for k, v in readings.items() if int(k.split(':')[0]) not in changed_lines}
         d['candidate'] = dict(package=package, state=state.to_dict(), content=[],
-                              base=deepcopy(d['accepted']), readings=readings)
+                              base=deepcopy(d['accepted']), readings=readings,
+                              duplicate_review=None)
         for kind, item in requirements(candidate['request']):
             if kind == 'fragment' and item['mode'] == 'exact':
                 index = next(x['line_index'] for x in d['assignments'] if x['kind'] == kind and x['requirement_id'] == item['id'])
@@ -631,6 +655,9 @@ class Polish:
         d['candidate']['state'] = state.to_dict()
         if checks['valid'] is None and checks['checks']['reading']['status'] == 'unknown':
             self._job('candidate_reading', reading_request=make_reading_request(checks))
+            return
+        if checks['valid'] is None and checks['checks']['duplicate']['status'] == 'unknown':
+            self._job('candidate_duplicate', duplicate_request=make_duplicate_request(checks))
             return
         if checks['valid'] is not True:
             self._reject('RULES_FAILED_OR_UNKNOWN')
@@ -674,14 +701,16 @@ class Polish:
             return
         # Recheck on the transaction copy immediately before publishing an accepted revision.
         state = PoemState.from_dict(c['state'])
-        checks = self.engine.check_poem(state, readings=c['readings'])
+        checks = self.engine.check_poem(state, readings=c['readings'],
+                                         duplicate_review=c.get('duplicate_review'))
         if checks['valid'] is not True:
             self._reject('RULES_FAILED_OR_UNKNOWN')
             return
         self._verify_content(state, c['content'], d['assignments'], self.engine)
         state.set_assessment(checks)
         d['history'].append({**deepcopy(c), 'decision': 'adopted', 'reason': payload['reason']})
-        d.update(accepted=state.to_dict(), readings=deepcopy(c['readings']), candidate=None,
+        d.update(accepted=state.to_dict(), readings=deepcopy(c['readings']),
+                 duplicate_review=deepcopy(c.get('duplicate_review')), candidate=None,
                  queue=[], review=None, content=None, redline=None)
         self._job('review')  # Comparison never doubles as the accepted version's final review.
 
@@ -718,7 +747,8 @@ class Polish:
         require(review['conclusion'] == 'ready', 'FINAL_REVIEW_BLOCKED', 'Review is not ready')
         require(d['review']['identity']['run_id'] == d['run_id'] and
                 d['review']['identity']['path_id'] == d['path_id'], 'STALE_REVIEW', 'Wrong review run/path')
-        checks = self.engine.check_poem(state, readings=d['readings'])
+        checks = self.engine.check_poem(state, readings=d['readings'],
+                                         duplicate_review=d.get('duplicate_review'))
         if checks['valid'] is not True:
             self._stop('incomplete', 'FINAL_RULES_FAILED_OR_UNKNOWN')
             return
@@ -752,16 +782,55 @@ class Polish:
             candidate['reading_review'] = deepcopy(review)
             candidate['readings'].update(review['readings'])
             state = PoemState.from_dict(candidate['state'])
-            checks = self.engine.check_poem(state, readings=candidate['readings'])
+            checks = self.engine.check_poem(state, readings=candidate['readings'],
+                                             duplicate_review=candidate.get('duplicate_review'))
             state.set_assessment(checks)
             candidate['state'] = state.to_dict()
-            if checks['valid'] is not True:
+            if checks['valid'] is None and checks['checks']['duplicate']['status'] == 'unknown':
+                self._job('candidate_duplicate', duplicate_request=make_duplicate_request(checks))
+            elif checks['valid'] is not True:
                 if candidate.get('mode') in ('refinement', 'reflow'):
                     self._reject_refinement('RULES_FAILED_OR_UNKNOWN')
                 else:
                     self._reject('RULES_FAILED_OR_UNKNOWN')
             else:
                 self._content_next(True)
+        elif stage == 'candidate_duplicate':
+            candidate = self.data['candidate']
+            review = apply_duplicate_review(job['context']['duplicate_request'], payload)
+            candidate['duplicate_review'] = deepcopy(review)
+            state = PoemState.from_dict(candidate['state'])
+            checks = self.engine.check_poem(state, readings=candidate['readings'], duplicate_review=review)
+            state.set_assessment(checks)
+            candidate['state'] = state.to_dict()
+            if checks['valid'] is not True:
+                self._reject_refinement('RULES_FAILED_OR_UNKNOWN') if candidate.get('mode') in ('refinement', 'reflow') else self._reject('RULES_FAILED_OR_UNKNOWN')
+            else:
+                self._content_next(True)
+        elif stage in ('candidate_content_duplicate', 'final_content_duplicate'):
+            candidate = stage.startswith('candidate_')
+            state = PoemState.from_dict(self.data['candidate']['state'] if candidate else self.data['accepted'])
+            filtered = review_duplicates(state, job['context']['filtered'], payload, engine=self.engine)
+            if filtered.get('reading_request', {}).get('reviews'):
+                self._job('candidate_content_reading' if candidate else 'final_content_reading',
+                          filtered=filtered, line_index=job['context']['line_index'])
+            elif filtered.get('content_request', {}).get('candidates'):
+                self._job('candidate_content' if candidate else 'final_content', filtered=filtered)
+            else:
+                (self.data['candidate'] if candidate else self.data)['content'].append(filtered)
+                self._content_next(candidate)
+        elif stage in ('candidate_content_reading', 'final_content_reading'):
+            candidate = stage.startswith('candidate_')
+            state = PoemState.from_dict(self.data['candidate']['state'] if candidate else self.data['accepted'])
+            filtered = review_readings(state, job['context']['filtered'], payload, engine=self.engine)
+            if filtered.get('duplicate_request', {}).get('reviews') and filtered.get('duplicate_input') is None:
+                self._job('candidate_content_duplicate' if candidate else 'final_content_duplicate',
+                          filtered=filtered, line_index=job['context']['line_index'])
+            elif filtered.get('content_request', {}).get('candidates'):
+                self._job('candidate_content' if candidate else 'final_content', filtered=filtered)
+            else:
+                (self.data['candidate'] if candidate else self.data)['content'].append(filtered)
+                self._content_next(candidate)
         elif stage in ('candidate_content', 'final_content'):
             candidate = stage == 'candidate_content'
             target = self.data['candidate'] if candidate else self.data
