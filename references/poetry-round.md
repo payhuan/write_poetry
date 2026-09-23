@@ -29,14 +29,14 @@ context = export_context(state, line_index=2)
 # agent 阅读 context 并提供 candidate_json
 engine = ConstraintEngine()
 filtered = filter_candidates(state, context, candidate_json, engine=engine)
-# agent 只阅读 filtered['score_request'] 中列出的候选并提供 score_json
+# agent 阅读 filtered.context（创作依据）与 filtered.score_request（候选及评分标准），只评价其中列出的候选
 validate_scores(filtered, score_json)  # 可选：在最终写入之前单独校验、修正格式
 report = finish_round(state, filtered, score_json, engine=engine)
 ```
 
 export_context 返回 ready 或 planning_required；缺模板和非法句位抛 RoundError。句位允许诗体内任一合法位置，包括已有句的替代候选，与现有引擎一致；不会填充缺失正文。韵脚句未选韵部返回 RHYME_GROUP_UNSELECTED，不猜选；非韵脚句可继续，未选韵部仍为 null。律诗上下文列出当前联名、结构规划中同名联的 intent、对应句位及已有文本；无规划 intent 时为空数组，不捏造作用。
 
-filter_candidates 整批校验后才检查规则，复用一个引擎和一个状态快照，检查时不追加正文。finish_round 重新过滤并比对保存的中间结果，防止把改写的规则输出当作通过结果；同一 Python 流程可复用同一个 engine/lexicon，CLI 不同进程各加载一次。不会每个候选重新加载韵库。本阶段的候选生成封套不接收 readings 或 duplicate_review，额外字段会被拒绝。真正影响规则结论的多归属字会产生 `reading_request`；控制器通过独立的 `review_readings`（CLI 为 `review-reading`）导入绑定的 `reading-review-1` 结果，再把选择交回引擎复检。读音选择保存在 `reading_input`／`reading_review` 中，不混入模型候选字段。重字语义未审查时仍保持 unresolved。
+filter_candidates 整批校验后才检查规则，复用一个引擎和一个状态快照，检查时不追加正文。`filtered.context` 是权威创作上下文；派生的 `score_request`／`content_request` 仅含候选、要求与上下文摘要，不重复内嵌整份上下文。finish_round 重新过滤并比对保存的中间结果，防止把改写的规则输出当作通过结果；同一 Python 流程可复用同一个 engine/lexicon，CLI 不同进程各加载一次。不会每个候选重新加载韵库。本阶段的候选生成封套不接收 readings 或 duplicate_review，额外字段会被拒绝。真正影响规则结论的多归属字会产生 `reading_request`；控制器通过独立的 `review_readings`（CLI 为 `review-reading`）导入绑定的 `reading-review-1` 结果，再把选择交回引擎复检。读音选择保存在 `reading_input`／`reading_review` 中，不混入模型候选字段。重字语义未审查时仍保持 unresolved。
 
 ## CLI 和完整示例
 

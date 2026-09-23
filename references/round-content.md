@@ -13,6 +13,8 @@ Day 4 集成见 [搜索控制](poetry-search.md)：搜索固定已确认的 assi
 5. agent 按 content_request 对本句用典、adapt 和 inspiration 逐项评价；用典项同时读取 `allusion_reference`，规则见 [典故查询与规范化](allusion-lookup.md)。`review_content(state, filtered, payload, engine=engine)` 导入并校验；歧义典故不能判 satisfied。使用返回结果的最新 score_request 进行文学评分。
 6. `finish_round` 复核整批规则和内容评价归属，校验评分后原子记录。未履行的当前必需内容不接受文学评分，也不能获得 retained 或推荐。无语义请求时可直接 finish；可选内容评价缺失不会阻断，仍诚实记录 unknown。
 
+`filtered.context` 是该批次唯一的权威完整上下文；派生的 `content_request` 通过封套摘要绑定它，不重复携带上下文。模型处理内容请求时应结合这一同级字段读取创作依据。
+
 所有接口都可从 poetry_round 导入；实现分为 scripts/round_content.py 和现有 scripts/poetry_round.py。除 finish 外不写 PoemState。可以在同一流程传入同一个 ConstraintEngine，复用韵库。新语义阶段也遵守一次输出加两次格式修正的上限（attempt=1、2、3），不自动调用模型或搜索。
 
 可从任意目录运行；以下相对路径位于[独立工作区](runtime-workspace.md)，无需在 Skill 包内创建运行目录：

@@ -108,8 +108,13 @@ class PoetryUnitTests(unittest.TestCase):
         for _ in range(100):
             if search.data['status'] != 'waiting_for_llm':
                 break
-            stages.append(search.next_job()['stage'])
-            search.submit(response_for(search.next_job()))
+            job = search.next_job()
+            stages.append(job['stage'])
+            if job['stage'] == 'unit_content':
+                self.assertIn('context', job['filtered'])
+                for item in job['filtered']['content_request']['requests']:
+                    self.assertNotIn('context', item['request'])
+            search.submit(response_for(job))
         self.assertEqual(search.data['status'], 'ready_for_review', search.data['events'])
         self.assertIn('unit_content', stages)
 

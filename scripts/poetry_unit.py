@@ -261,7 +261,8 @@ def unit_content_request(filtered):
             if request and request.get('candidates'):
                 requests.append({'candidate_id': record['id'],
                                  'line_index': line_filter['context']['line_index'],
-                                 'request': deepcopy(request)})
+                                 'request': {k: deepcopy(v) for k, v in request.items()
+                                             if k != 'context'}})
     return {**_envelope(filtered['context']), 'filter_sha256': filtered['filter_sha256'],
             'requests': requests}
 

@@ -127,6 +127,8 @@ class RoundTests(unittest.TestCase):
         filtered = self.filtered()
         self.assertEqual([r['category'] for r in filtered['records']], ['passed', 'passed', 'failed', 'unresolved'])
         self.assertEqual([r['id'] for r in filtered['score_request']['candidates']], ['c0', 'c1'])
+        self.assertIn('context', filtered)
+        self.assertNotIn('context', filtered['score_request'])
         self.assertEqual(self.state.to_dict(), before)
         self.assertTrue(filtered['records'][2]['reasons'])
         self.assertTrue(filtered['records'][3]['reasons'])

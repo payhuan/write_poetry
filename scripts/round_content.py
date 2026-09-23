@@ -290,7 +290,7 @@ def semantic_request(filtered):
                                                 for x in active]})
     return {'content_version': CONTENT_VERSION, 'filter_sha256': filtered['filter_sha256'],
             **{k: context[k] for k in ('contract_version', 'batch_id', 'context_sha256', 'generation_sha256')},
-            'context': deepcopy(context), 'candidates': candidates,
+            'candidates': candidates,
             'instruction': '逐项判断 satisfied/violated/unknown，说明候选具体表达如何体现典故或保留主要意思。'
                            '出现典故名称不等于成功用典；resolved 典故须按规范主典、简释与出处判断；'
                            'ambiguous 先消歧，不能判 satisfied；not_found 仅表示局部语料未收录，'

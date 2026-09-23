@@ -12,3 +12,5 @@
 - `structure_alignment` 把上下句分别切分成有序、连续、不重叠且完整覆盖整句的词组／句法成分；逐段提交位置、原文、句法功能、对应关系、状态与理由。上下句分段可以长短不同。
 
 两个层次分别给 `character_score` 与 `structure_score`，取值均为 0–1；`parallelism.score` 必须是两者的算术平均。对应状态为 `pass`、`weak`、`fail` 或 `unknown`。任一层出现 `weak` 时该层分数上限为 `.74`，`unknown` 上限为 `.59`，`fail` 上限为 `.49`。上限与较高权重一起拉开候选排序，但仍是软约束，不会只因对仗低分直接淘汰候选；状态和分数相互矛盾则拒绝该评分响应。逐字位不要求字面同义，也不能代替词组／句法层次的对应判断。
+
+整联内容审查时，`job.context` 是完整依据；嵌套的 `job.filtered.content_request.requests[*].request` 省略重复上下文，只保留该句候选、要求和绑定摘要。

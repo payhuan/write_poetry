@@ -21,7 +21,7 @@ from poetry_search import Search
 
 search = Search.create(state, poem_plan=poem_plan, content_plan=content_plan)
 job = search.next_job()  # 深拷贝；重复读取不计费、不生成新批次
-# agent 阅读 job.context，以及 job.filtered 中对应的 content_request / score_request
+# agent 阅读 job.context（权威完整上下文）以及 job.filtered 中对应的 content_request / score_request；派生请求不重复内嵌上下文
 response = {k: job[k] for k in
             ('run_id', 'job_id', 'path_id', 'batch_id', 'context_sha256')}
 response['payload'] = agent_json  # Day 3 契约；attempt 必须为 job.attempt

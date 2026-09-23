@@ -129,12 +129,24 @@ class ContentRoundTests(unittest.TestCase):
         state = state_with(allusions=[allusion(name='王质观棋')])
         before = state.to_dict()
         filtered = self.batch(state, positions={('allusion', 'a1'): 2})
+        self.assertNotIn('context', filtered['content_request'])
+        self.assertNotIn('context', filtered['score_request'])
         reference = filtered['context']['allusion_references'][0]
         self.assertEqual(reference['status'], 'resolved')
         self.assertEqual(reference['record']['canonical_name'], '柯烂忘归')
         semantic = filtered['content_request']['candidates'][0]['requirements'][0]
         self.assertEqual(semantic['allusion_reference'], reference)
         self.assertEqual(state.to_dict(), before)
+
+    def test_legacy_derived_requests_with_context_remain_verifiable(self):
+        state = state_with([fragment(text='水火', mode='adapt')])
+        filtered = self.batch(state, ['天地土土人'])
+        reviewed = self.reviewed(state, filtered)
+        legacy = deepcopy(reviewed)
+        legacy['score_request']['context'] = deepcopy(legacy['context'])
+        legacy['content_request']['context'] = deepcopy(legacy['context'])
+        report = finish_round(state, legacy, model_scores(legacy), engine=self.engine)
+        self.assertEqual(report['ranking'], ['c0'])
 
     def test_required_ambiguous_allusion_blocks_planning_and_optional_cannot_fake_satisfaction(self):
         def item(aid, name):

@@ -386,8 +386,19 @@ def _verify_filter(state, filtered, engine):
         verified = _apply_readings(state, verified, filtered['reading_input'], engine)
     if filtered.get('content_input') is not None:
         verified = _apply_content(verified, filtered['content_input'])
-    require(verified == filtered, 'FILTER_MISMATCH', 'Saved filter changed or rule data differs; filter again')
+    require(_filter_comparison_view(verified) == _filter_comparison_view(filtered),
+            'FILTER_MISMATCH', 'Saved filter changed or rule data differs; filter again')
     return verified
+
+
+def _filter_comparison_view(filtered):
+    """Ignore legacy context copies inside derived requests; the bound sibling is authoritative."""
+    result = deepcopy(filtered)
+    for key in ('score_request', 'content_request'):
+        request = result.get(key)
+        if isinstance(request, dict):
+            request.pop('context', None)
+    return result
 
 
 def review_content(state, filtered, payload, *, engine=None):
@@ -412,7 +423,6 @@ def _score_request(filtered):
             'rubric_version': RUBRIC_VERSION, 'weights': deepcopy(WEIGHTS),
             'scale': {'0': '不符合该维度', '0.25': '明显薄弱', '0.5': '基本成立但有明显不足',
                       '0.75': '表现良好，只有局部不足', '1': '在当前上下文中充分且准确'},
-            'context': deepcopy(context),
             'candidates': [{**{k: record[k] for k in ('id', 'text', 'line_index')},
                             **({k: deepcopy(record[k]) for k in
                                ('expression_path', 'semantic_increment', 'risks', 'semantic_lock')}
