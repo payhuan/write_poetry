@@ -22,8 +22,10 @@
 from poetry_search import Search
 
 search = Search.create(state, poem_plan=poem_plan, content_plan=content_plan)
-job = search.next_job()  # 深拷贝；重复读取不计费、不生成新批次
-# agent 阅读 job.context（权威完整上下文）以及 job.filtered 中对应的 content_request / score_request；派生请求不重复内嵌上下文
+job = search.next_compact_job()  # 紧凑模型视图；重复读取不计费、不生成新批次
+# 模型工作推荐导出紧凑视图：python scripts/poetry_search.py next --input examples/search-01.json --output examples/job-01.json --compact
+# 紧凑视图包含 job.context 与当前 stage 的 request；控制器内部仍保存完整过滤工件。默认 next 输出和 Python next_job() 保持完整兼容。
+# Python 调用也可用 search.next_compact_job()；响应仍只需照抄原工作身份字段并提交。
 response = {k: job[k] for k in
             ('run_id', 'job_id', 'path_id', 'batch_id', 'context_sha256')}
 response['payload'] = agent_json  # Day 3 契约；attempt 必须为 job.attempt
@@ -85,7 +87,7 @@ search = Search.load('examples/search-01.json')
 
 ```sh
 python scripts/poetry_search.py start --input examples/planned-state.json --poem-plan examples/poem-plan.json --content-plan examples/content-plan.json --output examples/search-01.json
-python scripts/poetry_search.py next --input examples/search-01.json --output examples/job-01.json
+python scripts/poetry_search.py next --input examples/search-01.json --output examples/job-01.json --compact
 # agent 写 response-01.json（工作身份 + payload）
 python scripts/poetry_search.py submit --input examples/search-01.json --response examples/response-01.json --output examples/search-02.json
 ```

@@ -13,7 +13,7 @@ from assessment_binding import make_binding
 from constraint_engine import ConstraintEngine
 from poem_state import PoemState
 from poem_templates import TemplateLibrary
-from poetry_search import Search
+from poetry_search import Search, compact_job_view
 from poetry_round import RoundError, export_context
 from round_content import export_content_plan
 from day4_example import fixture_state, fixture_engine, fixture_plan, response_for, drive, line_for
@@ -25,6 +25,48 @@ class SearchTests(unittest.TestCase):
     def create(self, **budget):
         state = fixture_state(**budget)
         return Search.create(state, poem_plan=fixture_plan(state), engine=fixture_engine())
+
+    def test_compact_score_job_omits_full_filter_and_preserves_request(self):
+        search = self.create()
+        full = search.next_job()
+        search.submit(response_for(full))
+        full = search.next_job()
+        self.assertEqual(full['stage'], 'score')
+        snapshot = search.to_dict()
+        compact = search.next_compact_job()
+        self.assertEqual(compact['request'], full['filtered']['score_request'])
+        self.assertNotIn('filtered', compact)
+        self.assertEqual(search.next_job(), full)
+        self.assertEqual(search.to_dict(), snapshot)
+        size = lambda value: len(json.dumps(value, ensure_ascii=False, separators=(',', ':')).encode('utf-8'))
+        self.assertLess(size(compact), size(full))
+        self.assertIn('status', search.submit(response_for(full)))
+
+    def test_compact_poem_review_jobs_expose_bound_request(self):
+        full = {'stage': 'poem_duplicate', 'context': {'context_sha256': 'x'},
+                'duplicate_request': {'review_version': 'duplicate-review-1', 'occurrences': [1]},
+                'filtered': {'records': ['large']}}
+        compact = compact_job_view(full)
+        self.assertEqual(compact['request'], full['duplicate_request'])
+        self.assertNotIn('duplicate_request', compact)
+        self.assertNotIn('filtered', compact)
+
+    def test_compact_filter_stages_select_only_their_request(self):
+        stages = {
+            'reading': 'reading_request', 'unit_reading': 'reading_request', 'final_reading': 'reading_request',
+            'duplicate': 'duplicate_request', 'unit_duplicate': 'duplicate_request',
+            'final_duplicate': 'duplicate_request',
+            'content': 'content_request', 'unit_content': 'content_request', 'final_content': 'content_request',
+            'score': 'score_request', 'unit_score': 'score_request',
+        }
+        for stage, key in stages.items():
+            with self.subTest(stage=stage):
+                request = {'marker': stage}
+                job = {'stage': stage, 'context': {'context_sha256': 'x'},
+                       'filtered': {'context': {'large': True}, 'records': ['large'], key: request}}
+                compact = compact_job_view(job)
+                self.assertEqual(compact['request'], request)
+                self.assertNotIn('filtered', compact)
 
     def test_basic_and_four_forms(self):
         for form in ('五言绝句', '七言绝句', '五言律诗', '七言律诗'):

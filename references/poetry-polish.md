@@ -34,7 +34,7 @@ polish.result(include_notes=False)
 
 ## 工作身份与阶段
 
-每次新工作导出时扣一次模型额度。next_job 返回深拷贝，多次读取不扣费。response 严格包含下表全部身份字段及 payload：
+每次新工作导出时扣一次模型额度。next_job 返回深拷贝，多次读取不扣费。交给模型时推荐使用 `next --compact`（或 Python `next_compact_job()`）：相同的 accepted/target 只提供一次并标记 `target_is_accepted=true`；过滤阶段仅提供当前 stage 的 `request`，完整快照仍保留原始上下文。普通 `next` / `next_job()` 输出维持完整兼容。response 严格包含下表全部身份字段及 payload：
 
 | 字段 | 规则 |
 | --- | --- |
@@ -179,7 +179,7 @@ packages=[] 允许表示没有值得尝试的候选，随后重新审校决定�
 
 ## 内容复检
 
-candidate_content 与 final_content 直接使用 [Day 3 内容契约](round-content.md) 的 payload，包含原有 ENVELOPE、filter_sha256、content_version、attempt 和 reviews。读取 `job.context.filtered.content_request`；使用其候选 id、line_index、text_sha256 和逐项 requirement ID，给出 satisfied/violated/unknown、reason、interpretation、evidence。用典项还携带 [典故查询与规范化](allusion-lookup.md) 的 `allusion_reference`，并须按 [用典规范](allusion-usage.md) 重新提交事实门、诗境映射、功能、错误代码和质量记录；每次正文改变后都要按当前全诗和同一规范证据重新判断。
+candidate_content 与 final_content 直接使用 [Day 3 内容契约](round-content.md) 的 payload，包含原有 ENVELOPE、filter_sha256、content_version、attempt 和 reviews。完整 `next_job()` 视图读取 `job.context.filtered.content_request`；紧凑视图读取根部的 `job.request`。使用其中的候选 id、line_index、text_sha256 和逐项 requirement ID，给出 satisfied/violated/unknown、reason、interpretation、evidence。用典项还携带 [典故查询与规范化](allusion-lookup.md) 的 `allusion_reference`，并须按 [用典规范](allusion-usage.md) 重新提交事实门、诗境映射、功能、错误代码和质量记录；每次正文改变后都要按当前全诗和同一规范证据重新判断。
 
 修改候选须在完整新正文上下文逐句复查所有安排，而非仅被修改句。必用典故/adapt 的承担句即使未改字，也可能受其他句的上下文影响，必须重新请求实际 LLM 语义结果。exacts 由原 check_content/filter_candidates 重算；语义复核通过 review_content 导入；最终以每条必需项在承担句位的 satisfied 聚合。可选用典/inspiration 可以 unknown，仍保留记录；必需项 unknown 或 violated 阻断采纳/完成。题目不会传入正文检查。
 
@@ -263,7 +263,7 @@ save/load 和 CLI 复用 Day 3 的[独立工作区](runtime-workspace.md)解析�
 
 ```sh
 python scripts/poetry_polish.py start --input examples/search.json --path-id p4 --output examples/polish-01.json
-python scripts/poetry_polish.py next --input examples/polish-01.json --output examples/polish-job-01.json
+python scripts/poetry_polish.py next --input examples/polish-01.json --output examples/polish-job-01.json --compact
 # 运行 Skill 的 LLM 根据 job.stage 和本契约写入 response（身份字段 + payload）
 python scripts/poetry_polish.py submit --input examples/polish-01.json --response examples/polish-response-01.json --output examples/polish-02.json
 python scripts/poetry_polish.py result --input examples/polish-final.json --output examples/poem.json --include-notes

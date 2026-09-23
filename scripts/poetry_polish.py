@@ -340,6 +340,11 @@ class Polish:
     def next_job(self):
         return deepcopy(self.data['pending'])
 
+    def next_compact_job(self):
+        """Return a model-facing job with repeated target and filter data factored out."""
+        job = self.next_job()
+        return compact_job_view(job) if job is not None else None
+
     def _validate_job(self, job):
         d = self.data
         target = d['candidate']['state'] if job['stage'] in ('candidate_reading', 'candidate_duplicate',
@@ -923,6 +928,26 @@ class Polish:
         return cls.from_dict(read_json(input_path(path).read_text(encoding='utf-8-sig')), **kwargs)
 
 
+def compact_job_view(job):
+    """Project a persisted Polish job to the stage-specific model-facing view."""
+    if job is None:
+        return None
+    result = deepcopy(job)
+    context = result['context']
+    if context.get('target') == context.get('accepted'):
+        context.pop('target', None)
+        context['target_is_accepted'] = True
+    filtered = context.pop('filtered', None)
+    if isinstance(filtered, dict):
+        stage = result['stage']
+        request_key = ('reading_request' if 'reading' in stage else
+                       'duplicate_request' if 'duplicate' in stage else
+                       'content_request' if 'content' in stage else None)
+        if request_key and filtered.get(request_key) is not None:
+            result['request'] = deepcopy(filtered[request_key])
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
@@ -939,6 +964,9 @@ def main():
             sub.add_argument('--max-format-repairs', type=int, default=2)
         elif name == 'submit':
             sub.add_argument('--response', required=True)
+        elif name == 'next':
+            sub.add_argument('--compact', action='store_true',
+                             help='export a model-facing job view without repeated target/filter data')
         elif name == 'result':
             sub.add_argument('--include-notes', action='store_true')
     args = parser.parse_args()
@@ -953,7 +981,8 @@ def main():
             polish = Polish.load(args.input)
         if args.command == 'submit':
             polish.submit(load(args.response))
-        output = (polish.next_job() if args.command == 'next' else
+        output = ((polish.next_compact_job() if args.compact else polish.next_job())
+                  if args.command == 'next' else
                   polish.result(include_notes=args.include_notes) if args.command == 'result' else polish.to_dict())
         write_new_json(output_path(args.output), output)
     except (ValueError, OSError) as exc:

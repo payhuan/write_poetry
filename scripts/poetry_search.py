@@ -153,6 +153,11 @@ class Search:
             return None
         return deepcopy(self.data['pending'])
 
+    def next_compact_job(self):
+        """Return the model-facing request without the persisted filter artifact."""
+        job = self.next_job()
+        return compact_job_view(job) if job is not None else None
+
     def _current(self):
         return self.data['active'][self.data['cursor']]
 
@@ -564,7 +569,11 @@ def main():
     parser.add_argument('--poem-plan')
     parser.add_argument('--response')
     parser.add_argument('--work-dir')
+    parser.add_argument('--compact', action='store_true',
+                        help='export a model-facing job view without redundant filter data')
     args = parser.parse_args()
+    if args.compact and args.command != 'next':
+        parser.error('--compact is only valid with next')
     configure_workspace(args.work_dir)
     def load(path):
         return read_json(input_path(path).read_text(encoding='utf-8-sig'))
@@ -577,7 +586,37 @@ def main():
         s = Search.from_dict(load(args.input))
         if args.command == 'submit':
             s.submit(load(args.response))
-    write_new_json(output_path(args.output), s.next_job() if args.command == 'next' else s.to_dict())
+    output = (s.next_compact_job() if args.compact else s.next_job()) if args.command == 'next' else s.to_dict()
+    write_new_json(output_path(args.output), output)
+
+
+def compact_job_view(job):
+    """Project a full Search job to the context and request needed for its stage."""
+    if job is None:
+        return None
+    result = {key: deepcopy(value) for key, value in job.items()
+              if key not in ('filtered', 'reading_request', 'duplicate_request')}
+    stage = job['stage']
+    request_key = {
+        'reading': 'reading_request', 'unit_reading': 'reading_request',
+        'final_reading': 'reading_request',
+        'duplicate': 'duplicate_request', 'unit_duplicate': 'duplicate_request',
+        'final_duplicate': 'duplicate_request',
+        'content': 'content_request', 'unit_content': 'content_request',
+        'final_content': 'content_request',
+        'score': 'score_request', 'unit_score': 'score_request',
+    }.get(stage)
+    if request_key:
+        request = job.get(request_key)
+        if request is None and isinstance(job.get('filtered'), dict):
+            request = job['filtered'].get(request_key)
+        if request is not None:
+            result['request'] = deepcopy(request)
+    elif stage == 'poem_reading' and job.get('reading_request') is not None:
+        result['request'] = deepcopy(job['reading_request'])
+    elif stage == 'poem_duplicate' and job.get('duplicate_request') is not None:
+        result['request'] = deepcopy(job['duplicate_request'])
+    return result
 
 
 if __name__ == '__main__':

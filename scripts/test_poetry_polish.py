@@ -14,7 +14,7 @@ from constraint_engine import ConstraintEngine
 from poem_state import PoemState
 from poem_templates import TemplateLibrary
 from poetry_search import Search
-from poetry_polish import Polish, REDLINE_CHECKS, validate_review, validate_redline
+from poetry_polish import Polish, REDLINE_CHECKS, compact_job_view, validate_review, validate_redline
 from poetry_round import export_context
 from round_content import export_content_plan
 from rhyme_lexicon import RhymeLexicon
@@ -33,6 +33,38 @@ class PolishTests(unittest.TestCase):
 
     def create(self, **config):
         return Polish.create(self.source, self.path, engine=fixture_engine(), **config)
+
+    def test_compact_review_job_factors_equal_target_without_touching_snapshot(self):
+        polish = self.create()
+        full = polish.next_job()
+        snapshot = polish.to_dict()
+        compact = polish.next_compact_job()
+        self.assertNotIn('target', compact['context'])
+        self.assertTrue(compact['context']['target_is_accepted'])
+        self.assertEqual(compact['context']['accepted'], full['context']['accepted'])
+        self.assertEqual(polish.next_job(), full)
+        self.assertEqual(polish.to_dict(), snapshot)
+        size = lambda value: len(json.dumps(value, ensure_ascii=False, separators=(',', ':')).encode('utf-8'))
+        self.assertLess(size(compact), size(full))
+        response = envelope(compact, review_for(full['context']['accepted']))
+        self.assertIn('status', polish.submit(response))
+
+    def test_compact_candidate_job_keeps_distinct_target(self):
+        job = deepcopy(self.create().next_job())
+        changed_target = deepcopy(job['context']['target'])
+        changed_target['revision'] += 1
+        job['context']['target'] = changed_target
+        compact = compact_job_view(job)
+        self.assertEqual(compact['context']['target'], changed_target)
+        self.assertNotIn('target_is_accepted', compact['context'])
+
+    def test_compact_content_job_keeps_request_and_drops_filter_records(self):
+        request = {'filter_sha256': 'f', 'candidates': [{'text': '待审'}]}
+        job = {'stage': 'candidate_content', 'context': {'accepted': {}, 'target': {},
+                'filtered': {'records': ['verbose'], 'content_request': request}}}
+        compact = compact_job_view(job)
+        self.assertEqual(compact['request'], request)
+        self.assertNotIn('filtered', compact['context'])
 
     def test_search_duplicate_proof_is_rechecked_and_bound_at_handoff(self):
         state = fixture_state()
