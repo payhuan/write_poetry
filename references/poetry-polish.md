@@ -1,13 +1,13 @@
 # Day 5：全诗审校、局部炼句与最终润色
 
-> 当前快照版本为 `poetry-polish-6`。全诗 review ready 后不能直接进入最终出口，必须先完成
+> 当前快照版本为 `poetry-polish-7`。全诗 review ready 后不能直接进入最终出口，必须先完成
 > [逐结构单位炼字](word-refinement.md)：绝句逐句、律诗按四联依次返回 `NO_CHANGE`、`REFINED` 或
 > `REFLOW_REQUIRED`。下文原有 issue 驱动的 generate/compare 仍用于全诗审校明确指出的问题；逐字审查使用
 > refinement/reflow/refinement_compare，并受更严格的两字符范围、语义锁和净增益规则约束。
 
 ## 职责与入口
 
-`scripts/poetry_polish.py` 提供 `Polish`，快照与工作封套版本为 `poetry-polish-6`，审校量表为 `whole-poem-review-3`，最终红线版本为 `final-redline-1`。运行 Skill 的 LLM 阅读工作并提供 JSON；程序不调用模型 API、不编造评分、不重做搜索、不处理图片。
+`scripts/poetry_polish.py` 提供 `Polish`，快照与工作封套版本为 `poetry-polish-7`，审校量表为 `whole-poem-review-4`，最终红线版本为 `final-redline-1`。运行 Skill 的 LLM 阅读工作并提供 JSON；程序不调用模型 API、不编造评分、不重做搜索、不处理图片。
 
 LLM 负责主题、情绪、时间、视角、意象、结构和语言，律诗中间两联的语义及句法对仗，用典及 adapt 语义，修改建议、候选、全诗比较和诗题。程序负责交接、绑定、范围、锁定要求、规则复检、内容契约、事务采纳、预算、持久化和完成条件。语义报告的真伪及文学质量不能由 JSON 校验器证明。
 
@@ -38,7 +38,7 @@ polish.result(include_notes=False)
 
 | 字段 | 规则 |
 | --- | --- |
-| contract_version | poetry-polish-6 |
+| contract_version | poetry-polish-7 |
 | run_id / job_id | 当前运行与工作 ID；格式修复保持 job_id |
 | path_id | 显式选定的 Day 4 草稿分支 |
 | revision | 工作 target 的版本，整数 |
@@ -70,7 +70,7 @@ payload 严格包含以下字段，模型不输出 total。这里用占位文字
 
 ```json
 {
-  "review_version": "whole-poem-review-3",
+  "review_version": "whole-poem-review-4",
   "binding": "照抄 target 的完整 binding 对象",
   "revision": 8,
   "dimensions": {
@@ -94,25 +94,39 @@ payload 严格包含以下字段，模型不输出 total。这里用占位文字
 
 | 维度 | 权重 | 观察内容 |
 | --- | --- | --- |
-| theme | .20 | 主题契合及表达是否含蓄准确，不计主题词频 |
-| naturalness | .20 | 全诗语法、语气、用字自然，是否凑韵 |
-| imagery | .15 | 意象协调、关联及有意义/无意义的重复 |
-| structure | .15 | 对照绑定规划逐联审查律诗起承转合；绝句沿用自身结构规划 |
+| theme | .19 | 主题契合及表达是否含蓄准确，不计主题词频 |
+| naturalness | .19 | 全诗语法、语气、用字自然，是否凑韵 |
+| imagery | .14 | 意象协调、关联及有意义/无意义的重复 |
+| structure | .14 | 对照绑定规划逐联审查律诗起承转合；绝句沿用自身结构规划 |
 | consistency | .10 | 情绪、时间、空间视角与叙述主体一致性 |
-| expression | .10 | 关键表达的准确性、力度和余味，不计华丽词数 |
-| parallelism | .10 | 律诗颔联、颈联的逐字位对应及整联关系 |
+| expression | .09 | 关键表达的准确性、力度和余味，不计华丽词数 |
+| parallelism | .15 | 律诗颔联、颈联的逐字与逐结构对应；低分影响整体审校 |
 
-0=不成立，.25=明显薄弱，.5=基本成立但有明显不足，.75=良好而有局部不足，1=在当前上下文充分且准确；中间值允许。全部适用维度均须给有限 0–1 数值和非空理由。绝句 parallelism 明确 not_applicable/null，从分母排除：`total = Σ(score × weight) / Σ(applicable weight)`，由程序使用十进制分数计算。不适用不等于高分。律诗 structure 的 `arc_assessment.units` 须依次审查起（1–2）、承（3–4）、转（5–6）、合（7–8），每项含职责、状态、理由和本联引文。`neck_turn` 须说明转向轴、转前／转后状态、铺垫、与绑定 turn_plan 的关系，并引用颈联正文。单纯顺叙下一事件不足；同一场景中的行动、情绪、认知或意义变化可成立，不得仅因未换景判失败。若增强转向会损害事实、典故或语义锁，应记录取舍或要求重规划，不得硬补跳景。绝句 `arc_assessment` 为 null。律诗 parallelism 必须 assessed，并提供两条 couplets；每条必须逐字位列出实际上下句字符、两字各自的句法功能、对应状态及理由，字符和位置须与正文相符。还须给出整联语义关系、意象关系和合掌判断：
+0=不成立，.25=明显薄弱，.5=基本成立但有明显不足，.75=良好而有局部不足，1=在当前上下文充分且准确；中间值允许。全部适用维度均须给有限 0–1 数值和非空理由。绝句 parallelism 明确 not_applicable/null，从分母排除：`total = Σ(score × weight) / Σ(applicable weight)`，由程序使用十进制分数计算。不适用不等于高分。律诗 parallelism 必须 assessed，并检查颔联与颈联的逐字、逐结构对照。`character_score`、`structure_score` 分别评价每联每一层，整体 parallelism score 必须等于四个分项分数的平均值。任何一层出现 `weak` 时该层分数不得高于 .74，出现 `unknown` 时不得高于 .59，出现 `fail` 时不得高于 .49；这是软评分上限，只压低总分和排序，不因此直接淘汰诗稿。
+
+每联的 `character_alignment` 必须覆盖全部五／七个字位。`structure_alignment` 必须将上下句各自切分为有序、连续、不重叠且完整覆盖全句的词组／句法成分；每段要给原文、句法功能、对应关系、状态与理由。不得只交对仗结论或只分析句首。以下是单联字段示意；完整审校须同时提交第 3–4 句及第 5–6 句：
 
 ```json
-[
-  {"line_indices":[3,4],"character_alignment":[
-    {"position":1,"upper_char":"山","lower_char":"江","upper_function":"上句处所意象","lower_function":"下句处所意象","status":"pass","reason":"同为起句处所中心"}
-  ],"semantic_relation":{"status":"pass","reason":"两句构成山水并举"},"image_relation":{"status":"pass","reason":"两类景物形成空间映照"},"hangzhang":{"status":"pass","reason":"下句推进到另一景物，不复述上句"}},
-  {"line_indices":[5,6],"character_alignment":[
-    {"position":1,"upper_char":"云","lower_char":"月","upper_function":"上句景物主体","lower_function":"下句景物主体","status":"weak","reason":"两字功能相近，但句法关系略有差别"}
-  ],"semantic_relation":{"status":"pass","reason":"两句形成不同层次的景物关系"},"image_relation":{"status":"pass","reason":"意象互相照应"},"hangzhang":{"status":"pass","reason":"两句各有独立语义增量"}}
-]
+{
+  "line_indices": [3, 4],
+  "character_score": 0.8,
+  "structure_score": 0.8,
+  "character_alignment": [
+    {"position":1,"upper_char":"山","lower_char":"江","upper_function":"上句处所成分","lower_function":"下句处所成分","status":"pass","reason":"同位相应"},
+    {"position":2,"upper_char":"光","lower_char":"月","upper_function":"处所修饰","lower_function":"处所修饰","status":"pass","reason":"修饰位置相应"},
+    {"position":3,"upper_char":"照","lower_char":"明","upper_function":"谓语","lower_function":"谓语","status":"pass","reason":"动作与状态相对照"},
+    {"position":4,"upper_char":"远","lower_char":"近","upper_function":"程度补语","lower_function":"程度补语","status":"pass","reason":"反义相对"},
+    {"position":5,"upper_char":"天","lower_char":"水","upper_function":"宾语中心语","lower_function":"宾语中心语","status":"pass","reason":"意象类别相应"}
+  ],
+  "structure_alignment": [
+    {"upper_span":[1,2],"lower_span":[1,2],"upper_text":"山光","lower_text":"江月","upper_function":"主谓结构的主语","lower_function":"主谓结构的主语","correspondence":"山水意象并举","status":"pass","reason":"词组位置和句法功能对应"},
+    {"upper_span":[3,3],"lower_span":[3,3],"upper_text":"照","lower_text":"明","upper_function":"谓语","lower_function":"谓语","correspondence":"动作与状态形成映照","status":"pass","reason":"核心谓语相应"},
+    {"upper_span":[4,5],"lower_span":[4,5],"upper_text":"远天","lower_text":"近水","upper_function":"方位修饰加中心语","lower_function":"方位修饰加中心语","correspondence":"远近相对","status":"pass","reason":"内部句法结构对应"}
+  ],
+  "semantic_relation":{"status":"pass","reason":"两句形成山水映照"},
+  "image_relation":{"status":"pass","reason":"远天与近水形成空间层次"},
+  "hangzhang":{"status":"pass","reason":"下句提供不同空间层次"}
+}
 ```
 
 示例仅展示字段形状；实际 character_alignment 必须恰好覆盖该联全部五字或七字，不能只提交首字示例。

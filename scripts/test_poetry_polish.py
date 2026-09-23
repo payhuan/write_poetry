@@ -397,7 +397,7 @@ class PolishTests(unittest.TestCase):
         r = review_for(p.data['accepted'])
         r['dimensions']['theme']['score'] = .9
         result = validate_review(r, p.data['accepted'])
-        self.assertAlmostEqual(result['total'], (.9 * .2 + .8 * .7) / .9)
+        self.assertAlmostEqual(result['total'], (.9 * .19 + .8 * .66) / .85)
 
     def test_locked_requirements_need_clarification(self):
         p = self.create()

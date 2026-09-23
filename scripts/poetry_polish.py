@@ -15,15 +15,16 @@ from round_content import export_content_plan, validate_content_plan, requiremen
 from runtime_workspace import configure_workspace, input_path, output_path
 from word_refinement import structural_units, refinement_request, validate_refinement
 from reading_disambiguation import make_request as make_reading_request, apply_review as apply_reading_review
-from character_alignment import validate_character_alignment
+from character_alignment import (validate_character_alignment, validate_structure_alignment,
+                                 validate_soft_rating)
 
-VERSION = 'poetry-polish-6'
-REVIEW_VERSION = 'whole-poem-review-3'
+VERSION = 'poetry-polish-7'
+REVIEW_VERSION = 'whole-poem-review-4'
 REDLINE_VERSION = 'final-redline-1'
 REDLINE_CHECKS = ('user_facts_reversed', 'allusion_facts_reversed',
                   'meaning_sacrificed_for_rhyme', 'scene_identity_tone_mismatch')
-WEIGHTS = dict(theme=.20, naturalness=.20, imagery=.15, structure=.15,
-               consistency=.10, expression=.10, parallelism=.10)
+WEIGHTS = dict(theme=.19, naturalness=.19, imagery=.14, structure=.14,
+               consistency=.10, expression=.09, parallelism=.15)
 IDENTITY = ('contract_version', 'run_id', 'job_id', 'path_id', 'revision',
             'binding', 'work_sha256', 'attempt')
 
@@ -78,8 +79,10 @@ def validate_review(payload, state, poem_plan=None):
         if name == 'parallelism' and not na:
             require(isinstance(entry['couplets'], list) and len(entry['couplets']) == 2,
                     'PARALLELISM_REQUIRED', 'Review both middle couplets')
+            pair_scores = []
             for c, positions in zip(entry['couplets'], ([3, 4], [5, 6])):
-                fields(c, ('line_indices', 'character_alignment', 'semantic_relation',
+                fields(c, ('line_indices', 'character_alignment', 'structure_alignment',
+                           'character_score', 'structure_score', 'semantic_relation',
                            'image_relation', 'hangzhang'))
                 require(c['line_indices'] == positions,
                         'PARALLELISM_REQUIRED', 'Review both middle couplets in order')
@@ -90,8 +93,23 @@ def validate_review(payload, state, poem_plan=None):
                 try:
                     validate_character_alignment(state['lines'], c['character_alignment'], positions,
                                                  state['form']['line_length'])
+                    validate_structure_alignment(state['lines'], c['structure_alignment'], positions,
+                                                 state['form']['line_length'])
                 except ValueError as exc:
-                    require(False, 'INVALID_CHARACTER_ALIGNMENT', str(exc))
+                    require(False, 'INVALID_PARALLEL_ALIGNMENT', str(exc))
+                require(all(type(c[key]) in (int, float) and math.isfinite(c[key]) and 0 <= c[key] <= 1
+                            for key in ('character_score', 'structure_score')),
+                        'PARALLELISM_SCORE_REQUIRED', 'Score both character and structural correspondence')
+                try:
+                    validate_soft_rating(c['character_alignment'], c['character_score'], 'Character')
+                    validate_soft_rating(c['structure_alignment'], c['structure_score'], 'Structure')
+                except ValueError as exc:
+                    require(False, 'PARALLELISM_SCORE_CONFLICT', str(exc))
+                pair_scores.extend((c['character_score'], c['structure_score']))
+            expected_parallel_score = sum(pair_scores) / len(pair_scores)
+            require(abs(entry['score'] - expected_parallel_score) < 1e-12,
+                    'PARALLELISM_SCORE_MISMATCH',
+                    'Whole-poem parallelism score must average both layers across both middle couplets')
         elif name == 'structure':
             if state['form']['line_count'] == 8:
                 arc = entry['arc_assessment']

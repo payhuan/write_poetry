@@ -33,11 +33,19 @@ def review_for(state, *, revise=False, positions=(1,), score=.8):
             details = []
             for positions in ([3, 4], [5, 6]):
                 upper, lower = state['lines'][positions[0]-1], state['lines'][positions[1]-1]
+                width = state['form']['line_length']
+                split = width // 2
                 details.append(dict(line_indices=positions,
                     character_alignment=[{'position': i, 'upper_char': upper[i-1],
                         'lower_char': lower[i-1], 'upper_function': '夹具中的上句成分',
                         'lower_function': '夹具中的下句成分', 'status': 'pass',
                         'reason': '逐字位对照夹具'} for i in range(1, state['form']['line_length'] + 1)],
+                    structure_alignment=[{'upper_span': [start, end], 'lower_span': [start, end],
+                        'upper_text': upper[start-1:end], 'lower_text': lower[start-1:end],
+                        'upper_function': '上句词组或句法成分', 'lower_function': '下句对应词组或句法成分',
+                        'correspondence': '语法位置相应且语义互补', 'status': 'pass',
+                        'reason': '逐结构位对照夹具'} for start, end in ((1, split), (split + 1, width))],
+                    character_score=score, structure_score=score,
                     semantic_relation={'status': 'pass', 'reason': '整联语义关系夹具'},
                     image_relation={'status': 'pass', 'reason': '整联意象关系夹具'},
                     hangzhang={'status': 'pass', 'reason': '整联合掌检查夹具'}))

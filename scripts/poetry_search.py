@@ -14,11 +14,12 @@ from poetry_round import (export_context, filter_candidates, review_content, rev
                           _validate_context)
 from runtime_workspace import configure_workspace, input_path, output_path
 from round_content import export_content_plan, validate_content_plan, requirements
-from poetry_unit import (is_atomic_couplet, export_unit_context, validate_unit_context,
+from poetry_unit import (CONTRACT_VERSION as UNIT_CONTRACT_VERSION, is_atomic_couplet,
+                         export_unit_context, validate_unit_context,
                          filter_units, review_unit_readings, review_unit_content, finish_units)
 from reading_disambiguation import make_request as make_reading_request, apply_review as apply_reading_review
 
-VERSION = 'poetry-search-5'
+VERSION = 'poetry-search-6'
 TERMINAL = {'ready_for_review', 'budget_exhausted', 'no_feasible_path',
             'needs_clarification', 'run_error', 'legacy_readonly'}
 
@@ -85,7 +86,7 @@ class Search:
         require(isinstance(artifact, dict) and set(artifact) == {'search', 'sha256'}
                 and digest(artifact['search']) == artifact['sha256'], 'INVALID_SNAPSHOT', 'Snapshot checksum mismatch')
         d = artifact['search']
-        if isinstance(d, dict) and d.get('version') in ('poetry-search-1', 'poetry-search-2', 'poetry-search-3', 'poetry-search-4'):
+        if isinstance(d, dict) and d.get('version') in ('poetry-search-1', 'poetry-search-2', 'poetry-search-3', 'poetry-search-4', 'poetry-search-5'):
             legacy = deepcopy(d)
             legacy.update(version=VERSION, poem_plan=None, status='legacy_readonly', pending=None)
             legacy['events'].append({'code': 'POEM_PLAN_REQUIRED', 'status': 'legacy_readonly'})
@@ -131,7 +132,7 @@ class Search:
             p = s._current()
             require(job['path_id'] == p['path_id'] and job['run_id'] == d['run_id'], 'INVALID_SNAPSHOT', 'Wrong pending path')
             state = PoemState.from_dict(p['state'])
-            if job['context'].get('contract_version') == 'poetry-unit-1':
+            if job['context'].get('contract_version') == UNIT_CONTRACT_VERSION:
                 validate_unit_context(state, job['context'])
             else:
                 _validate_context(state, job['context'])
@@ -408,7 +409,7 @@ class Search:
         staged.data['status'] = 'running'
         try:
             current_state = PoemState.from_dict(staged._current()['state'])
-            if job['context'].get('contract_version') == 'poetry-unit-1':
+            if job['context'].get('contract_version') == UNIT_CONTRACT_VERSION:
                 validate_unit_context(current_state, job['context'])
             else:
                 _validate_context(current_state, job['context'])

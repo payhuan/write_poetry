@@ -3,7 +3,7 @@
 新 Search 在 `context.planned_unit` 非空时，单句候选除 id/text/line_index 外还必须提交
 `expression_path`、`semantic_increment`、`risks` 和完整 `semantic_lock`。直接调用旧式单轮且未传 poem_plan 时仍可
 读取旧三字段候选。律诗颔联、颈联不使用逐句生成入口，改用[完整句／联生成](unit-generation.md)；其中采用
-literary-4 并强制逐字位对仗评价；律诗颔联承接、颈联转向职责随规划绑定到评分请求。
+`poetry-unit-2` 使用 `literary-5`，强制逐字位与逐结构位双层对仗评价并分别打分；律诗颔联承接、颈联转向职责随规划绑定到评分请求。对仗权重为 .25，状态分数上限影响排名，但不直接硬淘汰候选。
 
 运行 Skill 的 agent 充当 LLM，不依赖外部模型 API。Python 处理导出上下文、格式校验、去重、规则过滤、评分校验和排序；只完成一个句位的一轮处理。`export` 和 `filter` 不修改状态，`finish` 一次性记录候选历史。正文、规划、revision、全诗 checks、quality_score 和 status 保持原值。
 

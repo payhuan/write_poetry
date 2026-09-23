@@ -155,7 +155,18 @@ def response_for(job, *, fail_high=False, two=False, value=0.8):
                  'lower_function': '对应句位中的意象或句法成分',
                  'status': 'pass', 'reason': '逐字位比较后的固定夹具判断'}
                 for i in range(1, c['form']['line_length'] + 1)]
-            parallel.update(score=value, reason='对仗结构完整且两句不合掌。')
+            width = c['form']['line_length']
+            split = width // 2
+            parallel['structure_alignment'] = [
+                {'upper_span': [start, end], 'lower_span': [start, end],
+                 'upper_text': upper[start-1:end], 'lower_text': lower[start-1:end],
+                 'upper_function': '上句中的词组或句法成分',
+                 'lower_function': '下句中相应的词组或句法成分',
+                 'correspondence': '结构位置相应，语义彼此照映',
+                 'status': 'pass', 'reason': '逐结构位比较后的固定夹具判断'}
+                for start, end in ((1, split), (split + 1, width))]
+            parallel.update(character_score=value, structure_score=value, score=value,
+                             reason='逐字与逐结构均有对应，两句不合掌。')
             return parallel
         payload.update(filter_sha256=f['filter_sha256'], rubric_version=UNIT_RUBRIC_VERSION,
                        scores=[{'id': item['id'], 'dimensions': {k: value for k in UNIT_WEIGHTS},

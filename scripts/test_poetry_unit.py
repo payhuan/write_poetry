@@ -33,6 +33,20 @@ class PoetryUnitTests(unittest.TestCase):
         self.assertEqual(path['state']['revision'], before['revision'] + 1)
         self.assertEqual(len(path['semantic_locks'][-1]['line_indices']), 2)
 
+    def test_dual_layer_alignment_and_score_consistency(self):
+        search = self.at_middle_couplet()
+        search.submit(response_for(search.next_job()))
+        score_job = search.next_job()
+        self.assertEqual(score_job['stage'], 'unit_score')
+        self.assertEqual(score_job['filtered']['score_request']['rubric_version'], 'literary-5')
+        result = response_for(score_job)
+        pair = result['payload']['scores'][0]['parallelism']
+        self.assertTrue(pair['character_alignment'])
+        self.assertTrue(pair['structure_alignment'])
+        pair['structure_score'] = .9
+        rejected = search.submit(result)
+        self.assertEqual(rejected['error'], 'PARALLELISM_SCORE_MISMATCH')
+
     def test_bad_second_line_leaves_parent_untouched(self):
         search = self.at_middle_couplet()
         before = deepcopy(search.data)

@@ -16,18 +16,20 @@ from poem_state import PoemState
 from poetry_round import (RoundError, export_context, filter_candidates,
                           review_content, review_readings, content_eligible, require)
 from round_content import export_content_plan
-from character_alignment import validate_character_alignment
+from character_alignment import (validate_character_alignment, validate_structure_alignment,
+                                 validate_soft_rating)
 
-CONTRACT_VERSION = 'poetry-unit-1'
-RUBRIC_VERSION = 'literary-4'
-WEIGHTS = {'task_completion': .16, 'semantic_progression': .13,
-           'image_relation': .10, 'context_consistency': .11,
-           'implicitness': .08, 'naturalness': .11, 'freshness': .05,
-           'future_space': .08, 'parallelism': .18}
+CONTRACT_VERSION = 'poetry-unit-2'
+RUBRIC_VERSION = 'literary-5'
+WEIGHTS = {'task_completion': .14, 'semantic_progression': .11,
+           'image_relation': .09, 'context_consistency': .10,
+           'implicitness': .07, 'naturalness': .10, 'freshness': .045,
+           'future_space': .095, 'parallelism': .25}
 LOCK_FIELDS = {'protected_meaning', 'facts', 'images', 'relations', 'emotion_direction',
                'structural_function', 'confirmed_allusions'}
 PARALLEL_FIELDS = {'semantic_relation', 'image_relation', 'hangzhang',
-                   'character_alignment', 'score', 'reason'}
+                   'character_alignment', 'structure_alignment',
+                   'character_score', 'structure_score', 'score', 'reason'}
 ENVELOPE = {'contract_version', 'batch_id', 'context_sha256', 'generation_sha256'}
 
 
@@ -69,8 +71,9 @@ def _unit_context(state, poem_plan, content_plan, batch_id):
         'generation_instruction': ('一次生成完整一联。先选择表达路径，再写两句；两句共同完成规划增量，'
                                    + ('本联承担承接职责，须接住首联并扩展而非复述；' if unit.get('arc_role') == '承' else
                                       '本联承担转向职责，须依据 turn_plan 改变前文状态或解释、说明铺垫并为尾联留出收束空间；不可只续写下一事件。' if unit.get('arc_role') == '转' else '')
-                                   + '若转向会破坏用户事实、典故或保护语义，返回 replan_required，不得硬补跳景。'
-                                   '提交风险与 semantic_lock。对仗须逐字位核对上下句字符、句法功能与对应关系，'
+                                    + ('若转向会破坏用户事实、典故或保护语义，返回 replan_required，不得硬补跳景。'
+                                       if unit.get('arc_role') == '转' else '')
+                                   + '提交风险与 semantic_lock。对仗须双层核对：逐字位说明每个对应字的句法功能；逐结构位将上下句切分为连续、完整、不重叠的词组／句法成分，并说明对应关系。'
                                    '同时评价整联语义和意象关系，避免合掌；'
                                    '不得为对仗或押韵改变事实、典故、情感方向或提前使用后文内容。'),
     }
@@ -312,8 +315,9 @@ def unit_score_request(filtered):
                             ('id', 'lines', 'expression_path', 'semantic_increment', 'risks', 'semantic_lock')}
                            for record in filtered['records'] if _eligible(record)],
             'instruction': ('评价任务完成、推进、物象、上下文、含蓄、自然、新鲜和后文空间。'
-                            '对仗评价须逐字位列出上下句的对应字符、各自句法功能、对应状态与理由，'
-                            '并评价整联语义关系、意象关系和是否合掌；低分只影响排序，不把文学判断伪装为格律硬失败。')}
+                            '对仗必须分别评价逐字位和逐结构位：结构分段应连续、完整覆盖上下句且不得重叠；两层分别打分，parallelism.score 必须为二者算术平均。'
+                            '明显失配须降低对应层分数；任一层低分会通过较高对仗权重显著影响搜索排序，但仍是软约束，不直接判作格律失败。'
+                            '同时评价整联语义关系、意象关系和合掌情况。')}
 
 
 def validate_unit_scores(filtered, payload):
@@ -332,7 +336,7 @@ def validate_unit_scores(filtered, payload):
         dims = item['dimensions']
         require(isinstance(dims, dict) and set(dims) == set(WEIGHTS) and
                 all(type(v) in (int, float) and math.isfinite(v) and 0 <= v <= 1 for v in dims.values()),
-                'INVALID_UNIT_SCORE', 'All literary-4 dimensions require finite 0..1 values')
+                'INVALID_UNIT_SCORE', 'All literary-5 dimensions require finite 0..1 values')
         parallel = item['parallelism']
         require(isinstance(parallel, dict) and set(parallel) == PARALLEL_FIELDS,
                 'INVALID_PARALLELISM', 'Middle couplets require complete character-level parallelism analysis')
@@ -346,11 +350,23 @@ def validate_unit_scores(filtered, payload):
                                          parallel['character_alignment'],
                                          filtered['context']['line_indices'],
                                          filtered['context']['form']['line_length'])
+            validate_structure_alignment({x['line_index']: x['text'] for x in record['lines']},
+                                         parallel['structure_alignment'],
+                                         filtered['context']['line_indices'],
+                                         filtered['context']['form']['line_length'])
         except (ValueError, StopIteration, KeyError) as exc:
-            require(False, 'INVALID_CHARACTER_ALIGNMENT', str(exc))
-        require(type(parallel['score']) in (int, float) and 0 <= parallel['score'] <= 1 and
+            require(False, 'INVALID_PARALLEL_ALIGNMENT', str(exc))
+        require(all(type(parallel[key]) in (int, float) and math.isfinite(parallel[key]) and
+                    0 <= parallel[key] <= 1 for key in ('character_score', 'structure_score', 'score')) and
                 _text(parallel['reason']) and _text(item['reason']),
-                'INVALID_PARALLELISM', 'Parallelism score and reasons are required')
+                'INVALID_PARALLELISM', 'Character, structure and combined scores must be valid')
+        require(abs(parallel['score'] - (parallel['character_score'] + parallel['structure_score']) / 2) < 1e-12,
+                'PARALLELISM_SCORE_MISMATCH', 'Combined score must be the mean of the two layers')
+        try:
+            validate_soft_rating(parallel['character_alignment'], parallel['character_score'], 'Character')
+            validate_soft_rating(parallel['structure_alignment'], parallel['structure_score'], 'Structure')
+        except ValueError as exc:
+            require(False, 'PARALLELISM_SCORE_CONFLICT', str(exc))
         require(abs(dims['parallelism'] - parallel['score']) < 1e-12,
                 'PARALLELISM_SCORE_MISMATCH', 'The literary dimension must equal the structured score')
         total = sum(Fraction(str(dims[k])) * Fraction(str(v)) for k, v in WEIGHTS.items())
