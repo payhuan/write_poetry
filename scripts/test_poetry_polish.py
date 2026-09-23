@@ -381,12 +381,12 @@ class PolishTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_review(r, state)
 
-    def test_lushi_both_semantic_and_syntactic_parallelism(self):
+    def test_lushi_requires_character_by_character_parallelism(self):
         state = fixture_state('五言律诗')
         search = drive(Search.create(state, poem_plan=fixture_plan(state), engine=fixture_engine()))
         p = Polish.create(search.to_dict(), search.data['drafts'][0]['path_id'], engine=fixture_engine())
         r = review_for(p.data['accepted'])
-        r['dimensions']['parallelism']['couplets'][1]['syntax'] = ''
+        r['dimensions']['parallelism']['couplets'][1]['character_alignment'][2]['upper_char'] = '错'
         self.send(p, r)
         self.assertEqual(p.next_job()['attempt'], 2)
         self.finish(p)

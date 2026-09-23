@@ -15,9 +15,10 @@ from round_content import export_content_plan, validate_content_plan, requiremen
 from runtime_workspace import configure_workspace, input_path, output_path
 from word_refinement import structural_units, refinement_request, validate_refinement
 from reading_disambiguation import make_request as make_reading_request, apply_review as apply_reading_review
+from character_alignment import validate_character_alignment
 
-VERSION = 'poetry-polish-4'
-REVIEW_VERSION = 'whole-poem-review-1'
+VERSION = 'poetry-polish-5'
+REVIEW_VERSION = 'whole-poem-review-2'
 REDLINE_VERSION = 'final-redline-1'
 REDLINE_CHECKS = ('user_facts_reversed', 'allusion_facts_reversed',
                   'meaning_sacrificed_for_rhyme', 'scene_identity_tone_mismatch')
@@ -77,9 +78,19 @@ def validate_review(payload, state):
             require(isinstance(entry['couplets'], list) and len(entry['couplets']) == 2,
                     'PARALLELISM_REQUIRED', 'Review both middle couplets')
             for c, positions in zip(entry['couplets'], ([3, 4], [5, 6])):
-                fields(c, ('line_indices', 'semantic', 'syntax'))
-                require(c['line_indices'] == positions and text(c['semantic']) and text(c['syntax']),
-                        'PARALLELISM_REQUIRED', 'Both semantic and syntactic reasons required')
+                fields(c, ('line_indices', 'character_alignment', 'semantic_relation',
+                           'image_relation', 'hangzhang'))
+                require(c['line_indices'] == positions,
+                        'PARALLELISM_REQUIRED', 'Review both middle couplets in order')
+                for key in ('semantic_relation', 'image_relation', 'hangzhang'):
+                    fields(c[key], ('status', 'reason'))
+                    require(c[key]['status'] in ('pass', 'weak', 'fail', 'unknown') and
+                            text(c[key]['reason']), 'PARALLELISM_REQUIRED', key)
+                try:
+                    validate_character_alignment(state['lines'], c['character_alignment'], positions,
+                                                 state['form']['line_length'])
+                except ValueError as exc:
+                    require(False, 'INVALID_CHARACTER_ALIGNMENT', str(exc))
         else:
             require(entry['couplets'] == [], 'INVALID_COUPLETS', name)
     require(isinstance(payload['issues'], list), 'INVALID_ISSUES', 'issues must be an array')

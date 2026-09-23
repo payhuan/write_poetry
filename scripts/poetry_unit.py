@@ -16,17 +16,18 @@ from poem_state import PoemState
 from poetry_round import (RoundError, export_context, filter_candidates,
                           review_content, review_readings, content_eligible, require)
 from round_content import export_content_plan
+from character_alignment import validate_character_alignment
 
 CONTRACT_VERSION = 'poetry-unit-1'
-RUBRIC_VERSION = 'literary-2'
+RUBRIC_VERSION = 'literary-3'
 WEIGHTS = {'task_completion': .16, 'semantic_progression': .13,
            'image_relation': .10, 'context_consistency': .11,
            'implicitness': .08, 'naturalness': .11, 'freshness': .05,
            'future_space': .08, 'parallelism': .18}
 LOCK_FIELDS = {'protected_meaning', 'facts', 'images', 'relations', 'emotion_direction',
                'structural_function', 'confirmed_allusions'}
-PARALLEL_FIELDS = {'semantic_relation', 'syntax', 'parts_of_speech',
-                   'image_relation', 'hangzhang', 'score', 'reason'}
+PARALLEL_FIELDS = {'semantic_relation', 'image_relation', 'hangzhang',
+                   'character_alignment', 'score', 'reason'}
 ENVELOPE = {'contract_version', 'batch_id', 'context_sha256', 'generation_sha256'}
 
 
@@ -66,7 +67,8 @@ def _unit_context(state, poem_plan, content_plan, batch_id):
         'candidate_count': {'min': 1, 'max': data['budget']['candidates_per_round'],
                             'target': min(5, data['budget']['candidates_per_round'])},
         'generation_instruction': ('一次生成完整一联。先选择表达路径，再写两句；两句共同完成规划增量，'
-                                   '提交风险与 semantic_lock。对仗按关系、句法、成分和意象组织，避免合掌；'
+                                   '提交风险与 semantic_lock。对仗须逐字位核对上下句字符、句法功能与对应关系，'
+                                   '同时评价整联语义和意象关系，避免合掌；'
                                    '不得为对仗或押韵改变事实、典故、情感方向或提前使用后文内容。'),
     }
     result['generation_sha256'] = digest(result)
@@ -300,7 +302,8 @@ def unit_score_request(filtered):
                             ('id', 'lines', 'expression_path', 'semantic_increment', 'risks', 'semantic_lock')}
                            for record in filtered['records'] if _eligible(record)],
             'instruction': ('评价任务完成、推进、物象、上下文、含蓄、自然、新鲜和后文空间。'
-                            '同时完整评价对仗；低分只影响排序，不把文学判断伪装为格律硬失败。')}
+                            '对仗评价须逐字位列出上下句的对应字符、各自句法功能、对应状态与理由，'
+                            '并评价整联语义关系、意象关系和是否合掌；低分只影响排序，不把文学判断伪装为格律硬失败。')}
 
 
 def validate_unit_scores(filtered, payload):
@@ -319,14 +322,22 @@ def validate_unit_scores(filtered, payload):
         dims = item['dimensions']
         require(isinstance(dims, dict) and set(dims) == set(WEIGHTS) and
                 all(type(v) in (int, float) and math.isfinite(v) and 0 <= v <= 1 for v in dims.values()),
-                'INVALID_UNIT_SCORE', 'All literary-2 dimensions require finite 0..1 values')
+                'INVALID_UNIT_SCORE', 'All literary-3 dimensions require finite 0..1 values')
         parallel = item['parallelism']
         require(isinstance(parallel, dict) and set(parallel) == PARALLEL_FIELDS,
-                'INVALID_PARALLELISM', 'Middle couplets require complete structured parallelism analysis')
-        for key in ('semantic_relation', 'syntax', 'parts_of_speech', 'image_relation', 'hangzhang'):
+                'INVALID_PARALLELISM', 'Middle couplets require complete character-level parallelism analysis')
+        for key in ('semantic_relation', 'image_relation', 'hangzhang'):
             require(isinstance(parallel[key], dict) and set(parallel[key]) == {'status', 'reason'} and
                     parallel[key]['status'] in ('pass', 'weak', 'fail', 'unknown') and _text(parallel[key]['reason']),
                     'INVALID_PARALLELISM', key + ' needs status and reason')
+        try:
+            record = next(x for x in filtered['records'] if x['id'] == item['id'])
+            validate_character_alignment({x['line_index']: x['text'] for x in record['lines']},
+                                         parallel['character_alignment'],
+                                         filtered['context']['line_indices'],
+                                         filtered['context']['form']['line_length'])
+        except (ValueError, StopIteration, KeyError) as exc:
+            require(False, 'INVALID_CHARACTER_ALIGNMENT', str(exc))
         require(type(parallel['score']) in (int, float) and 0 <= parallel['score'] <= 1 and
                 _text(parallel['reason']) and _text(item['reason']),
                 'INVALID_PARALLELISM', 'Parallelism score and reasons are required')

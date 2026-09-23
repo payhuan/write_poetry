@@ -18,7 +18,7 @@ from poetry_unit import (is_atomic_couplet, export_unit_context, validate_unit_c
                          filter_units, review_unit_readings, review_unit_content, finish_units)
 from reading_disambiguation import make_request as make_reading_request, apply_review as apply_reading_review
 
-VERSION = 'poetry-search-3'
+VERSION = 'poetry-search-4'
 TERMINAL = {'ready_for_review', 'budget_exhausted', 'no_feasible_path',
             'needs_clarification', 'run_error', 'legacy_readonly'}
 
@@ -85,7 +85,7 @@ class Search:
         require(isinstance(artifact, dict) and set(artifact) == {'search', 'sha256'}
                 and digest(artifact['search']) == artifact['sha256'], 'INVALID_SNAPSHOT', 'Snapshot checksum mismatch')
         d = artifact['search']
-        if isinstance(d, dict) and d.get('version') in ('poetry-search-1', 'poetry-search-2'):
+        if isinstance(d, dict) and d.get('version') in ('poetry-search-1', 'poetry-search-2', 'poetry-search-3'):
             legacy = deepcopy(d)
             legacy.update(version=VERSION, poem_plan=None, status='legacy_readonly', pending=None)
             legacy['events'].append({'code': 'POEM_PLAN_REQUIRED', 'status': 'legacy_readonly'})

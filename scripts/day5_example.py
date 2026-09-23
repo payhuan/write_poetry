@@ -18,8 +18,18 @@ def review_for(state, *, revise=False, positions=(1,), score=.8):
         dimensions[name] = dict(status='not_applicable' if na else 'assessed',
                                 score=None if na else score, reason='确定性流程夹具理由', couplets=[])
         if name == 'parallelism' and not na:
-            dimensions[name]['couplets'] = [dict(line_indices=p, semantic='语义对应的夹具说明', syntax='句法对应的夹具说明')
-                                              for p in ([3, 4], [5, 6])]
+            details = []
+            for positions in ([3, 4], [5, 6]):
+                upper, lower = state['lines'][positions[0]-1], state['lines'][positions[1]-1]
+                details.append(dict(line_indices=positions,
+                    character_alignment=[{'position': i, 'upper_char': upper[i-1],
+                        'lower_char': lower[i-1], 'upper_function': '夹具中的上句成分',
+                        'lower_function': '夹具中的下句成分', 'status': 'pass',
+                        'reason': '逐字位对照夹具'} for i in range(1, state['form']['line_length'] + 1)],
+                    semantic_relation={'status': 'pass', 'reason': '整联语义关系夹具'},
+                    image_relation={'status': 'pass', 'reason': '整联意象关系夹具'},
+                    hangzhang={'status': 'pass', 'reason': '整联合掌检查夹具'}))
+            dimensions[name]['couplets'] = details
     return dict(review_version=REVIEW_VERSION, binding=make_binding(state), revision=state['revision'],
                 dimensions=dimensions, issues=[dict(id='i1', dimension='expression',
                     locations=[dict(line_index=i, quote=state['lines'][i-1]) for i in positions],

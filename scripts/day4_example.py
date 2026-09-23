@@ -9,7 +9,7 @@ from poetry_round import ENVELOPE, WEIGHTS, write_new_json
 from poetry_search import Search
 from round_content import CONTENT_VERSION
 from poem_planning import PLAN_VERSION, expected_units, make_plan_artifact, planning_basis
-from poetry_unit import WEIGHTS as UNIT_WEIGHTS
+from poetry_unit import WEIGHTS as UNIT_WEIGHTS, RUBRIC_VERSION as UNIT_RUBRIC_VERSION
 from runtime_workspace import configure_workspace, output_path
 
 LEXICON = {'上平声部': {'一东': list('天地人风')}, '上声部': {'一董': list('水火土风')}}
@@ -125,12 +125,24 @@ def response_for(job, *, fail_high=False, two=False, value=0.8):
         payload.update(status='candidates', candidates=candidates)
     elif job['stage'] == 'unit_score':
         f = job['filtered']
-        parallel = {name: {'status': 'pass', 'reason': '固定对仗评价夹具'} for name in
-                    ('semantic_relation', 'syntax', 'parts_of_speech', 'image_relation', 'hangzhang')}
-        parallel.update(score=value, reason='对仗结构完整且两句不合掌。')
-        payload.update(filter_sha256=f['filter_sha256'], rubric_version='literary-2',
+        def parallel_for(record):
+            parallel = {name: {'status': 'pass', 'reason': '固定对仗评价夹具'} for name in
+                        ('semantic_relation', 'image_relation', 'hangzhang')}
+            upper = record['lines'][0]['text']
+            lower = record['lines'][1]['text']
+            parallel['character_alignment'] = [
+                {'position': i, 'upper_char': upper[i-1], 'lower_char': lower[i-1],
+                 'upper_function': '当前句位中的意象或句法成分',
+                 'lower_function': '对应句位中的意象或句法成分',
+                 'status': 'pass', 'reason': '逐字位比较后的固定夹具判断'}
+                for i in range(1, c['form']['line_length'] + 1)]
+            parallel.update(score=value, reason='对仗结构完整且两句不合掌。')
+            return parallel
+        payload.update(filter_sha256=f['filter_sha256'], rubric_version=UNIT_RUBRIC_VERSION,
                        scores=[{'id': item['id'], 'dimensions': {k: value for k in UNIT_WEIGHTS},
-                                'parallelism': parallel, 'reason': '固定整联评分夹具。'}
+                                'parallelism': parallel_for(next(x for x in f['records']
+                                                                  if x['id'] == item['id'])),
+                                'reason': '固定整联评分夹具。'}
                                for item in f['score_request']['candidates']])
     elif job['stage'] == 'unit_content':
         f = job['filtered']

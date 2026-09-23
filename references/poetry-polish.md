@@ -1,13 +1,13 @@
 # Day 5：全诗审校、局部炼句与最终润色
 
-> 当前快照版本为 `poetry-polish-4`。全诗 review ready 后不能直接进入最终出口，必须先完成
+> 当前快照版本为 `poetry-polish-5`。全诗 review ready 后不能直接进入最终出口，必须先完成
 > [逐结构单位炼字](word-refinement.md)：绝句逐句、律诗按四联依次返回 `NO_CHANGE`、`REFINED` 或
 > `REFLOW_REQUIRED`。下文原有 issue 驱动的 generate/compare 仍用于全诗审校明确指出的问题；逐字审查使用
 > refinement/reflow/refinement_compare，并受更严格的两字符范围、语义锁和净增益规则约束。
 
 ## 职责与入口
 
-`scripts/poetry_polish.py` 提供 `Polish`，快照与工作封套版本为 `poetry-polish-4`，审校量表为 `whole-poem-review-1`，最终红线版本为 `final-redline-1`。运行 Skill 的 LLM 阅读工作并提供 JSON；程序不调用模型 API、不编造评分、不重做搜索、不处理图片。
+`scripts/poetry_polish.py` 提供 `Polish`，快照与工作封套版本为 `poetry-polish-5`，审校量表为 `whole-poem-review-2`，最终红线版本为 `final-redline-1`。运行 Skill 的 LLM 阅读工作并提供 JSON；程序不调用模型 API、不编造评分、不重做搜索、不处理图片。
 
 LLM 负责主题、情绪、时间、视角、意象、结构和语言，律诗中间两联的语义及句法对仗，用典及 adapt 语义，修改建议、候选、全诗比较和诗题。程序负责交接、绑定、范围、锁定要求、规则复检、内容契约、事务采纳、预算、持久化和完成条件。语义报告的真伪及文学质量不能由 JSON 校验器证明。
 
@@ -38,7 +38,7 @@ polish.result(include_notes=False)
 
 | 字段 | 规则 |
 | --- | --- |
-| contract_version | poetry-polish-4 |
+| contract_version | poetry-polish-5 |
 | run_id / job_id | 当前运行与工作 ID；格式修复保持 job_id |
 | path_id | 显式选定的 Day 4 草稿分支 |
 | revision | 工作 target 的版本，整数 |
@@ -70,7 +70,7 @@ payload 严格包含以下字段，模型不输出 total。这里用占位文字
 
 ```json
 {
-  "review_version": "whole-poem-review-1",
+  "review_version": "whole-poem-review-2",
   "binding": "照抄 target 的完整 binding 对象",
   "revision": 8,
   "dimensions": {
@@ -100,16 +100,22 @@ payload 严格包含以下字段，模型不输出 total。这里用占位文字
 | structure | .15 | 全诗推进、转折与结尾，不强制统一起承转合 |
 | consistency | .10 | 情绪、时间、空间视角与叙述主体一致性 |
 | expression | .10 | 关键表达的准确性、力度和余味，不计华丽词数 |
-| parallelism | .10 | 律诗颔联、颈联的语义和句法对应 |
+| parallelism | .10 | 律诗颔联、颈联的逐字位对应及整联关系 |
 
-0=不成立，.25=明显薄弱，.5=基本成立但有明显不足，.75=良好而有局部不足，1=在当前上下文充分且准确；中间值允许。全部适用维度均须给有限 0–1 数值和非空理由。绝句 parallelism 明确 not_applicable/null，从分母排除：`total = Σ(score × weight) / Σ(applicable weight)`，由程序使用十进制分数计算。不适用不等于高分。律诗 parallelism 必须 assessed，并提供两条 couplets：
+0=不成立，.25=明显薄弱，.5=基本成立但有明显不足，.75=良好而有局部不足，1=在当前上下文充分且准确；中间值允许。全部适用维度均须给有限 0–1 数值和非空理由。绝句 parallelism 明确 not_applicable/null，从分母排除：`total = Σ(score × weight) / Σ(applicable weight)`，由程序使用十进制分数计算。不适用不等于高分。律诗 parallelism 必须 assessed，并提供两条 couplets；每条必须逐字位列出实际上下句字符、两字各自的句法功能、对应状态及理由，字符和位置须与正文相符。还须给出整联语义关系、意象关系和合掌判断：
 
 ```json
 [
-  {"line_indices":[3,4],"semantic":"两句语义对应的具体评价","syntax":"两句句法对应的具体评价"},
-  {"line_indices":[5,6],"semantic":"两句语义对应的具体评价","syntax":"两句句法对应的具体评价"}
+  {"line_indices":[3,4],"character_alignment":[
+    {"position":1,"upper_char":"山","lower_char":"江","upper_function":"上句处所意象","lower_function":"下句处所意象","status":"pass","reason":"同为起句处所中心"}
+  ],"semantic_relation":{"status":"pass","reason":"两句构成山水并举"},"image_relation":{"status":"pass","reason":"两类景物形成空间映照"},"hangzhang":{"status":"pass","reason":"下句推进到另一景物，不复述上句"}},
+  {"line_indices":[5,6],"character_alignment":[
+    {"position":1,"upper_char":"云","lower_char":"月","upper_function":"上句景物主体","lower_function":"下句景物主体","status":"weak","reason":"两字功能相近，但句法关系略有差别"}
+  ],"semantic_relation":{"status":"pass","reason":"两句形成不同层次的景物关系"},"image_relation":{"status":"pass","reason":"意象互相照应"},"hangzhang":{"status":"pass","reason":"两句各有独立语义增量"}}
 ]
 ```
+
+示例仅展示字段形状；实际 character_alignment 必须恰好覆盖该联全部五字或七字，不能只提交首字示例。
 
 每个问题严格为：
 
