@@ -15,4 +15,4 @@
 
 `planning_basis(state)` 是稳定绑定；正文、请求、模板、韵部或规划上下文改变后，旧规划不能移植。
 `export_plan_request(state)` 可作为模型规划提示的结构化输入。旧 `poetry-search-1` 快照只可审计读取；继续创作
-须从其原始 PoemState 重新规划并创建 `poetry-search-2` 运行。
+须从其原始 PoemState 重新规划并创建当前版本的 Search 运行。

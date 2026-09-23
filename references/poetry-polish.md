@@ -1,13 +1,13 @@
 # Day 5：全诗审校、局部炼句与最终润色
 
-> 当前快照版本为 `poetry-polish-3`。全诗 review ready 后不能直接进入最终出口，必须先完成
+> 当前快照版本为 `poetry-polish-4`。全诗 review ready 后不能直接进入最终出口，必须先完成
 > [逐结构单位炼字](word-refinement.md)：绝句逐句、律诗按四联依次返回 `NO_CHANGE`、`REFINED` 或
 > `REFLOW_REQUIRED`。下文原有 issue 驱动的 generate/compare 仍用于全诗审校明确指出的问题；逐字审查使用
 > refinement/reflow/refinement_compare，并受更严格的两字符范围、语义锁和净增益规则约束。
 
 ## 职责与入口
 
-`scripts/poetry_polish.py` 提供 `Polish`，快照与工作封套版本为 `poetry-polish-3`，审校量表为 `whole-poem-review-1`，最终红线版本为 `final-redline-1`。运行 Skill 的 LLM 阅读工作并提供 JSON；程序不调用模型 API、不编造评分、不重做搜索、不处理图片。
+`scripts/poetry_polish.py` 提供 `Polish`，快照与工作封套版本为 `poetry-polish-4`，审校量表为 `whole-poem-review-1`，最终红线版本为 `final-redline-1`。运行 Skill 的 LLM 阅读工作并提供 JSON；程序不调用模型 API、不编造评分、不重做搜索、不处理图片。
 
 LLM 负责主题、情绪、时间、视角、意象、结构和语言，律诗中间两联的语义及句法对仗，用典及 adapt 语义，修改建议、候选、全诗比较和诗题。程序负责交接、绑定、范围、锁定要求、规则复检、内容契约、事务采纳、预算、持久化和完成条件。语义报告的真伪及文学质量不能由 JSON 校验器证明。
 
@@ -38,7 +38,7 @@ polish.result(include_notes=False)
 
 | 字段 | 规则 |
 | --- | --- |
-| contract_version | poetry-polish-3 |
+| contract_version | poetry-polish-4 |
 | run_id / job_id | 当前运行与工作 ID；格式修复保持 job_id |
 | path_id | 显式选定的 Day 4 草稿分支 |
 | revision | 工作 target 的版本，整数 |
@@ -46,7 +46,7 @@ polish.result(include_notes=False)
 | work_sha256 | 工作全文摘要，覆盖身份、stage、context，包括正文、安排、参考证据、原稿和修改包 |
 | attempt | 照抄当前尝试号 1、2、3 |
 
-binding 复用现有规则摘要；没有第二套正文摘要算法。完整相关上下文放在 job.context：accepted、target、用户 request、模板、韵部、规划、assignments、review、candidate、当前可用内容证据、预算、权重、Search 运行标识与交接摘要。compare/candidate_content 的 target 是候选完整诗，其余是当前接受版本。内容 payload 还保留 Day 3 批次与过滤摘要。所有导入的原始结果、外层工作身份和拒绝信息均在快照中保留。
+binding 复用现有规则摘要；没有第二套正文摘要算法。完整相关上下文放在 job.context：accepted、target、用户 request、模板、韵部、规划、assignments、review、candidate、已确认 readings、当前可用内容证据、预算、权重、Search 运行标识与交接摘要。candidate_reading、compare、candidate_content 的 target 是候选完整诗，其余是当前接受版本。内容 payload 还保留 Day 3 批次与过滤摘要。所有导入的原始结果、外层工作身份和拒绝信息均在快照中保留。
 
 | stage | LLM payload | 后续 |
 | --- | --- | --- |
@@ -54,6 +54,7 @@ binding 复用现有规则摘要；没有第二套正文摘要算法。完整相
 | generate | 局部修改包数组或明确需要用户改变要求 | 程序原子构造候选并检查 |
 | refinement | 当前句／联的 NO_CHANGE、REFINED 或 REFLOW_REQUIRED | 保留、最小炼字或转 reflow |
 | reflow | 当前完整句／联及语义锁保持声明 | 规则与内容复检后 refinement_compare |
+| candidate_reading | 绑定的 `reading-review-1` 决策 | 合并已确认坐标并重新执行全诗规则检查 |
 | candidate_content | 原 Day 3 review-content JSON | 全部必须项通过才 compare |
 | compare | 候选全诗审校、全维度比较和采用建议 | 采用或保留原稿 |
 | refinement_compare | 候选全诗审校、净增益确认和采用建议 | 采用后重新 review 与逐单位审查 |

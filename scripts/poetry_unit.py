@@ -14,7 +14,7 @@ from constraint_engine import ConstraintEngine
 from poem_planning import unit_for_line
 from poem_state import PoemState
 from poetry_round import (RoundError, export_context, filter_candidates,
-                          review_content, content_eligible, require)
+                          review_content, review_readings, content_eligible, require)
 from round_content import export_content_plan
 
 CONTRACT_VERSION = 'poetry-unit-1'
@@ -170,7 +170,8 @@ def filter_units(state, context, payload, *, engine=None):
             filtered = filter_candidates(staged, line_context, line_payload, engine=engine)
             line_filters.append(filtered)
             line_record = filtered['records'][0]
-            if line_record['category'] != 'passed':
+            reading_pending = bool(filtered.get('reading_request', {}).get('reviews'))
+            if line_record['category'] != 'passed' and not reading_pending:
                 category = 'failed' if line_record['category'] == 'failed' else 'unresolved'
                 break
             staged.append_line(line['text'])
@@ -179,6 +180,7 @@ def filter_units(state, context, payload, *, engine=None):
     result = {'status': 'filtered', 'context': deepcopy(context), 'candidate_input': deepcopy(payload),
               'records': records}
     result['filter_sha256'] = digest(result)
+    result['reading_request'] = unit_reading_request(result)
     result['content_request'] = unit_content_request(result)
     result['score_request'] = unit_score_request(result)
     return result
@@ -186,6 +188,59 @@ def filter_units(state, context, payload, *, engine=None):
 
 def _eligible(record):
     return record['category'] == 'passed' and all(content_eligible(f['records'][0]) for f in record['line_filters'])
+
+
+def unit_reading_request(filtered):
+    requests = []
+    for record in filtered['records']:
+        for line_filter in record['line_filters']:
+            request = line_filter.get('reading_request')
+            if request and request.get('reviews') and line_filter.get('reading_input') is None:
+                requests.append({'candidate_id': record['id'],
+                                 'line_index': line_filter['context']['line_index'],
+                                 'request': deepcopy(request)})
+    return {**_envelope(filtered['context']), 'filter_sha256': filtered['filter_sha256'],
+            'requests': requests}
+
+
+def review_unit_readings(state, filtered, payload, *, engine=None):
+    expected = filtered['reading_request']['requests']
+    require(isinstance(payload, dict) and set(payload) == ENVELOPE |
+            {'attempt', 'filter_sha256', 'reviews'} and
+            all(payload[k] == filtered['context'][k] for k in ENVELOPE) and
+            payload['filter_sha256'] == filtered['filter_sha256'] and
+            type(payload['attempt']) is int and 1 <= payload['attempt'] <= 3,
+            'INVALID_UNIT_READING', 'Unit reading review is not bound to this batch')
+    require(isinstance(payload['reviews'], list) and len(payload['reviews']) == len(expected),
+            'INVALID_UNIT_READING', 'Every requested line needs one reading review')
+    keyed = {(x['candidate_id'], x['line_index']): x for x in payload['reviews']
+             if isinstance(x, dict) and set(x) == {'candidate_id', 'line_index', 'response'}}
+    require(len(keyed) == len(expected), 'INVALID_UNIT_READING', 'Duplicate or malformed line reading review')
+    result = deepcopy(filtered)
+    for wanted in expected:
+        key = (wanted['candidate_id'], wanted['line_index'])
+        require(key in keyed, 'INVALID_UNIT_READING', 'Missing line reading review')
+        record = next(x for x in result['records'] if x['id'] == wanted['candidate_id'])
+        index = next(i for i, f in enumerate(record['line_filters'])
+                     if f['context']['line_index'] == wanted['line_index'])
+        staged = state.fork()
+        for line in record['lines']:
+            if line['line_index'] == wanted['line_index']:
+                break
+            staged.append_line(line['text'])
+        record['line_filters'][index] = review_readings(
+            staged, record['line_filters'][index], keyed[key]['response'], engine=engine)
+        categories = [line_filter['records'][0]['category'] for line_filter in record['line_filters']]
+        record['category'] = ('failed' if 'failed' in categories else
+                              'unresolved' if 'unresolved' in categories else 'passed')
+    result['reading_input'] = deepcopy(payload)
+    result['filter_sha256'] = digest({k: v for k, v in result.items()
+                                      if k not in ('filter_sha256', 'reading_request',
+                                                   'content_request', 'score_request')})
+    result['reading_request'] = unit_reading_request(result)
+    result['content_request'] = unit_content_request(result)
+    result['score_request'] = unit_score_request(result)
+    return result
 
 
 def unit_content_request(filtered):

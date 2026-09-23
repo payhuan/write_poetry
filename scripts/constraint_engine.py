@@ -67,7 +67,7 @@ class ConstraintEngine:
                                'issues': [{'code': 'TEMPLATE_UNBOUND', 'status': 'unknown'}]}
         else:
             grid = {(c['line'], c['pos']): c['tune'] for c in template['tunes']}
-            meters, rhymes, reading_issues, selected_readings = [], [], [], []
+            meters, rhymes, reading_issues, selected_readings, equivalent_readings = [], [], [], [], []
             for line in targets:
                 resolved = []
                 for cell in line['cells']:
@@ -75,8 +75,22 @@ class ConstraintEngine:
                     options = self.lexicon.lookup(cell['char'], include_senses=True)
                     selector = readings.get(coordinate)
                     records, error = self.lexicon.resolve(cell['char'], selector, include_senses=True)
+                    is_rhyme_position = (cell['line'] in template['rhyme']['positions'] and
+                                         cell['pos'] == width)
+                    equivalent = (len(options) > 1 and selector is None and not is_rhyme_position and
+                                  len({item['tone'] for item in options}) == 1)
+                    if equivalent:
+                        # The exact membership remains linguistically ambiguous, but every
+                        # offered reading has the same deterministic effect at this position.
+                        records, error = options, None
+                        equivalent_readings.append({
+                            'coordinate': coordinate, 'char': cell['char'],
+                            'reason': 'same_tone_non_rhyme', 'options': options,
+                        })
                     resolved.append((records, error))
                     if len(options) <= 1:
+                        continue
+                    if equivalent:
                         continue
                     if selector is None or error is not None or len(records) != 1:
                         reading_issues.append({
@@ -113,6 +127,7 @@ class ConstraintEngine:
             checks['reading'] = {
                 'status': 'unknown' if reading_issues else 'pass', 'required': True,
                 'issues': reading_issues, 'selected': selected_readings,
+                'equivalent': equivalent_readings,
                 'context': {'theme': d['theme'], 'emotion': d['emotion'],
                             'lines': [text for _, text in sorted(context.items())]},
                 'policy': 'ai_context_choice_then_rule_recheck',

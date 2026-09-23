@@ -30,7 +30,7 @@ search.save('examples/search-01.json')
 search = Search.load('examples/search-01.json')
 ```
 
-普通句 stage 为 generate → 可选 content → score；律诗中间联为 unit_generate → 可选 unit_content → unit_score。整联候选和 `literary-2` 结构化对仗评价见[完整句／联生成](unit-generation.md)。完整正文的语义复核使用 final_content。每个新阶段有新 job_id；格式修复保持 job_id，attempt 递增。不得在没有实际模型响应时填充评分或运行空生成循环。
+普通句 stage 为 generate → 可选 reading → 可选 content → score；律诗中间联为 unit_generate → 可选 unit_reading → 可选 unit_content → unit_score。reading 阶段只接收控制器生成的绑定消歧请求，候选生成结果仍禁止携带 readings。确认后的坐标选择随路径保存，后续完整正文和 Day 5 复检复用。整联候选和 `literary-2` 结构化对仗评价见[完整句／联生成](unit-generation.md)。完整正文的语义复核使用 final_content。每个新阶段有新 job_id；格式修复保持 job_id，attempt 递增。不得在没有实际模型响应时填充评分或运行空生成循环。
 
 模型输出尚未解析时，使用 `payload={"attempt": job.attempt, "raw_json": 原始模型字符串}`，控制器使用 Day 3 严格解析器解析，语法错误同样进入有限格式修复计数。attempt 区分新修复响应和重复导入，即使模型再次返回完全相同的坏 JSON 也能有界结束。外层工作封套由调用者构造，必须是合法 JSON；不要在控制器外无限修复模型输出。
 
@@ -77,7 +77,7 @@ search = Search.load('examples/search-01.json')
 
 ## 保存恢复与 CLI
 
-`to_dict/from_dict` 使用 `{search, sha256}` 完整包，版本 `poetry-search-2`。search 额外保存完整 poem_plan；路径保存 semantic_locks。`poetry-search-1` 可载入为 `legacy_readonly` 供审计，但 next_job 为空、submit 被拒绝；须基于原始状态建立新规划和新运行，不能把旧快照静默升级为可继续创作的证明。
+`to_dict/from_dict` 使用 `{search, sha256}` 完整包，版本 `poetry-search-3`。search 额外保存完整 poem_plan；路径保存 semantic_locks 与已复检 readings。`poetry-search-1`、`poetry-search-2` 可载入为 `legacy_readonly` 供审计，但 next_job 为空、submit 被拒绝；须基于原始状态建立新规划和新运行，不能把旧快照静默升级为可继续创作的证明。
 
 保存原子发布新文件，禁止覆盖；CLI 相对数据路径按[独立工作区](runtime-workspace.md)解析，并禁止向 Skill 目录写入。整个项目可迁移，脚本定位内置资源相对于自身目录。
 

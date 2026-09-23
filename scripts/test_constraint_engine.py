@@ -128,6 +128,17 @@ class ConstraintTests(unittest.TestCase):
                          {('吹动的空气',), ('讽诵',)})
         self.assertEqual(result['checks']['reading']['context']['theme'], '测试')
 
+    def test_same_tone_nonrhyme_memberships_do_not_block_rules(self):
+        result = self.real_report_engine.check_candidate(
+            {'id': 'c', 'text': '邴原曾断酒', 'line_index': 3}, self.state())
+        self.assertTrue(result['valid'])
+        self.assertEqual(result['checks']['reading']['status'], 'pass')
+        equivalent = result['checks']['reading']['equivalent']
+        self.assertEqual([(x['coordinate'], x['char']) for x in equivalent],
+                         [('3:1', '邴'), ('3:4', '断')])
+        self.assertTrue(all({option['tone'] for option in item['options']} == {'仄'}
+                            for item in equivalent))
+
     def test_bound_ai_reading_review_is_rechecked_by_rules(self):
         result = self.candidate('天风水水天')
         request = make_request(result)

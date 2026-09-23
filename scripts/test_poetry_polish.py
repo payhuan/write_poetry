@@ -204,9 +204,38 @@ class PolishTests(unittest.TestCase):
         package = package_for(old)
         package['edits'][0]['new'] = '风' + old['lines'][0][1:]
         self.generate(p, package)
+        self.assertEqual(p.next_job()['stage'], 'candidate_reading')
+        request = p.next_job()['context']['reading_request']
+        self.send(p, {'review_version': request['review_version'],
+                      'request_sha256': request['request_sha256'],
+                      'decisions': [{'coordinate': x['coordinate'], 'char': x['char'],
+                                     'status': 'unknown', 'section': None, 'group': None,
+                                     'reason': '当前句义不足以可靠判定'}
+                                    for x in request['occurrences']]})
         self.assertIsNone(p.data['history'][0]['state']['checks']['valid'])
         self.assertEqual(p.data['accepted'], old)
         self.finish(p)
+
+    def test_candidate_reading_review_can_resume_polish(self):
+        p = self.create()
+        old = deepcopy(p.data['accepted'])
+        self.revise(p)
+        package = package_for(old)
+        package['edits'][0]['new'] = '风' + old['lines'][0][1:]
+        self.generate(p, package)
+        job = p.next_job()
+        self.assertEqual(job['stage'], 'candidate_reading')
+        request = job['context']['reading_request']
+        decisions = []
+        for occurrence in request['occurrences']:
+            option = occurrence['options'][0]
+            decisions.append({'coordinate': occurrence['coordinate'], 'char': occurrence['char'],
+                              'status': 'selected', 'section': option['section'],
+                              'group': option['group'], 'reason': '按当前句义选择已收录义项'})
+        self.send(p, {'review_version': request['review_version'],
+                      'request_sha256': request['request_sha256'], 'decisions': decisions})
+        self.assertEqual(p.next_job()['stage'], 'compare')
+        self.assertTrue(p.data['candidate']['readings'])
 
     def test_exact_line_and_phrase_position_protected(self):
         for kind in ('line', 'phrase'):
@@ -481,8 +510,8 @@ class PolishTests(unittest.TestCase):
         self.reach_redline(p)
         self.send(p, redline_for(p.data['accepted']))
         original = p.engine.check_poem
-        def unknown(state):
-            result = original(state)
+        def unknown(state, **kwargs):
+            result = original(state, **kwargs)
             result['checks']['pingze']['status'] = 'unknown'
             result['valid'] = None
             return result

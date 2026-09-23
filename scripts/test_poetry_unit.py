@@ -58,6 +58,20 @@ class PoetryUnitTests(unittest.TestCase):
         self.assertEqual(search.data['status'], 'needs_clarification')
         self.assertEqual(search.data['events'][-1]['code'], 'REPLAN_REQUIRED')
 
+    def test_middle_couplet_reading_review_precedes_scoring(self):
+        search = self.at_middle_couplet()
+        job = search.next_job()
+        response = response_for(job)
+        requirement = job['context']['line_requirements'][0]
+        position = next(item['pos'] for item in requirement['tone_requirements']
+                        if item['tune'] == '平')
+        line = response['payload']['candidates'][0]['lines'][0]
+        line['text'] = line['text'][:position-1] + '风' + line['text'][position:]
+        search.submit(response)
+        self.assertEqual(search.next_job()['stage'], 'unit_reading')
+        search.submit(response_for(search.next_job()))
+        self.assertEqual(search.next_job()['stage'], 'unit_score')
+
     def test_new_search_requires_plan(self):
         with self.assertRaises(RoundError) as caught:
             Search.create(fixture_state())

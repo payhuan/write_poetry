@@ -43,7 +43,7 @@ stdout 为 UTF-8 JSON；调用错误退出码 2。检测失败或未知是正常
 
 readings 使用 JSON 键 `句号:字位`，如 `2:3`；坐标必须存在于替换后的正文上下文。值为用户明确给出的声部／韵部选择器（section、group 至少一项），只能筛选该字确实存在的记录。未收录选择器返回 READING_NOT_ATTESTED；传入非空拼音字符串返回 READING_MAPPING_UNAVAILABLE，不用普通话声调推断古音。平仄、整句规则、押韵使用同一份筛选结果。
 
-一个字存在多个声部／韵部归属且调用者未给出唯一选择时，新增必需项 `checks.reading=unknown`。每个 `READING_REVIEW_REQUIRED` 问题返回 coordinate、句号、字位、原文 offset、字符、所在句和全部选项；选项包含 section、group、tone、senses。`checks.reading.context` 同时提供主题、情绪和当前诗句，供语境判断。senses 为空只表示数据源没有提供释义，不表示可以按格律任选；数据没有独立拼音字段，因此这些选项应称为平水韵归属或读音义项，不能包装成臆造的现代拼音。
+一个字存在多个声部／韵部归属且调用者未给出唯一选择时，只有它可能改变当前规则结论才新增必需项 `checks.reading=unknown`。若所有归属平仄相同且该字不在押韵位置，各选项对本次格律与押韵判断等价，引擎直接按共同平仄继续，并在 `checks.reading.equivalent` 记录坐标、全部选项及 `same_tone_non_rhyme` 原因；这不是语义上的读音确认。其余情形的每个 `READING_REVIEW_REQUIRED` 问题返回 coordinate、句号、字位、原文 offset、字符、所在句和全部选项；选项包含 section、group、tone、senses。`checks.reading.context` 同时提供主题、情绪和当前诗句，供语境判断。senses 为空只表示数据源没有提供释义，不表示可以按格律任选；数据没有独立拼音字段，因此这些选项应称为平水韵归属或读音义项，不能包装成臆造的现代拼音。
 
 使用 `reading_disambiguation.make_request(result)` 生成与原检测绑定的 AI 请求。模型对每个位置只能返回 selected 或 unknown；selected 必须逐字匹配请求中已有的 section/group，并说明语境理由。`apply_review(request, payload)` 校验请求摘要、句位、字符和选项后生成 readings；`recheck_candidate` / `recheck_poem` 会把它交回 Constraint Engine。AI 只负责选择语义相符的已收录归属，最终平仄和押韵仍由规则引擎判定；不得因某选项能通过格律就选择它。任一位置为 unknown 时不生成选择，复检仍为 unknown。
 

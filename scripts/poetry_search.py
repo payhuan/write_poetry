@@ -9,15 +9,15 @@ from poem_state import PoemState
 from poem_planning import load_plan_artifact
 from constraint_engine import ConstraintEngine
 from assessment_binding import digest, make_binding
-from poetry_round import (export_context, filter_candidates, review_content, finish_round,
+from poetry_round import (export_context, filter_candidates, review_content, review_readings, finish_round,
                           require, RoundError, read_json, write_new_json,
                           _validate_context)
 from runtime_workspace import configure_workspace, input_path, output_path
 from round_content import export_content_plan, validate_content_plan, requirements
 from poetry_unit import (is_atomic_couplet, export_unit_context, validate_unit_context,
-                         filter_units, review_unit_content, finish_units)
+                         filter_units, review_unit_readings, review_unit_content, finish_units)
 
-VERSION = 'poetry-search-2'
+VERSION = 'poetry-search-3'
 TERMINAL = {'ready_for_review', 'budget_exhausted', 'no_feasible_path',
             'needs_clarification', 'run_error', 'legacy_readonly'}
 
@@ -58,7 +58,7 @@ class Search:
                              'structural_function': unit['primary_task'], 'confirmed_allusions': []}})
         root = {'path_id': 'p0', 'parent_path_id': None, 'state': initial,
                 'depth': len(initial['lines']), 'adoptions': [], 'score': 0.0, 'content': [],
-                'semantic_locks': initial_locks}
+                'semantic_locks': initial_locks, 'readings': {}}
         s = cls({'version': VERSION, 'run_id': uuid4().hex, 'status': 'running',
                  'initial': initial, 'poem_plan': semantic_plan,
                  'assignments': plan['assignments'], 'config': config,
@@ -84,7 +84,7 @@ class Search:
         require(isinstance(artifact, dict) and set(artifact) == {'search', 'sha256'}
                 and digest(artifact['search']) == artifact['sha256'], 'INVALID_SNAPSHOT', 'Snapshot checksum mismatch')
         d = artifact['search']
-        if isinstance(d, dict) and d.get('version') == 'poetry-search-1':
+        if isinstance(d, dict) and d.get('version') in ('poetry-search-1', 'poetry-search-2'):
             legacy = deepcopy(d)
             legacy.update(version=VERSION, poem_plan=None, status='legacy_readonly', pending=None)
             legacy['events'].append({'code': 'POEM_PLAN_REQUIRED', 'status': 'legacy_readonly'})
@@ -117,7 +117,7 @@ class Search:
         validate_plan(initial_state, d['poem_plan'])
         for p in d['active'] + d['alternatives'] + d['children'] + d['drafts'] + d['diagnostics']:
             require(isinstance(p, dict) and {'state', 'depth', 'path_id', 'parent_path_id',
-                    'score', 'adoptions', 'content', 'semantic_locks'} <= set(p),
+                    'score', 'adoptions', 'content', 'semantic_locks', 'readings'} <= set(p),
                     'INVALID_SNAPSHOT', 'Invalid path fields')
             state = PoemState.from_dict(p['state'])
             require(p['depth'] == len(p['state']['lines']), 'INVALID_SNAPSHOT', 'Path depth mismatch')
@@ -209,7 +209,7 @@ class Search:
             p = self._current()
             state = PoemState.from_dict(p['state'])
             if p['depth'] == p['state']['form']['line_count']:
-                checks = self.engine.check_poem(state)
+                checks = self.engine.check_poem(state, readings=p.get('readings'))
                 state.set_assessment(checks)
                 p['state'] = state.to_dict()
                 if checks['valid'] is not True:
@@ -233,7 +233,8 @@ class Search:
                 return
             d['used']['rounds'] += 1
             if context['locked_candidate'] is not None:
-                filtered = filter_candidates(state, context, engine=self.engine)
+                filtered = filter_candidates(state, context, engine=self.engine,
+                                             readings=p.get('readings'))
                 self._after_filter(context, filtered)
             else:
                 self._job('generate', context)
@@ -246,7 +247,9 @@ class Search:
 
     def _after_filter(self, context, filtered):
         self._current()['round_artifact'] = deepcopy(filtered)
-        if filtered.get('content_request', {}).get('candidates'):
+        if filtered.get('reading_request', {}).get('reviews') and filtered.get('reading_input') is None:
+            self._job('reading', context, filtered)
+        elif filtered.get('content_request', {}).get('candidates'):
             self._job('content', context, filtered)
         elif filtered['score_request']['candidates']:
             self._job('score', context, filtered)
@@ -274,7 +277,9 @@ class Search:
                               'unit': filtered['context']['planned_unit']['unit'],
                               'line_indices': [r['line_index']],
                               'lock': deepcopy(r['semantic_lock'])}]
-                              if r.get('semantic_lock') else [])}
+                              if r.get('semantic_lock') else []),
+                          'readings': {**deepcopy(p.get('readings', {})),
+                                       **deepcopy(r.get('reading_review', {}).get('readings', {}))}}
             self.data['next_path'] += 1
             self.data['children'].append(child_path)
         if not report['ranking']:
@@ -288,6 +293,8 @@ class Search:
         if filtered['status'] == 'replan_required':
             self._current()['replan'] = deepcopy(filtered['replan'])
             self._stop('needs_clarification', 'REPLAN_REQUIRED')
+        elif filtered['reading_request']['requests'] and filtered.get('reading_input') is None:
+            self._job('unit_reading', filtered['context'], filtered)
         elif filtered['content_request']['requests']:
             self._job('unit_content', filtered['context'], filtered)
         elif filtered['score_request']['candidates']:
@@ -314,7 +321,12 @@ class Search:
                           'semantic_locks': deepcopy(p.get('semantic_locks', [])) + [{
                               'unit': filtered['context']['unit_name'],
                               'line_indices': deepcopy(filtered['context']['line_indices']),
-                              'lock': deepcopy(record['semantic_lock'])}]}
+                              'lock': deepcopy(record['semantic_lock'])}],
+                          'readings': {**deepcopy(p.get('readings', {})),
+                                       **{coordinate: selector
+                                          for line_filter in record['line_filters']
+                                          for coordinate, selector in line_filter['records'][0]
+                                          .get('reading_review', {}).get('readings', {}).items()}}}
             self.data['next_path'] += 1
             self.data['children'].append(child_path)
         if report['ranking']:
@@ -341,7 +353,8 @@ class Search:
             from poetry_round import ENVELOPE
             payload = {**{k: c[k] for k in ENVELOPE}, 'attempt': 1,
                        'candidates': [{'id': 'final', 'text': p['state']['lines'][index-1], 'line_index': index}]}
-            f = filter_candidates(state, c, None if c['locked_candidate'] else payload, engine=self.engine)
+            f = filter_candidates(state, c, None if c['locked_candidate'] else payload,
+                                  engine=self.engine, readings=p.get('readings'))
             if f.get('content_request', {}).get('candidates'):
                 self._job('final_content', c, f, index)
                 return
@@ -439,6 +452,8 @@ class Search:
         stage, c, f = job['stage'], job['context'], job['filtered']
         if stage == 'unit_generate':
             self._after_unit_filter(filter_units(state, c, payload, engine=self.engine))
+        elif stage == 'unit_reading':
+            self._after_unit_filter(review_unit_readings(state, f, payload, engine=self.engine))
         elif stage == 'unit_content':
             reviewed = review_unit_content(state, f, payload, engine=self.engine)
             if reviewed['score_request']['candidates']:
@@ -454,7 +469,10 @@ class Search:
                 require(isinstance(payload.get('candidates'), list) and
                         all(isinstance(x, dict) and set(x) == enhanced for x in payload['candidates']),
                         'SEMANTIC_LOCK_REQUIRED', 'Planned generation candidates require expression metadata and semantic_lock')
-            self._after_filter(c, filter_candidates(state, c, payload, engine=self.engine))
+            self._after_filter(c, filter_candidates(state, c, payload, engine=self.engine,
+                                                    readings=self._current().get('readings')))
+        elif stage == 'reading':
+            self._after_filter(c, review_readings(state, f, payload, engine=self.engine))
         elif stage in ('content', 'final_content'):
             reviewed = review_content(state, f, payload, engine=self.engine)
             if stage == 'final_content':

@@ -15,7 +15,8 @@ from parse_input import parse_request
 from poem_state import PoemState
 from poem_templates import TemplateLibrary
 from poetry_round import (ENVELOPE, RUBRIC_VERSION, WEIGHTS, RoundError, export_context,
-                          filter_candidates, finish_round, read_json, validate_scores, write_new_json)
+                          filter_candidates, review_readings, finish_round, read_json,
+                          validate_scores, write_new_json)
 from rhyme_lexicon import RhymeLexicon
 
 FIXTURE = {'上平声部': {'一东': list('天地人风同'), '二冬': ['同', '冬']},
@@ -35,6 +36,22 @@ def model_scores(filtered, value=0.8):
             'scores': [{'id': c['id'], 'evaluation': {'dimensions': {k: value for k in WEIGHTS},
                         'reason': '固定测试评分，用于验证程序契约，不代表文学判断。'}}
                        for c in filtered['score_request']['candidates']]}
+
+
+def model_readings(filtered):
+    reviews = []
+    for item in filtered['reading_request']['reviews']:
+        decisions = []
+        for occurrence in item['request']['occurrences']:
+            option = next(x for x in occurrence['options'] if x['section'] == '上平声部')
+            decisions.append({'coordinate': occurrence['coordinate'], 'char': occurrence['char'],
+                              'status': 'selected', 'section': option['section'],
+                              'group': option['group'], 'reason': '句义在此取平声义。'})
+        reviews.append({'id': item['id'], 'review': {
+            'review_version': item['request']['review_version'],
+            'request_sha256': item['request']['request_sha256'], 'decisions': decisions}})
+    return {**{k: filtered['context'][k] for k in ENVELOPE}, 'attempt': 1,
+            'filter_sha256': filtered['filter_sha256'], 'reviews': reviews}
 
 
 class RoundTests(unittest.TestCase):
@@ -118,9 +135,9 @@ class RoundTests(unittest.TestCase):
         before = self.state.to_dict()
         seen = []
         check = self.engine.check_candidate
-        def observe(candidate, state):
+        def observe(candidate, state, **kwargs):
             seen.append(state.to_dict())
-            return check(candidate, state)
+            return check(candidate, state, **kwargs)
         with patch.object(self.engine, 'check_candidate', side_effect=observe) as mock:
             with patch('poetry_round.ConstraintEngine', return_value=self.engine) as factory:
                 filter_candidates(self.state, self.context, model_candidates(self.context))
@@ -166,6 +183,11 @@ class RoundTests(unittest.TestCase):
         filtered = self.filtered(['天风水水天'])
         self.assertEqual(filtered['records'][0]['category'], 'unresolved')
         self.assertFalse(filtered['score_request']['candidates'])
+        self.assertEqual([x['id'] for x in filtered['reading_request']['reviews']], ['c0'])
+        reviewed = review_readings(self.state, filtered, model_readings(filtered), engine=self.engine)
+        self.assertEqual(reviewed['records'][0]['category'], 'passed')
+        self.assertEqual([x['id'] for x in reviewed['score_request']['candidates']], ['c0'])
+        self.assertTrue(reviewed['records'][0]['reading_review']['complete'])
         payload = model_candidates(self.context)
         payload['readings'] = {'2:2': {'section': '上平声部'}}
         self.assert_error('INVALID_ENVELOPE', lambda: filter_candidates(self.state, self.context, payload))

@@ -108,6 +108,21 @@ class SearchTests(unittest.TestCase):
         self.assertEqual(s.data['status'], 'budget_exhausted')
         self.assertEqual(s.data['used']['interactions'], 1)
 
+    def test_reading_review_is_a_separate_bound_job(self):
+        s = self.create()
+        job = s.next_job()
+        response = response_for(job)
+        candidate = response['payload']['candidates'][0]
+        position = next(item['pos'] for item in job['context']['tone_requirements']
+                        if item['tune'] == '平')
+        candidate['text'] = candidate['text'][:position-1] + '风' + candidate['text'][position:]
+        response['payload']['candidates'] = [candidate]
+        s.submit(response)
+        self.assertEqual(s.next_job()['stage'], 'reading')
+        self.assertNotIn('readings', response['payload']['candidates'][0])
+        s.submit(response_for(s.next_job()))
+        self.assertEqual(s.next_job()['stage'], 'score')
+
     def test_wrong_path_atomic(self):
         s = self.create()
         before = s.to_dict()
@@ -158,8 +173,8 @@ class SearchTests(unittest.TestCase):
     def test_final_unknown_rejected(self):
         engine = fixture_engine()
         original = engine.check_poem
-        def unknown(state):
-            r = original(state)
+        def unknown(state, **kwargs):
+            r = original(state, **kwargs)
             r['valid'] = None
             r['checks']['pingze']['status'] = 'unknown'
             return r

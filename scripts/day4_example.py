@@ -12,7 +12,7 @@ from poem_planning import PLAN_VERSION, expected_units, make_plan_artifact, plan
 from poetry_unit import WEIGHTS as UNIT_WEIGHTS
 from runtime_workspace import configure_workspace, output_path
 
-LEXICON = {'上平声部': {'一东': list('天地人')}, '上声部': {'一董': list('水火土')}}
+LEXICON = {'上平声部': {'一东': list('天地人风')}, '上声部': {'一董': list('水火土风')}}
 
 
 def fixture_state(form='五言绝句', **budget):
@@ -87,6 +87,23 @@ def unit_line_for(requirement, variant=0):
     return line_for({'tone_requirements': requirement['tone_requirements']}, variant)
 
 
+def reading_payload(filtered, attempt=1):
+    reviews = []
+    for item in filtered['reading_request']['reviews']:
+        decisions = []
+        for occurrence in item['request']['occurrences']:
+            option = next((item for item in occurrence['options'] if item['section'] == '上平声部'),
+                          occurrence['options'][0])
+            decisions.append({'coordinate': occurrence['coordinate'], 'char': occurrence['char'],
+                              'status': 'selected', 'section': option['section'], 'group': option['group'],
+                              'reason': '固定测试夹具按给定语境选择已收录读音。'})
+        reviews.append({'id': item['id'], 'review': {
+            'review_version': item['request']['review_version'],
+            'request_sha256': item['request']['request_sha256'], 'decisions': decisions}})
+    return {**{k: filtered['context'][k] for k in ENVELOPE}, 'attempt': attempt,
+            'filter_sha256': filtered['filter_sha256'], 'reviews': reviews}
+
+
 def response_for(job, *, fail_high=False, two=False, value=0.8):
     c = job['context']
     payload = {**{k: c[k] for k in ENVELOPE}, 'attempt': job['attempt']}
@@ -129,6 +146,17 @@ def response_for(job, *, fail_high=False, two=False, value=0.8):
                             'line_index': requested['line_index'],
                             'response': response_for(fake)['payload']})
         payload.update(filter_sha256=f['filter_sha256'], reviews=reviews)
+    elif job['stage'] == 'unit_reading':
+        f = job['filtered']
+        reviews = []
+        for requested in f['reading_request']['requests']:
+            record = next(x for x in f['records'] if x['id'] == requested['candidate_id'])
+            line_filter = next(x for x in record['line_filters']
+                               if x['context']['line_index'] == requested['line_index'])
+            reviews.append({'candidate_id': requested['candidate_id'],
+                            'line_index': requested['line_index'],
+                            'response': reading_payload(line_filter, job['attempt'])})
+        payload.update(filter_sha256=f['filter_sha256'], reviews=reviews)
     elif job['stage'] == 'generate':
         texts = [line_for(c)]
         if two or not c['lines']:
@@ -148,6 +176,8 @@ def response_for(job, *, fail_high=False, two=False, value=0.8):
         payload.update(filter_sha256=f['filter_sha256'], rubric_version='literary-1',
                        scores=[{'id': item['id'], 'evaluation': {'dimensions': {k: value - i * .1 for k in WEIGHTS},
                                'reason': '确定性控制流程夹具评分。'}} for i, item in enumerate(f['score_request']['candidates'])])
+    elif job['stage'] == 'reading':
+        payload = reading_payload(job['filtered'], job['attempt'])
     else:
         f = job['filtered']
         def verdict(item, requirement):
