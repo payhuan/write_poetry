@@ -3,7 +3,7 @@
 新 Search 在 `context.planned_unit` 非空时，单句候选除 id/text/line_index 外还必须提交
 `expression_path`、`semantic_increment`、`risks` 和完整 `semantic_lock`。直接调用旧式单轮且未传 poem_plan 时仍可
 读取旧三字段候选。律诗颔联、颈联不使用逐句生成入口，改用[完整句／联生成](unit-generation.md)；其中采用
-`poetry-unit-3` 使用 `literary-5`，强制逐字位与逐结构位双层对仗评价并分别打分；律诗颔联承接、颈联转向职责随规划绑定到评分请求。对仗权重为 .25，状态分数上限影响排名，但不直接硬淘汰候选。
+`poetry-unit-4` 使用 `literary-6`，强制逐字位与逐结构位双层对仗评价并分别打分；律诗颔联承接、颈联转向职责随规划绑定到评分请求。对仗权重为 .25，状态分数上限影响排名，但不直接硬淘汰候选。
 
 单句候选的 `semantic_lock` 字段类型与整联相同，见[完整句／联生成](unit-generation.md)。特别注意，候选锁 `semantic_lock.protected_meaning` 是非空字符串，PoemPlan 的 `protected_meaning` 则是字符串数组；校验器不会自动转换类型。
 
@@ -72,7 +72,7 @@ python scripts/poetry_round.py finish --state examples/day3/run-new/state.json -
 
 ```json
 {
-  "contract_version": "poetry-round-2",
+  "contract_version": "poetry-round-3",
   "batch_id": "<照抄导出值>",
   "context_sha256": "<照抄导出值>",
   "generation_sha256": "<照抄导出值>",
@@ -104,11 +104,11 @@ id 是批次内唯一非空字符串，不修剪或改写；line_index 必须是
 
 评分提示：
 
-> 只评价程序列出的规则通过候选。按 literary-1 逐维评价，给出简短、具体的总体理由，说明主要优点或不足。重视自然、准确与上下文衔接，不因词藻多或机械加入诗眼而加分。无法评价的项明确为 null。律诗可补充语义或句法对仗观察，但不能声称程序完成语义对仗。照抄批次、上下文、过滤摘要和尺度版本；只输出 JSON，不修改规则结果，不计算总分。
+> 只评价程序列出的规则通过候选。按 literary-2 逐维评价，给出简短、具体的总体理由，说明主要优点或不足。重视自然、准确与上下文衔接，不因词藻多或机械加入诗眼而加分。无法评价的项明确为 null。程序会在加权基础分之后扣重字分：第一组免费，第二组起每组 -0.20；不要尝试用评价理由抵消。律诗可补充语义或句法对仗观察，但不能声称程序完成语义对仗。照抄批次、上下文、过滤摘要和尺度版本；只输出 JSON，不修改规则结果，不计算总分。
 
 ```json
 {
-  "contract_version": "poetry-round-2",
+  "contract_version": "poetry-round-3",
   "batch_id": "<照抄值>",
   "context_sha256": "<照抄值>",
   "generation_sha256": "<照抄值>",

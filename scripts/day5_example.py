@@ -138,7 +138,7 @@ def run_example(*, adopt=False):
             p = dict(title='流程测试', notes=['使用微型测试韵库与固定模型响应；不代表真实诗作质量。'])
         polish.submit(envelope(j, p))
     assert polish.data['status'] == 'completed', polish.data['reason']
-    assert polish.data['history'][0]['decision'] == ('adopted' if adopt else 'rejected')
+    assert polish.data['history'][0]['decision'] == 'rejected'
     return polish
 
 

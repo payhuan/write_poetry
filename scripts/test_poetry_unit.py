@@ -43,7 +43,7 @@ class PoetryUnitTests(unittest.TestCase):
         search.submit(response_for(search.next_job()))
         score_job = search.next_job()
         self.assertEqual(score_job['stage'], 'unit_score')
-        self.assertEqual(score_job['filtered']['score_request']['rubric_version'], 'literary-5')
+        self.assertEqual(score_job['filtered']['score_request']['rubric_version'], 'literary-6')
         result = response_for(score_job)
         pair = result['payload']['scores'][0]['parallelism']
         self.assertTrue(pair['character_alignment'])
@@ -125,7 +125,10 @@ class PoetryUnitTests(unittest.TestCase):
             engine=engine)
         for record in result['records']:
             for line_filter in record['line_filters']:
-                self.assertNotEqual(line_filter['records'][0]['checks']['checks']['duplicate']['status'], 'unknown')
+                self.assertIn(line_filter['records'][0]['checks']['checks']['duplicate']['status'],
+                              ('pass', 'unknown'))
+                if line_filter['records'][0]['checks']['checks']['duplicate']['status'] == 'unknown':
+                    self.assertIsNot(line_filter['records'][0]['checks']['valid'], True)
 
     def test_new_search_requires_plan(self):
         with self.assertRaises(RoundError) as caught:

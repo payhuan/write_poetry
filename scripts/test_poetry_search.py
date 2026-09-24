@@ -46,7 +46,7 @@ class SearchTests(unittest.TestCase):
 
     def test_compact_poem_review_jobs_expose_bound_request(self):
         full = {'stage': 'poem_duplicate', 'context': {'context_sha256': 'x'},
-                'duplicate_request': {'review_version': 'duplicate-review-2', 'occurrences': [1]},
+                'duplicate_request': {'review_version': 'duplicate-review-3', 'occurrences': [1]},
                 'filtered': {'records': ['large']}}
         compact = compact_job_view(full)
         self.assertEqual(compact['request'], full['duplicate_request'])
@@ -88,7 +88,7 @@ class SearchTests(unittest.TestCase):
             s.submit(response_for(s.next_job(), two=True))
         self.assertEqual([p['depth'] for p in s.data['active']], [2, 2])
         self.assertEqual(len(s.data['alternatives']), 2)
-        self.assertEqual([p['parent_path_id'] for p in s.data['active']], ['p1', 'p1'])
+        self.assertEqual([p['parent_path_id'] for p in s.data['active']], ['p1', 'p2'])
 
     def test_live_alternative_before_backtrack(self):
         s = drive(self.create(beam_width=2), fail_high=True)
@@ -219,8 +219,9 @@ class SearchTests(unittest.TestCase):
             'decisions': duplicate_decisions(request)}}
         identity = {k: job[k] for k in ('run_id', 'job_id', 'path_id', 'batch_id', 'context_sha256')}
         s.submit({**identity, 'payload': payload})
-        self.assertEqual(s.data['status'], 'ready_for_review', s.data['events'])
-        self.assertIsNotNone(s.data['drafts'][0]['duplicate_review'])
+        self.assertEqual(s.data['status'], 'no_feasible_path', s.data['events'])
+        self.assertFalse(s.data['drafts'])
+        self.assertTrue(any(event['code'] == 'FINAL_DUPLICATE_UNRESOLVED' for event in s.data['events']))
 
     def test_seeded_content_semantics_wait_for_candidate_scope_duplicate_review(self):
         request_data = {'raw_request': '写山中五绝，第一句化用“天”', 'theme': '山中',
@@ -243,24 +244,8 @@ class SearchTests(unittest.TestCase):
             search.submit(response_for(search.next_job()))
         self.assertEqual(search.next_job()['stage'], 'poem_duplicate')
         self._submit_poem_duplicate(search)
-        job = search.next_job()
-        if job['stage'] == 'final_reading':
-            search.submit(response_for(job))
-            job = search.next_job()
-        self.assertEqual(job['stage'], 'final_duplicate')
-        filtered = job['filtered']
-        item = filtered['duplicate_request']['reviews'][0]
-        req = item['request']
-        review = {'review_version': req['review_version'], 'request_sha256': req['request_sha256'],
-                  'decisions': duplicate_decisions(req)}
-        line_context = filtered['context']
-        line_payload = {**{k: line_context[k] for k in
-                           ('contract_version', 'batch_id', 'context_sha256', 'generation_sha256')},
-                        'attempt': 1, 'filter_sha256': filtered['filter_sha256'],
-                        'reviews': [{'id': item['id'], 'review': review}]}
-        envelope = {k: job[k] for k in ('run_id', 'job_id', 'path_id', 'batch_id', 'context_sha256')}
-        search.submit({**envelope, 'payload': line_payload})
-        self.assertEqual(search.next_job()['stage'], 'final_content')
+        self.assertIsNone(search.next_job())
+        self.assertEqual(search.data['status'], 'no_feasible_path')
 
     @staticmethod
     def _submit_poem_duplicate(search):
@@ -438,9 +423,9 @@ class SearchTests(unittest.TestCase):
         with self.assertRaises(RoundError):
             Search.from_dict({'search': {}, 'sha256': digest({})})
 
-    def test_search_v1_through_v7_are_audit_only(self):
+    def test_search_v1_through_v8_are_audit_only(self):
         from assessment_binding import digest
-        for version in range(1, 8):
+        for version in range(1, 9):
             with self.subTest(version=version):
                 artifact = self.create().to_dict()
                 artifact['search']['version'] = f'poetry-search-{version}'

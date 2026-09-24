@@ -17,11 +17,12 @@ from runtime_workspace import configure_workspace, input_path, output_path
 from word_refinement import structural_units, refinement_request, validate_refinement
 from reading_disambiguation import make_request as make_reading_request, apply_review as apply_reading_review
 from duplicate_disambiguation import make_request as make_duplicate_request, apply_review as apply_duplicate_review
+from duplicate_scoring import adjust_full_poem_score
 from character_alignment import (validate_character_alignment, validate_structure_alignment,
                                  validate_soft_rating)
 
-VERSION = 'poetry-polish-9'
-REVIEW_VERSION = 'whole-poem-review-4'
+VERSION = 'poetry-polish-10'
+REVIEW_VERSION = 'whole-poem-review-5'
 REDLINE_VERSION = 'final-redline-1'
 REDLINE_CHECKS = ('user_facts_reversed', 'allusion_facts_reversed',
                   'meaning_sacrificed_for_rhyme', 'scene_identity_tone_mismatch')
@@ -194,7 +195,9 @@ def validate_review(payload, state, poem_plan=None):
     require(payload['conclusion'] == expected, 'CONCLUSION_CONFLICT', expected)
     total = sum(Fraction(str(scores[k])) * Fraction(str(WEIGHTS[k])) for k in scores)
     total /= sum(Fraction(str(WEIGHTS[k])) for k in scores)
-    return {**deepcopy(payload), 'total': float(total)}
+    adjusted, duplicate_adjustment = adjust_full_poem_score(float(total), state['lines'])
+    return {**deepcopy(payload), 'base_total': float(total), **duplicate_adjustment,
+            'total': adjusted}
 
 
 def validate_redline(payload, state):
@@ -335,6 +338,9 @@ class Polish:
                        semantic_locks=deepcopy(d['semantic_locks']),
                        readings=deepcopy(d['readings']),
                        duplicate_review=deepcopy(d['duplicate_review']),
+                       duplicate_score_policy={'first_group_free': True,
+                                               'penalty_per_additional_group': 0.20,
+                                               'applied_by_python_after_model_score': True},
                        refinement_cursor=d['refinement_cursor'], refinements=deepcopy(d['refinements']),
                        weights=WEIGHTS.copy(), review_version=REVIEW_VERSION, **deepcopy(extra))
         job = dict(contract_version=VERSION, run_id=d['run_id'], job_id='w' + str(d['next_job']),
@@ -761,7 +767,8 @@ class Polish:
                 d['redline']['identity']['binding'] == make_binding(state.to_dict()) and
                 d['redline']['identity']['revision'] == state.to_dict()['revision'],
                 'STALE_REDLINE', 'Wrong red-line run/path/body')
-        raw = {k: v for k, v in d['review']['review'].items() if k != 'total'}
+        raw = {k: v for k, v in d['review']['review'].items()
+               if k not in ('total', 'base_total', 'duplicate_groups', 'duplicate_score_penalty')}
         review = validate_review(raw, state.to_dict(), self.data['source']['search']['poem_plan'])
         require(review['conclusion'] == 'ready', 'FINAL_REVIEW_BLOCKED', 'Review is not ready')
         require(d['review']['identity']['run_id'] == d['run_id'] and

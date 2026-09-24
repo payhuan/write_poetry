@@ -5,7 +5,7 @@ from copy import deepcopy
 from assessment_binding import BINDING_FIELDS, digest
 from text_normalizer import normalize_line
 
-VERSION = 'duplicate-review-2'
+VERSION = 'duplicate-review-3'
 ALLOWED_DEVICES = {
     'reduplication', 'anadiplosis', 'echo', 'internal_parallelism',
     'proper_name', 'fixed_expression', 'other_rhetorical',
@@ -39,6 +39,8 @@ def make_request(result):
             '再指出明确修辞手法及其表达作用。可接受：叠字、顶真/联珠、反复/回环、句内对称重复、专名、固定词语；'
             '其他用法须写明具体手法和作用。仅称意群并列或递进不构成依据。无意同义重复、律诗中间两联无意复现、'
             '上下联同一位置用同字均应判 error，除非有明确修辞目的。含糊或证据不足判 unknown。'
+            '程序只认可可由坐标机械核实的叠字（同句相邻位置）和顶真/联珠（前句末字、紧邻后句首字）。'
+            '反复/回环、句内对称、专名、固定词语及其他语义性解释无法由本程序独立核实，必须返回 unknown，不能仅凭理由放行。'
             '若重复字符占据两个或更多押韵位置，属于程序禁止的重韵，不得尝试复核放行。'
         ),
     }
@@ -83,12 +85,38 @@ def _validate_decisions(request, decisions):
             _require(type(item['line']) is int and item['line'] in lines_by_number and
                      type(item['pos']) is int and 1 <= item['pos'] <= len(normalized_by_number[item['line']]['cells']) and
                      normalized_by_number[item['line']]['cells'][item['pos'] - 1]['char'] == char and
-                     isinstance(item['quote'], str) and char in item['quote'] and
-                     item['quote'] in lines_by_number[item['line']],
-                     f'Quote must contain {char} at its stated line for decision {index}')
+                     isinstance(item['quote'], str) and item['quote'] == lines_by_number[item['line']],
+                     f'Quote must be the complete source line containing {char} at its stated position for decision {index}')
             _require(isinstance(item['meaning'], str) and item['meaning'].strip(),
                      f'Every {char} occurrence needs a specific meaning at decision {index}')
-        result.append(deepcopy(decision))
+        claimed_device = decision['device']
+        verified_device = claimed_device
+        if claimed_device == 'reduplication':
+            coords = sorted((p['line'], p['pos']) for p in positions)
+            paired = set()
+            for line, pos in coords:
+                if (line, pos + 1) in coords:
+                    paired.update(((line, pos), (line, pos + 1)))
+            if paired != set(coords):
+                verified_device = 'unknown'
+        elif claimed_device == 'anadiplosis':
+            coords = set((p['line'], p['pos']) for p in positions)
+            paired = set()
+            for line, pos in coords:
+                width = len(normalized_by_number[line]['cells'])
+                if pos == width and (line + 1, 1) in coords:
+                    paired.update(((line, pos), (line + 1, 1)))
+            if paired != coords:
+                verified_device = 'unknown'
+        elif claimed_device not in ('error', 'unknown'):
+            verified_device = 'unknown'
+        normalized = deepcopy(decision)
+        normalized['claimed_device'] = claimed_device
+        normalized['device'] = verified_device
+        if verified_device == 'unknown' and claimed_device != 'unknown':
+            normalized['reason'] = (decision['reason'] +
+                ' 程序无法从字位结构独立核实此修辞，按 unknown 处理。')
+        result.append(normalized)
     _require({item['char'] for item in result} == set(occurrences),
              'Duplicate or missing repeated character decision')
     return result
@@ -135,8 +163,9 @@ def validate_for_engine(review, binding, occurrences):
              'Invalid duplicate review decisions')
     for decision in decisions:
         _require(isinstance(decision, dict) and set(decision) == {
-            'char', 'device', 'reason', 'position_evidence'}, 'Invalid duplicate decision fields')
+            'char', 'device', 'claimed_device', 'reason', 'position_evidence'}, 'Invalid duplicate decision fields')
         _require(decision['char'] in expected_chars and decision['device'] in DEVICES and
+                 decision['claimed_device'] in DEVICES and
                  isinstance(decision['reason'], str) and decision['reason'].strip(),
                  'Invalid duplicate decision')
         evidence = decision['position_evidence']
@@ -145,6 +174,34 @@ def validate_for_engine(review, binding, occurrences):
                  {(x.get('line'), x.get('pos')) for x in evidence if isinstance(x, dict)} ==
                  {(x['line'], x['pos']) for x in positions},
                  'Duplicate position evidence does not match current text')
+        for item in evidence:
+            _require(isinstance(item, dict) and isinstance(item.get('quote'), str) and
+                     isinstance(item.get('meaning'), str) and item['meaning'].strip() and
+                     type(item.get('line')) is int and type(item.get('pos')) is int and
+                     item['quote'] == item['quote'].strip() and
+                     normalize_line(item['quote'], item['line'])['cells'][item['pos'] - 1]['char'] ==
+                     decision['char'],
+                     'Duplicate evidence does not quote the character at the claimed position')
+        if decision['device'] in ('reduplication', 'anadiplosis'):
+            _require(decision['claimed_device'] == decision['device'],
+                     'Unverified duplicate device cannot pass')
+            coords = {(p['line'], p['pos']) for p in positions}
+            if decision['device'] == 'reduplication':
+                paired = set()
+                for line, pos in coords:
+                    if (line, pos + 1) in coords:
+                        paired.update(((line, pos), (line, pos + 1)))
+                _require(paired == coords, 'Repeated character is not mechanically adjacent')
+            else:
+                quotes_by_line = {x['line']: x['quote'] for x in evidence}
+                paired = set()
+                for line, pos in coords:
+                    width = len(normalize_line(quotes_by_line[line], line)['cells'])
+                    if pos == width and (line + 1, 1) in coords:
+                        paired.update(((line, pos), (line + 1, 1)))
+                _require(paired == coords, 'Repeated character is not mechanically line-final/line-initial')
+        elif decision['device'] not in ('error', 'unknown'):
+            _require(False, 'Semantic duplicate claims cannot pass without independent verification')
     _require({item['char'] for item in decisions} == expected_chars,
              'Duplicate or missing repeated character decision')
     _require(review['decision_sha256'] == digest(decisions),

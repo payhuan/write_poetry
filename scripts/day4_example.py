@@ -215,7 +215,7 @@ def response_for(job, *, fail_high=False, two=False, value=0.8):
             for i, t in enumerate(texts)]
     elif job['stage'] == 'score':
         f = job['filtered']
-        payload.update(filter_sha256=f['filter_sha256'], rubric_version='literary-1',
+        payload.update(filter_sha256=f['filter_sha256'], rubric_version='literary-2',
                        scores=[{'id': item['id'], 'evaluation': {'dimensions': {k: value - i * .1 for k in WEIGHTS},
                                'reason': '确定性控制流程夹具评分。'}} for i, item in enumerate(f['score_request']['candidates'])])
     elif job['stage'] == 'poem_reading':

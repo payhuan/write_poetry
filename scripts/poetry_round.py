@@ -28,10 +28,11 @@ from round_content import (CONTENT_VERSION, ContentError, export_content_plan,
 from runtime_workspace import configure_workspace, input_path, output_path
 from reading_disambiguation import make_request as make_reading_request, apply_review as apply_reading_review
 from duplicate_disambiguation import make_request as make_duplicate_request, apply_review as apply_duplicate_review
+from duplicate_scoring import adjust_score
 
 PROJECT = Path(__file__).resolve().parent.parent
-CONTRACT_VERSION = 'poetry-round-2'
-RUBRIC_VERSION = 'literary-1'
+CONTRACT_VERSION = 'poetry-round-3'
+RUBRIC_VERSION = 'literary-2'
 WEIGHTS = {'theme': 0.25, 'naturalness': 0.25, 'imagery': 0.20,
            'continuity': 0.15, 'expression': 0.15}
 MAX_FORMAT_RETRIES = 2
@@ -500,17 +501,35 @@ def review_duplicates(state, filtered, payload, *, engine=None):
 
 def _score_request(filtered):
     context = filtered['context']
+    candidates = []
+    for record in filtered['records']:
+        if not content_eligible(record):
+            continue
+        after = list(context['lines'])
+        index = record['line_index'] - 1
+        if index < len(after):
+            after[index] = record['text']
+        elif index == len(after):
+            after.append(record['text'])
+        else:
+            after.extend([''] * (index - len(after)))
+            after.append(record['text'])
+        _, adjustment = adjust_score(0.0, context['lines'], after)
+        candidates.append({**{k: record[k] for k in ('id', 'text', 'line_index')},
+                           **({k: deepcopy(record[k]) for k in
+                               ('expression_path', 'semantic_increment', 'risks', 'semantic_lock')}
+                              if 'semantic_lock' in record else {}),
+                           **({'content_fulfillment': deepcopy(record['content_result'])}
+                              if 'content_result' in record else {}),
+                           'duplicate_score_adjustment': adjustment})
     return {**_envelope(context), 'filter_sha256': filtered['filter_sha256'],
             'rubric_version': RUBRIC_VERSION, 'weights': deepcopy(WEIGHTS),
+            'duplicate_score_policy': {'first_group_free': True,
+                                       'penalty_per_additional_group': 0.20,
+                                       'applied_by_python_after_model_score': True},
             'scale': {'0': '不符合该维度', '0.25': '明显薄弱', '0.5': '基本成立但有明显不足',
                       '0.75': '表现良好，只有局部不足', '1': '在当前上下文中充分且准确'},
-            'candidates': [{**{k: record[k] for k in ('id', 'text', 'line_index')},
-                            **({k: deepcopy(record[k]) for k in
-                               ('expression_path', 'semantic_increment', 'risks', 'semantic_lock')}
-                               if 'semantic_lock' in record else {}),
-                            **({'content_fulfillment': deepcopy(record['content_result'])}
-                               if 'content_result' in record else {})}
-                           for record in filtered['records'] if content_eligible(record)],
+            'candidates': candidates,
             'instruction': '只评价此处列出的规则和本句必需内容均通过的候选；各维度给有限 0–1 数值和简短理由。未评价填 null。'
                            '自然、准确、含蓄优于词藻堆砌，不要求机械添加诗眼。不得改变规则结果。'
                            '律诗可附加对仗观察，但不得声称程序已完成语义对仗判断。'}
@@ -551,8 +570,19 @@ def validate_scores(filtered, payload):
                     and len(evaluation['parallelism_observation']) <= 500,
                     'INVALID_PARALLELISM_OBSERVATION', 'Only regulated eight-line poems accept a brief parallelism observation')
         total = sum(Fraction(str(dims[k])) * Fraction(str(w)) for k, w in WEIGHTS.items())
+        record = next(r for r in filtered['records'] if r['id'] == candidate_id)
+        after = list(filtered['context']['lines'])
+        index = record['line_index'] - 1
+        if index < len(after):
+            after[index] = record['text']
+        elif index == len(after):
+            after.append(record['text'])
+        else:
+            after.extend([''] * (index - len(after)))
+            after.append(record['text'])
+        adjusted, adjustment = adjust_score(float(total), filtered['context']['lines'], after)
         evaluations[candidate_id] = {**deepcopy(evaluation), 'rubric_version': RUBRIC_VERSION,
-                                     'total': float(total)}
+                                     'base_total': float(total), **adjustment, 'total': adjusted}
     require(set(evaluations) == set(eligible), 'MISSING_SCORE_ITEM', 'Each passed ID needs an evaluation or explicit null')
     return evaluations
 

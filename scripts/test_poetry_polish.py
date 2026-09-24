@@ -17,7 +17,7 @@ from poem_state import PoemState
 from poem_templates import TemplateLibrary
 from poetry_search import Search
 from poetry_polish import Polish, REDLINE_CHECKS, compact_job_view, validate_review, validate_redline
-from poetry_round import export_context
+from poetry_round import RoundError, export_context
 from round_content import export_content_plan
 from rhyme_lexicon import RhymeLexicon
 from day4_example import fixture_state, fixture_engine, fixture_plan, drive, line_for, response_for, LEXICON
@@ -68,7 +68,7 @@ class PolishTests(unittest.TestCase):
         self.assertEqual(compact['request'], request)
         self.assertNotIn('filtered', compact['context'])
 
-    def test_search_duplicate_proof_is_rechecked_and_bound_at_handoff(self):
+    def test_unverifiable_search_duplicate_claim_cannot_reach_polish(self):
         state = fixture_state()
         for index in range(1, 5):
             line = line_for(export_context(state, index))
@@ -88,12 +88,11 @@ class PolishTests(unittest.TestCase):
         search.submit({**{k: job[k] for k in
                           ('run_id', 'job_id', 'path_id', 'batch_id', 'context_sha256')},
                        'payload': payload})
-        polish = Polish.create(search.to_dict(), 'p0', engine=engine)
-        self.assertEqual(polish.data['duplicate_review'], search.data['drafts'][0]['duplicate_review'])
-        self.assertEqual(polish.next_job()['stage'], 'review')
-        self.assertEqual(polish.next_job()['context']['duplicate_review'], polish.data['duplicate_review'])
+        self.assertEqual(search.data['status'], 'no_feasible_path')
+        with self.assertRaises(RoundError):
+            Polish.create(search.to_dict(), 'p0', engine=engine)
 
-    def test_changed_body_does_not_reuse_handoff_duplicate_proof(self):
+    def test_unverifiable_duplicate_blocks_handoff_before_edit(self):
         state = fixture_state()
         for index in range(1, 5):
             line = line_for(export_context(state, index))
@@ -112,14 +111,8 @@ class PolishTests(unittest.TestCase):
         search.submit({**{k: job[k] for k in
                           ('run_id', 'job_id', 'path_id', 'batch_id', 'context_sha256')},
                        'payload': payload})
-        polish = Polish.create(search.to_dict(), 'p0', engine=engine)
-        self.send(polish, review_for(polish.data['accepted'], revise=True, positions=(1,)))
-        package = package_for(polish.data['accepted'], positions=(1,))
-        current = PoemState.from_dict(polish.data['accepted'])
-        package['edits'][0]['new'] = line_for(export_context(current, 1), variant=1)
-        self.generate(polish, package)
-        self.assertEqual(polish.next_job()['stage'], 'candidate_duplicate')
-        self.assertIsNone(polish.data['candidate']['duplicate_review'])
+        self.assertEqual(search.data['status'], 'no_feasible_path')
+        self.assertFalse(search.data['drafts'])
 
     def send(self, p, payload):
         return p.submit(envelope(p.next_job(), payload))
@@ -250,31 +243,31 @@ class PolishTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_redline(payload, state)
 
-    def test_single_line_adopt_and_fresh_review(self):
+    def test_second_duplicate_group_penalty_rejects_single_line_adoption(self):
         p = self.create()
         old = deepcopy(p.data['accepted'])
         self.revise(p)
         self.generate(p)
         self.assertEqual(p.next_job()['stage'], 'compare')
         self.send(p, comparison_for(p.next_job()))
-        self.assertEqual(p.data['accepted']['revision'], old['revision'] + 1)
-        self.assertEqual(p.data['accepted']['lines'][1:], old['lines'][1:])
-        self.assertIsNone(p.data['review'])
+        self.assertEqual(p.data['accepted']['revision'], old['revision'])
+        self.assertEqual(p.data['accepted']['lines'], old['lines'])
+        self.assertEqual(p.data['history'][0]['decision'], 'rejected')
+        self.assertEqual(p.next_job()['stage'], 'review')
         self.assertEqual(p.data['history'][0]['base'], old)
-        self.assertEqual(p.data['history'][0]['decision'], 'adopted')
         self.assertEqual(p.data['accepted']['status'], 'reviewing')
         self.finish(p)
 
-    def test_atomic_couplet_one_revision(self):
+    def test_atomic_couplet_candidate_is_rejected_without_revision_change(self):
         p = self.create()
         old = deepcopy(p.data['accepted'])
         self.revise(p, (1, 2))
         self.generate(p, positions=(1, 2))
         self.assertEqual(p.data['accepted'], old)
         self.send(p, comparison_for(p.next_job()))
-        self.assertEqual(p.data['accepted']['revision'], old['revision'] + 1)
-        self.assertTrue(all(a != b for a, b in zip(old['lines'][:2], p.data['accepted']['lines'][:2])))
-        self.assertEqual(old['lines'][2:], p.data['accepted']['lines'][2:])
+        self.assertEqual(p.data['accepted']['revision'], old['revision'])
+        self.assertEqual(p.data['accepted']['lines'], old['lines'])
+        self.assertEqual(p.data['history'][0]['decision'], 'rejected')
 
     def test_rule_failure_retains_and_never_requests_comparison(self):
         p = self.create()
@@ -393,17 +386,16 @@ class PolishTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             b.submit(envelope(a.next_job(), review_for(a.data['accepted'])))
 
-    def test_old_review_rejected_after_edit(self):
+    def test_penalized_edit_does_not_stale_the_accepted_review(self):
         p = self.create()
-        old_review = review_for(p.data['accepted'])
         self.revise(p)
         self.generate(p)
         self.send(p, comparison_for(p.next_job()))
         current = deepcopy(p.data['accepted'])
-        self.send(p, old_review)
+        self.assertEqual(p.data['history'][0]['decision'], 'rejected')
+        self.assertEqual(p.next_job()['stage'], 'review')
         self.assertEqual(p.data['accepted'], current)
-        self.assertEqual(p.next_job()['attempt'], 2)
-        self.assertIsNone(p.data['review'])
+        self.assertIsNotNone(p.data['review'])
         self.assertNotEqual(p.data['status'], 'completed')
 
     def test_invalid_second_edit_never_partially_writes(self):
@@ -486,7 +478,8 @@ class PolishTests(unittest.TestCase):
         r = review_for(p.data['accepted'])
         r['dimensions']['theme']['score'] = .9
         result = validate_review(r, p.data['accepted'])
-        self.assertAlmostEqual(result['total'], (.9 * .19 + .8 * .66) / .85)
+        self.assertAlmostEqual(result['base_total'], (.9 * .19 + .8 * .66) / .85)
+        self.assertAlmostEqual(result['total'], result['base_total'] - .2)
 
     def test_locked_requirements_need_clarification(self):
         p = self.create()
@@ -666,7 +659,7 @@ class PolishTests(unittest.TestCase):
         j['context']['accepted']['request']['theme'] = '私改'
         self.assertNotEqual(j, p.next_job())
 
-    def test_multiple_candidates_reject_then_adopt(self):
+    def test_multiple_candidates_with_added_repeats_are_rejected(self):
         p = self.create()
         self.revise(p)
         self.send(p, dict(packages=[package_for(p.data['accepted'], modification_id='bad', invalid=True),
@@ -674,16 +667,16 @@ class PolishTests(unittest.TestCase):
                           needs_user_change=False, reason='两个候选'))
         self.assertEqual(p.next_job()['stage'], 'compare')
         self.send(p, comparison_for(p.next_job()))
-        self.assertEqual([h['decision'] for h in p.data['history']], ['rejected', 'adopted'])
+        self.assertEqual([h['decision'] for h in p.data['history']], ['rejected', 'rejected'])
         self.finish(p)
 
-    def test_adopted_but_budget_exhausted_cannot_complete(self):
+    def test_rejected_repeat_candidate_does_not_complete_after_budget_exhaustion(self):
         p = self.create(max_interactions=3)
         self.revise(p)
         self.generate(p)
         self.send(p, comparison_for(p.next_job()))
-        self.assertEqual(p.data['history'][0]['decision'], 'adopted')
-        self.assertIsNone(p.data['review'])
+        self.assertEqual(p.data['history'][0]['decision'], 'rejected')
+        self.assertIsNotNone(p.data['review'])
         self.assertEqual(p.data['status'], 'budget_exhausted')
         self.assertEqual(p.data['accepted']['status'], 'reviewing')
         self.assertIsNone(p.result()['title'])
@@ -769,7 +762,9 @@ class PolishTests(unittest.TestCase):
         self.assertEqual(p.data['history'][0]['reason'], 'LOCKED_EXACT_CONTENT')
 
     def test_examples_and_migration_other_working_directory(self):
-        self.assertEqual(run_example(adopt=True).data['status'], 'completed')
+        adopted_example = run_example(adopt=True)
+        self.assertEqual(adopted_example.data['status'], 'completed')
+        self.assertEqual(adopted_example.data['history'][0]['decision'], 'rejected')
         with tempfile.TemporaryDirectory() as temp:
             project = Path(temp) / 'moved'
             shutil.copytree(Path(__file__).resolve().parent.parent, project, ignore=shutil.ignore_patterns('__pycache__'))

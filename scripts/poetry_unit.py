@@ -18,9 +18,10 @@ from poetry_round import (RoundError, export_context, filter_candidates,
 from round_content import export_content_plan
 from character_alignment import (validate_character_alignment, validate_structure_alignment,
                                  validate_soft_rating)
+from duplicate_scoring import adjust_score
 
-CONTRACT_VERSION = 'poetry-unit-3'
-RUBRIC_VERSION = 'literary-5'
+CONTRACT_VERSION = 'poetry-unit-4'
+RUBRIC_VERSION = 'literary-6'
 WEIGHTS = {'task_completion': .14, 'semantic_progression': .11,
            'image_relation': .09, 'context_consistency': .10,
            'implicitness': .07, 'naturalness': .10, 'freshness': .045,
@@ -376,8 +377,29 @@ def review_unit_content(state, filtered, payload, *, engine=None):
 
 
 def unit_score_request(filtered):
+    candidates = []
+    for record in filtered['records']:
+        if not _eligible(record):
+            continue
+        after = list(filtered['context']['lines'])
+        for line in record['lines']:
+            index = line['line_index'] - 1
+            if index < len(after):
+                after[index] = line['text']
+            elif index == len(after):
+                after.append(line['text'])
+            else:
+                after.extend([''] * (index - len(after)))
+                after.append(line['text'])
+        _, adjustment = adjust_score(0.0, filtered['context']['lines'], after)
+        candidates.append({**{k: deepcopy(record[k]) for k in
+                              ('id', 'lines', 'expression_path', 'semantic_increment', 'risks', 'semantic_lock')},
+                           'duplicate_score_adjustment': adjustment})
     return {**_envelope(filtered['context']), 'filter_sha256': filtered['filter_sha256'],
             'rubric_version': RUBRIC_VERSION, 'weights': deepcopy(WEIGHTS),
+            'duplicate_score_policy': {'first_group_free': True,
+                                       'penalty_per_additional_group': 0.20,
+                                       'applied_by_python_after_model_score': True},
             'arc_role': filtered['context']['planned_unit'].get('arc_role'),
             'turn_plan': deepcopy(filtered['context']['planned_unit'].get('turn_plan')),
             'assessment_instruction': (
@@ -385,9 +407,7 @@ def unit_score_request(filtered):
                 '仅有下一事件不算转向。不得仅因未换场景或意象判失败。'
                 if filtered['context']['planned_unit'].get('arc_role') == '转'
                 else '评价本联如何完成规划职责及其语义增量。'),
-            'candidates': [{k: deepcopy(record[k]) for k in
-                            ('id', 'lines', 'expression_path', 'semantic_increment', 'risks', 'semantic_lock')}
-                           for record in filtered['records'] if _eligible(record)],
+            'candidates': candidates,
             'instruction': ('评价任务完成、推进、物象、上下文、含蓄、自然、新鲜和后文空间。'
                             '对仗必须分别评价逐字位和逐结构位：结构分段应连续、完整覆盖上下句且不得重叠；两层分别打分，parallelism.score 必须为二者算术平均。'
                             '明显失配须降低对应层分数；任一层低分会通过较高对仗权重显著影响搜索排序，但仍是软约束，不直接判作格律失败。'
@@ -410,7 +430,7 @@ def validate_unit_scores(filtered, payload):
         dims = item['dimensions']
         require(isinstance(dims, dict) and set(dims) == set(WEIGHTS) and
                 all(type(v) in (int, float) and math.isfinite(v) and 0 <= v <= 1 for v in dims.values()),
-                'INVALID_UNIT_SCORE', 'All literary-5 dimensions require finite 0..1 values')
+                'INVALID_UNIT_SCORE', 'All literary-6 dimensions require finite 0..1 values')
         parallel = item['parallelism']
         require(isinstance(parallel, dict) and set(parallel) == PARALLEL_FIELDS,
                 'INVALID_PARALLELISM', 'Middle couplets require complete character-level parallelism analysis')
@@ -444,7 +464,20 @@ def validate_unit_scores(filtered, payload):
         require(abs(dims['parallelism'] - parallel['score']) < 1e-12,
                 'PARALLELISM_SCORE_MISMATCH', 'The literary dimension must equal the structured score')
         total = sum(Fraction(str(dims[k])) * Fraction(str(v)) for k, v in WEIGHTS.items())
-        result[item['id']] = {**deepcopy(item), 'total': float(total), 'rubric_version': RUBRIC_VERSION}
+        record = next(x for x in filtered['records'] if x['id'] == item['id'])
+        after = list(filtered['context']['lines'])
+        for line in record['lines']:
+            index = line['line_index'] - 1
+            if index < len(after):
+                after[index] = line['text']
+            elif index == len(after):
+                after.append(line['text'])
+            else:
+                after.extend([''] * (index - len(after)))
+                after.append(line['text'])
+        adjusted, adjustment = adjust_score(float(total), filtered['context']['lines'], after)
+        result[item['id']] = {**deepcopy(item), 'base_total': float(total), **adjustment,
+                              'total': adjusted, 'rubric_version': RUBRIC_VERSION}
     require(set(result) == eligible, 'MISSING_UNIT_SCORE', 'Every eligible unit needs a score')
     return result
 

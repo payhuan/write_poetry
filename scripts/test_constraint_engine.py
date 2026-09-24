@@ -250,7 +250,7 @@ class ConstraintTests(unittest.TestCase):
         self.assertEqual(r['checks']['rhyme']['status'], 'not_applicable')
         self.assertEqual(r['checks']['duplicate']['occurrences'], [])
         engine = ConstraintEngine(self.engine.lexicon)
-        candidate = {'id': 'c', 'text': '天天水水天', 'line_index': 2}
+        candidate = {'id': 'c', 'text': '天天水水地', 'line_index': 2}
         r = engine.check_candidate(candidate, self.state())
         self.assertIsNone(r['valid'])
         self.assertTrue(r['checks']['duplicate']['required'])
@@ -264,7 +264,19 @@ class ConstraintTests(unittest.TestCase):
                        'request_sha256': request['request_sha256'],
                        'decisions': duplicate_decisions(request, device)}
             checked = recheck_duplicate_candidate(engine, candidate, self.state(), request, payload)
-            self.assertTrue(checked['result']['valid'])
+            if device == 'reduplication':
+                self.assertEqual(checked['result']['checks']['duplicate']['status'], 'pass')
+            else:
+                self.assertIsNone(checked['result']['valid'])
+                self.assertEqual(checked['review']['decisions'][0]['device'], 'unknown')
+        bad_candidate = {'id': 'c-bad', 'text': '天天水水天', 'line_index': 2}
+        bad_result = engine.check_candidate(bad_candidate, self.state())
+        bad_request = make_duplicate_request(bad_result)
+        nonadjacent = {'review_version': bad_request['review_version'],
+                       'request_sha256': bad_request['request_sha256'],
+                       'decisions': duplicate_decisions(bad_request, 'reduplication')}
+        self.assertIsNone(recheck_duplicate_candidate(
+            engine, bad_candidate, self.state(), bad_request, nonadjacent)['result']['valid'])
         obsolete = deepcopy(payload)
         obsolete['decisions'][0]['device'] = 'parallel'
         with self.assertRaises(ValueError):

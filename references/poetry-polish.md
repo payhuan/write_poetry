@@ -1,15 +1,15 @@
 # Day 5：全诗审校、局部炼句与最终润色
 
-> 当前快照版本为 `poetry-polish-9`。全诗 review ready 后不能直接进入最终出口，必须先完成
+> 当前快照版本为 `poetry-polish-10`。全诗 review ready 后不能直接进入最终出口，必须先完成
 > [逐结构单位炼字](word-refinement.md)：绝句逐句、律诗按四联依次返回 `NO_CHANGE`、`REFINED` 或
 > `REFLOW_REQUIRED`。下文原有 issue 驱动的 generate/compare 仍用于全诗审校明确指出的问题；逐字审查使用
 > refinement/reflow/refinement_compare，并受更严格的两字符范围、语义锁和净增益规则约束。
 
-旧 `poetry-polish-1` 至 `poetry-polish-8` 快照只供审计读取，`next_job()` 为空且 `submit()` 被拒绝。需要继续创作时，基于当前接受正文创建新的 Search／Polish 流程，并重新完成重字复核。
+旧 `poetry-polish-1` 至 `poetry-polish-9` 快照只供审计读取，`next_job()` 为空且 `submit()` 被拒绝。需要继续创作时，基于当前接受正文创建新的 Search／Polish 流程，并重新完成重字复核。
 
 ## 职责与入口
 
-`scripts/poetry_polish.py` 提供 `Polish`，快照与工作封套版本为 `poetry-polish-9`，审校量表为 `whole-poem-review-4`，最终红线版本为 `final-redline-1`。运行 Skill 的 LLM 阅读工作并提供 JSON；程序不调用模型 API、不编造评分、不重做搜索、不处理图片。
+`scripts/poetry_polish.py` 提供 `Polish`，快照与工作封套版本为 `poetry-polish-10`，审校量表为 `whole-poem-review-5`，最终红线版本为 `final-redline-1`。运行 Skill 的 LLM 阅读工作并提供 JSON；程序不调用模型 API、不编造评分、不重做搜索、不处理图片。
 
 LLM 负责主题、情绪、时间、视角、意象、结构和语言，律诗中间两联的语义及句法对仗，用典及 adapt 语义，修改建议、候选、全诗比较和诗题。程序负责交接、绑定、范围、锁定要求、规则复检、内容契约、事务采纳、预算、持久化和完成条件。语义报告的真伪及文学质量不能由 JSON 校验器证明。
 
@@ -42,7 +42,7 @@ polish.result(include_notes=False)
 
 | 字段 | 规则 |
 | --- | --- |
-| contract_version | poetry-polish-9 |
+| contract_version | poetry-polish-10 |
 | run_id / job_id | 当前运行与工作 ID；格式修复保持 job_id |
 | path_id | 显式选定的 Day 4 草稿分支 |
 | revision | 工作 target 的版本，整数 |
@@ -59,7 +59,7 @@ binding 复用现有规则摘要；没有第二套正文摘要算法。完整相
 | refinement | 当前句／联的 NO_CHANGE、REFINED 或 REFLOW_REQUIRED | 保留、最小炼字或转 reflow |
 | reflow | 当前完整句／联及语义锁保持声明 | 规则与内容复检后 refinement_compare |
 | candidate_reading | 绑定的 `reading-review-1` 决策 | 合并已确认坐标并重新执行全诗规则检查 |
-| candidate_duplicate | 绑定的 `duplicate-review-2` 决策 | 仅针对该改稿完整正文复检；不复用 Day 4 的证明 |
+| candidate_duplicate | 绑定的 `duplicate-review-3` 决策 | 仅针对该改稿完整正文复检；不复用 Day 4 的证明 |
 | candidate_content_reading / candidate_content_duplicate | 逐句内容过滤产生的范围绑定复核 | 对当前全诗中的该句位独立复核后，再进入语义内容工作 |
 | candidate_content | 原 Day 3 review-content JSON | 全部必须项通过才 compare |
 | compare | 候选全诗审校、全维度比较和采用建议 | 采用或保留原稿 |
@@ -76,7 +76,7 @@ payload 严格包含以下字段，模型不输出 total。这里用占位文字
 
 ```json
 {
-  "review_version": "whole-poem-review-4",
+  "review_version": "whole-poem-review-5",
   "binding": "照抄 target 的完整 binding 对象",
   "revision": 8,
   "dimensions": {
@@ -108,7 +108,7 @@ payload 严格包含以下字段，模型不输出 total。这里用占位文字
 | expression | .09 | 关键表达的准确性、力度和余味，不计华丽词数 |
 | parallelism | .15 | 律诗颔联、颈联的逐字与逐结构对应；低分影响整体审校 |
 
-0=不成立，.25=明显薄弱，.5=基本成立但有明显不足，.75=良好而有局部不足，1=在当前上下文充分且准确；中间值允许。全部适用维度均须给有限 0–1 数值和非空理由。绝句 parallelism 明确 not_applicable/null，从分母排除：`total = Σ(score × weight) / Σ(applicable weight)`，由程序使用十进制分数计算。不适用不等于高分。律诗 parallelism 必须 assessed，并检查颔联与颈联的逐字、逐结构对照。`character_score`、`structure_score` 分别评价每联每一层，整体 parallelism score 必须等于四个分项分数的平均值。任何一层出现 `weak` 时该层分数不得高于 .74，出现 `unknown` 时不得高于 .59，出现 `fail` 时不得高于 .49；这是软评分上限，只压低总分和排序，不因此直接淘汰诗稿。
+0=不成立，.25=明显薄弱，.5=基本成立但有明显不足，.75=良好而有局部不足，1=在当前上下文充分且准确；中间值允许。全部适用维度均须给有限 0–1 数值和非空理由。绝句 parallelism 明确 not_applicable/null，从分母排除：`base_total = Σ(score × weight) / Σ(applicable weight)`，由程序使用十进制分数计算。不适用不等于高分。Python 再按当前全诗重字组扣分：第一组免费，第二组起每组扣 .20，最终 total 不低于 0。律诗 parallelism 必须 assessed，并检查颔联与颈联的逐字、逐结构对照。`character_score`、`structure_score` 分别评价每联每一层，整体 parallelism score 必须等于四个分项分数的平均值。任何一层出现 `weak` 时该层分数不得高于 .74，出现 `unknown` 时不得高于 .59，出现 `fail` 时不得高于 .49；这是软评分上限，只压低总分和排序，不因此直接淘汰诗稿。
 
 每联的 `character_alignment` 必须覆盖全部五／七个字位。`structure_alignment` 必须将上下句各自切分为有序、连续、不重叠且完整覆盖全句的词组／句法成分；每段要给原文、句法功能、对应关系、状态与理由。不得只交对仗结论或只分析句首。以下是单联字段示意；完整审校须同时提交第 3–4 句及第 5–6 句：
 
@@ -283,9 +283,9 @@ python scripts/day5_example.py --adopt --output examples/day5-adopt-new.json
 python -m unittest discover -s scripts -p 'test_*.py'
 ```
 
-默认示例：Day 4 完整草稿 → LLM 夹具报告 minor → 提议字数错误的修改 → 程序拒绝并保留原稿 → 重新审校认为保留更好 → 最终完成。`--adopt` 则用通过测试韵库的修改，完成全诗比较、原子采用、新正文审校和最终验收。保存的默认示例为 `examples/day5-result.json`；`day5_example.py` 明确使用微型韵库和固定模型响应，其正文重复字串不是文学作品。
+默认示例：Day 4 完整草稿 → LLM 夹具报告 minor → 提议字数错误的修改 → 程序拒绝并保留原稿 → 重新审校认为保留更好 → 最终完成。`--adopt` 提交会增加重字组的候选；全诗比较应用重复字扣分后拒绝采用，保留原稿并完成最终验收。保存的默认示例为 `examples/day5-result.json`；`day5_example.py` 明确使用微型韵库和固定模型响应，其正文重复字串不是文学作品。
 
-测试覆盖无修改完成、单句和成联采用、格律失败/unknown 拒绝、exact 完整句与短语及位置保护、修改别句后 allusion/adapt 失效、全诗结构退步保留、低收益不采用、工作/分支/版本归属、旧审校失效、无效包无部分写入、评分/引文/原文契约、预算和格式修复、幂等、保存恢复与篡改拒绝、最终证明缺失、标题隔离，以及项目整体迁移后从其他工作目录运行。原有 Day 1–4 测试保持不变。
+测试覆盖无修改完成、单句和成联采用、格律失败/unknown 拒绝、exact 完整句与短语及位置保护、修改别句后 allusion/adapt 失效、全诗结构退步保留、低收益不采用、工作/分支/版本归属、旧审校失效、无效包无部分写入、评分/引文/原文契约、预算和格式修复、幂等、保存恢复与篡改拒绝、最终证明缺失、标题隔离，以及项目整体迁移后从其他工作目录运行。Day 1–4 回归覆盖保持，并更新评分与重字复核变化对应的预期。
 
 2026-09-22 验证：全量 222 项测试通过，其中 Day 5 为 41 项；四项最终红线分别覆盖 yes 阻断，并覆盖 unknown、缺项、缺证据、保存恢复与迁移 CLI。迁移测试使用项目自带真实韵库跑通 CLI start/next/submit/result，固定文学响应仍是夹具。保存示例经 Polish.load 完整重放验证：completed，1 轮问题修复、4 个结构单位炼字审查、9 次交互，修改因 RULES_FAILED_OR_UNKNOWN 被拒绝，随后各单位返回 NO_CHANGE 并保留原稿。
 

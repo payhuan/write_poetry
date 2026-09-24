@@ -150,8 +150,8 @@ class RoundTests(unittest.TestCase):
                    'filter_sha256': filtered['filter_sha256'],
                    'reviews': [{'id': record['id'], 'review': response}]}
         reviewed = review_duplicates(self.state, filtered, payload, engine=engine)
-        self.assertEqual(reviewed['records'][0]['checks']['checks']['duplicate']['status'], 'pass')
-        self.assertEqual(reviewed['records'][0]['category'], 'passed')
+        self.assertEqual(reviewed['records'][0]['checks']['checks']['duplicate']['status'], 'unknown')
+        self.assertEqual(reviewed['records'][0]['category'], 'unresolved')
         stale_state = self.state.fork()
         stale_state.set_plan(imagery=['山', '水'], structure=[{'unit': '颔联', 'intent': '变化'}])
         with self.assertRaises(RoundError):
