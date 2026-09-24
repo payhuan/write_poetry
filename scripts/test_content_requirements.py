@@ -27,7 +27,7 @@ class ContentRequirementTests(unittest.TestCase):
             self.assertEqual(state["request"]["required_fragments"][0]["text"], "秋山")
 
     def test_structural_conflicts(self):
-        for fragment in (self.fragment("秋山"), self.fragment(line_index=5),
+        for fragment in (self.fragment("秋山"), self.fragment(line_index=9),
                          self.fragment(mode="inspiration", line_index=2)):
             with self.assertRaises(ClarificationRequired):
                 self.parse(fragment)
