@@ -1,6 +1,8 @@
 from copy import deepcopy
 import unittest
 
+from test_duplicate_helpers import duplicate_decisions
+
 from day4_example import fixture_state, fixture_plan, fixture_engine, response_for
 from poetry_search import Search
 from poetry_round import RoundError
@@ -94,6 +96,7 @@ class PoetryUnitTests(unittest.TestCase):
         job = search.next_job()
         payload = response_for(job)['payload']
         payload['candidates'][0]['lines'][0]['text'] = '天地水火天'
+        payload['candidates'][0]['lines'][1]['text'] = payload['candidates'][0]['lines'][1]['text'][:-1] + '地'
         engine = ConstraintEngine(RhymeLexicon({'上平声部': {'一东': list('天地人风')},
                                                 '上声部': {'一董': list('水火土风')}}))
         state = PoemState.from_dict(search.data['active'][search.data['cursor']]['state'])
@@ -108,9 +111,7 @@ class PoetryUnitTests(unittest.TestCase):
             request = item['request']['reviews'][0]['request']
             response = {'review_version': request['review_version'],
                         'request_sha256': request['request_sha256'],
-                        'decisions': [{'char': occurrence['char'], 'relation': 'parallel',
-                                       'reason': '测试夹具：两处属于并列意群。'}
-                                      for occurrence in request['occurrences']]}
+                        'decisions': duplicate_decisions(request)}
             reviews.append({'candidate_id': item['candidate_id'], 'line_index': item['line_index'],
                             'response': {**{k: line_filter['context'][k] for k in
                                            ('contract_version', 'batch_id', 'context_sha256', 'generation_sha256')},

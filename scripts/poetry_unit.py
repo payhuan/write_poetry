@@ -114,8 +114,15 @@ def _validate_lock(value, planned):
 
 
 def receive_unit_candidates(context, payload):
-    require(isinstance(payload, dict) and set(payload) == ENVELOPE | {'attempt', 'status', 'candidates'},
-            'INVALID_UNIT_RESPONSE', 'Unexpected unit generation fields')
+    expected = ENVELOPE | {'attempt', 'status', 'candidates'}
+    if not isinstance(payload, dict) or set(payload) != expected:
+        actual = set(payload) if isinstance(payload, dict) else set()
+        missing, unexpected = sorted(expected - actual), sorted(actual - expected)
+        from poetry_round import RoundError
+        raise RoundError('INVALID_UNIT_RESPONSE',
+                         f'Invalid unit response: missing={missing}; unexpected={unexpected}',
+                         [{'location': 'response', 'missing_fields': missing,
+                           'unexpected_fields': unexpected}])
     require(all(payload[k] == context[k] for k in ENVELOPE), 'WRONG_BATCH', 'Unit response belongs elsewhere')
     require(type(payload['attempt']) is int and 1 <= payload['attempt'] <= 3,
             'RETRY_EXHAUSTED', 'At most three attempts are supported')
@@ -131,10 +138,17 @@ def receive_unit_candidates(context, payload):
     require(isinstance(items, list) and 1 <= len(items) <= context['candidate_count']['max'],
             'CANDIDATE_BUDGET', 'Candidate count is outside the configured budget')
     seen_ids, seen_texts, result = set(), set(), []
-    for item in items:
-        require(isinstance(item, dict) and set(item) ==
-                {'id', 'lines', 'expression_path', 'semantic_increment', 'risks', 'semantic_lock'},
-                'INVALID_UNIT_CANDIDATE', 'Unit candidate fields are incomplete')
+    expected_candidate = {'id', 'lines', 'expression_path', 'semantic_increment', 'risks', 'semantic_lock'}
+    for index, item in enumerate(items):
+        if not isinstance(item, dict) or set(item) != expected_candidate:
+            actual = set(item) if isinstance(item, dict) else set()
+            missing, unexpected = sorted(expected_candidate - actual), sorted(actual - expected_candidate)
+            from poetry_round import RoundError
+            raise RoundError('INVALID_UNIT_CANDIDATE',
+                             f'Unit candidate {index} fields invalid: missing={missing}; unexpected={unexpected}',
+                             [{'candidate_index': index, 'missing_fields': missing,
+                               'unexpected_fields': unexpected,
+                               'expected_fields': sorted(expected_candidate)}])
         require(_text(item['id']) and item['id'] not in seen_ids, 'DUPLICATE_CANDIDATE_ID', 'Invalid candidate id')
         lines = item['lines']
         require(isinstance(lines, list) and len(lines) == 2 and

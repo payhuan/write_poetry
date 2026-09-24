@@ -10,7 +10,7 @@ from text_normalizer import normalize_line
 from rhyme_lexicon import RhymeLexicon, validate_readings
 from meter_checker import RULES, RULE_VERSION, aggregate, check_line as meter_line
 from rhyme_checker import check_line as rhyme_line
-from duplicate_disambiguation import ALLOWED_RELATIONS, validate_for_engine
+from duplicate_disambiguation import ALLOWED_DEVICES, validate_for_engine
 
 
 class ConstraintEngine:
@@ -137,9 +137,25 @@ class ConstraintEngine:
             for cell in line['cells']:
                 if cell['is_han']:
                     occurrences.setdefault(cell['char'], []).append({k: cell[k] for k in ('line', 'pos', 'offset')})
-        duplicates = [{'char': char, 'count': len(locations), 'positions': locations}
-                      for char, locations in occurrences.items() if len(locations) > 1]
+        rhyme_coordinates = set()
+        if template is not None:
+            rhyme_coordinates = {(line_no, width) for line_no in template['rhyme']['positions']}
+        duplicates = []
+        for char, locations in occurrences.items():
+            if len(locations) < 2:
+                continue
+            rhyme_positions = [p for p in locations if (p['line'], p['pos']) in rhyme_coordinates]
+            matched_pairs = []
+            for left, right in ((1, 2), (3, 4), (5, 6), (7, 8)):
+                left_positions = {p['pos'] for p in locations if p['line'] == left}
+                right_positions = {p['pos'] for p in locations if p['line'] == right}
+                for pos in sorted(left_positions & right_positions):
+                    matched_pairs.append({'positions': [[left, pos], [right, pos]]})
+            duplicates.append({'char': char, 'count': len(locations), 'positions': locations,
+                               'rhyme_positions': rhyme_positions,
+                               'same_position_couplet_pairs': matched_pairs})
         duplicate_context = {'theme': d['theme'], 'emotion': d['emotion'],
+                             'line_indices': sorted(context),
                              'lines': [text for _, text in sorted(context.items())]}
         if not duplicates:
             if duplicate_review is not None:
@@ -154,13 +170,22 @@ class ConstraintEngine:
             checks['duplicate'] = {'status': 'fail', 'required': False, 'occurrences': duplicates,
                                    'issues': [], 'reviewed': [], 'context': duplicate_context,
                                    'policy': 'report_only_fixture_mode'}
+        elif any(len(item['rhyme_positions']) > 1 for item in duplicates):
+            repeated_rhyme = [item for item in duplicates if len(item['rhyme_positions']) > 1]
+            checks['duplicate'] = {
+                'status': 'fail', 'required': True, 'occurrences': duplicates,
+                'issues': [{'code': 'DUPLICATE_RHYME_WORD', 'status': 'fail', **item}
+                           for item in repeated_rhyme],
+                'reviewed': [], 'context': duplicate_context,
+                'policy': 'hard_reject_repeated_rhyme_character',
+            }
         elif duplicate_review is None:
             checks['duplicate'] = {
                 'status': 'unknown', 'required': True, 'occurrences': duplicates,
                 'issues': [{'code': 'DUPLICATE_REVIEW_REQUIRED', 'status': 'unknown', **item}
                            for item in duplicates],
                 'reviewed': [], 'context': duplicate_context,
-                'policy': 'ai_semantic_relation_then_rule_recheck',
+                'policy': 'ai_rhetorical_evidence_then_rule_recheck',
             }
         else:
             binding = {**make_binding(d, candidate), 'revision': d['revision']}
@@ -169,10 +194,10 @@ class ConstraintEngine:
             issues = []
             for item in duplicates:
                 decision = by_char[item['char']]
-                if decision['relation'] == 'error':
+                if decision['device'] == 'error':
                     issues.append({'code': 'DUPLICATE_CHARACTER', 'status': 'fail',
                                    **item, 'reason': decision['reason']})
-                elif decision['relation'] == 'unknown':
+                elif decision['device'] == 'unknown':
                     issues.append({'code': 'DUPLICATE_REVIEW_UNCERTAIN', 'status': 'unknown',
                                    **item, 'reason': decision['reason']})
             duplicate_status = ('fail' if any(x['status'] == 'fail' for x in issues) else
@@ -180,8 +205,8 @@ class ConstraintEngine:
             checks['duplicate'] = {
                 'status': duplicate_status, 'required': True, 'occurrences': duplicates,
                 'issues': issues, 'reviewed': decisions, 'context': duplicate_context,
-                'allowed_relations': sorted(ALLOWED_RELATIONS),
-                'policy': 'ai_semantic_relation_then_rule_recheck',
+                'allowed_devices': sorted(ALLOWED_DEVICES),
+                'policy': 'ai_rhetorical_evidence_then_rule_recheck',
             }
         hard = [v['status'] for v in checks.values() if v.get('required', True)]
         status = aggregate(hard)

@@ -22,7 +22,7 @@ from reading_disambiguation import make_request as make_reading_request, apply_r
 from duplicate_disambiguation import make_request as make_duplicate_request, apply_review as apply_duplicate_review
 from poetry_round import review_duplicates
 
-VERSION = 'poetry-search-7'
+VERSION = 'poetry-search-8'
 TERMINAL = {'ready_for_review', 'budget_exhausted', 'no_feasible_path',
             'needs_clarification', 'run_error', 'legacy_readonly'}
 
@@ -89,7 +89,7 @@ class Search:
         require(isinstance(artifact, dict) and set(artifact) == {'search', 'sha256'}
                 and digest(artifact['search']) == artifact['sha256'], 'INVALID_SNAPSHOT', 'Snapshot checksum mismatch')
         d = artifact['search']
-        if isinstance(d, dict) and d.get('version') in ('poetry-search-1', 'poetry-search-2', 'poetry-search-3', 'poetry-search-4', 'poetry-search-5', 'poetry-search-6'):
+        if isinstance(d, dict) and d.get('version') in ('poetry-search-1', 'poetry-search-2', 'poetry-search-3', 'poetry-search-4', 'poetry-search-5', 'poetry-search-6', 'poetry-search-7'):
             legacy = deepcopy(d)
             legacy.update(version=VERSION, poem_plan=None, status='legacy_readonly', pending=None)
             legacy['events'].append({'code': 'POEM_PLAN_REQUIRED', 'status': 'legacy_readonly'})
@@ -156,7 +156,16 @@ class Search:
     def next_compact_job(self):
         """Return the model-facing request without the persisted filter artifact."""
         job = self.next_job()
-        return compact_job_view(job) if job is not None else None
+        if job is None:
+            return None
+        view = compact_job_view(job)
+        feedback = next((event for event in reversed(self.data['events'])
+                         if event.get('job_id') == job['job_id'] and event.get('code')),
+                        None)
+        if feedback:
+            view['repair_feedback'] = {k: deepcopy(feedback[k]) for k in
+                                       ('code', 'message', 'details') if k in feedback}
+        return view
 
     def _current(self):
         return self.data['active'][self.data['cursor']]
@@ -452,7 +461,11 @@ class Search:
         except ValueError as exc:
             # Discard all staged candidate/history mutations, retain only repair audit.
             d = deepcopy(self.data)
-            d['events'].append({'code': getattr(exc, 'code', 'INVALID_MODEL_RESULT'), 'job_id': job['job_id'], 'message': str(exc)})
+            event = {'code': getattr(exc, 'code', 'INVALID_MODEL_RESULT'),
+                     'job_id': job['job_id'], 'message': str(exc)}
+            if getattr(exc, 'details', None):
+                event['details'] = deepcopy(exc.details)
+            d['events'].append(event)
             if job['attempt'] >= d['config']['max_attempts']:
                 d['pending'] = None
                 failed = Search(d, engine=self.engine)
@@ -469,7 +482,8 @@ class Search:
                 d['used']['interactions'] += 1
                 self.data = d
             self.data['invalid_responses'][response_digest] = getattr(exc, 'code', 'INVALID_MODEL_RESULT')
-            return {'status': self.data['status'], 'error': getattr(exc, 'code', 'INVALID_MODEL_RESULT')}
+            return {'status': self.data['status'], 'error': getattr(exc, 'code', 'INVALID_MODEL_RESULT'),
+                    'feedback': {k: deepcopy(event[k]) for k in ('code', 'message', 'details') if k in event}}
         except Exception as exc:
             self._stop('run_error', str(exc))
             return {'status': 'run_error'}
@@ -538,9 +552,15 @@ class Search:
             if c.get('planned_unit') is not None and c.get('locked_candidate') is None:
                 enhanced = {'id', 'text', 'line_index', 'expression_path', 'semantic_increment',
                             'risks', 'semantic_lock'}
-                require(isinstance(payload.get('candidates'), list) and
-                        all(isinstance(x, dict) and set(x) == enhanced for x in payload['candidates']),
-                        'SEMANTIC_LOCK_REQUIRED', 'Planned generation candidates require expression metadata and semantic_lock')
+                base = {'id', 'text', 'line_index'}
+                for index, item in enumerate(payload.get('candidates', [])):
+                    if isinstance(item, dict) and base <= set(item) and not enhanced <= set(item):
+                        missing = sorted(enhanced - set(item))
+                        raise RoundError('SEMANTIC_LOCK_REQUIRED',
+                                         f'Candidate {index} is missing planned generation fields: {missing}',
+                                         [{'candidate_index': index, 'missing_fields': missing,
+                                           'unexpected_fields': sorted(set(item) - enhanced),
+                                           'expected_fields': sorted(enhanced)}])
             self._after_filter(c, filter_candidates(state, c, payload, engine=self.engine,
                                                     readings=self._current().get('readings')))
         elif stage == 'reading':

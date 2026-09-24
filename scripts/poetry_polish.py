@@ -9,7 +9,7 @@ from assessment_binding import digest, make_binding, require_binding
 from poem_state import PoemState
 from constraint_engine import ConstraintEngine
 from poetry_search import Search
-from poetry_round import (require, read_json, write_new_json, ENVELOPE,
+from poetry_round import (require, RoundError, read_json, write_new_json, ENVELOPE,
                           _context, _verify_filter, filter_candidates, review_content,
                           review_readings, review_duplicates)
 from round_content import export_content_plan, validate_content_plan, requirements, _exact
@@ -20,7 +20,7 @@ from duplicate_disambiguation import make_request as make_duplicate_request, app
 from character_alignment import (validate_character_alignment, validate_structure_alignment,
                                  validate_soft_rating)
 
-VERSION = 'poetry-polish-8'
+VERSION = 'poetry-polish-9'
 REVIEW_VERSION = 'whole-poem-review-4'
 REDLINE_VERSION = 'final-redline-1'
 REDLINE_CHECKS = ('user_facts_reversed', 'allusion_facts_reversed',
@@ -32,7 +32,13 @@ IDENTITY = ('contract_version', 'run_id', 'job_id', 'path_id', 'revision',
 
 
 def fields(value, keys):
-    require(isinstance(value, dict) and set(value) == set(keys), 'INVALID_FIELDS', str(keys))
+    expected = set(keys)
+    if not isinstance(value, dict) or set(value) != expected:
+        actual = set(value) if isinstance(value, dict) else set()
+        missing, unexpected = sorted(expected - actual), sorted(actual - expected)
+        raise RoundError('INVALID_FIELDS',
+                         f'Invalid fields: missing={missing}; unexpected={unexpected}',
+                         [{'missing_fields': missing, 'unexpected_fields': unexpected}])
 
 
 def text(value):
@@ -343,7 +349,15 @@ class Polish:
     def next_compact_job(self):
         """Return a model-facing job with repeated target and filter data factored out."""
         job = self.next_job()
-        return compact_job_view(job) if job is not None else None
+        if job is None:
+            return None
+        view = compact_job_view(job)
+        feedback = next((item for item in reversed(list(self.data['invalid'].values()))
+                         if item.get('job_id') == job['job_id']), None)
+        if feedback:
+            view['repair_feedback'] = {k: deepcopy(feedback[k]) for k in ('code', 'reason', 'details')
+                                       if k in feedback}
+        return view
 
     def _validate_job(self, job):
         d = self.data
@@ -766,6 +780,7 @@ class Polish:
         state.set_status('completed')
         d['accepted'] = state.to_dict()
         d['output'] = dict(output_version=VERSION, title=payload['title'], lines=state.to_dict()['lines'],
+                           quality_independently_verified=False,
                            notes=deepcopy(payload['notes']), status='completed', binding=make_binding(state.to_dict()),
                            revision=state.to_dict()['revision'], identity={k: deepcopy(job[k]) for k in IDENTITY})
         self._stop('completed', 'CURRENT_RULES_CONTENT_REVIEW_AND_REDLINE_PASSED')
@@ -854,6 +869,8 @@ class Polish:
             self._final(job, payload)
 
     def submit(self, response):
+        require(self.data['status'] != 'legacy_readonly', 'INVALID_VERSION',
+                'Legacy Polish snapshots are audit-only; start a new run from the current poem')
         fields(response, (*IDENTITY, 'payload'))
         fingerprint = digest(response)
         if fingerprint in self.data['invalid']:
@@ -879,7 +896,14 @@ class Polish:
             staged = Polish(self.data, self.engine)
             d = staged.data
             code = getattr(exc, 'code', 'INVALID_MODEL_RESULT')
-            d['invalid'][fingerprint] = dict(code=code, reason=str(exc), job_id=job['job_id'])
+            rejection = dict(code=code, reason=str(exc), job_id=job['job_id'])
+            details = deepcopy(getattr(exc, 'details', []))
+            if details:
+                for detail in details:
+                    if isinstance(detail, dict):
+                        detail.setdefault('stage', job['stage'])
+                rejection['details'] = details
+            d['invalid'][fingerprint] = rejection
             if job['attempt'] > d['config']['max_format_repairs']:
                 staged._stop('incomplete', 'FORMAT_REPAIRS_EXHAUSTED')
             elif d['used']['interactions'] >= d['config']['max_interactions']:
@@ -891,13 +915,17 @@ class Polish:
             staged.data['processed'][job['job_id']] = fingerprint
         staged.data['transcript'].append(deepcopy(response))
         self.data = staged.data
-        return dict(status=self.data['status'], reason=self.data['reason'])
+        result = dict(status=self.data['status'], reason=self.data['reason'])
+        if fingerprint in self.data['invalid']:
+            result['feedback'] = deepcopy(self.data['invalid'][fingerprint])
+        return result
 
     def result(self, *, include_notes=False):
         if self.data['status'] != 'completed':
             return dict(status=self.data['status'], reason=self.data['reason'],
                         lines=deepcopy(self.data['accepted']['lines']), title=None)
-        out = {k: deepcopy(self.data['output'][k]) for k in ('title', 'lines', 'status')}
+        out = {k: deepcopy(self.data['output'][k]) for k in
+               ('title', 'lines', 'status', 'quality_independently_verified')}
         if include_notes:
             out['notes'] = deepcopy(self.data['output']['notes'])
         return out
@@ -909,8 +937,14 @@ class Polish:
     def from_dict(cls, artifact, *, engine=None):
         fields(artifact, ('polish', 'sha256'))
         d = artifact['polish']
-        require(isinstance(d, dict) and digest(d) == artifact['sha256'] and d.get('version') == VERSION,
-                'INVALID_SNAPSHOT', 'Unsupported or corrupt snapshot')
+        require(isinstance(d, dict) and digest(d) == artifact['sha256'],
+                'INVALID_SNAPSHOT', 'Snapshot checksum mismatch')
+        if d.get('version') != VERSION:
+            legacy = deepcopy(d)
+            legacy['status'] = 'legacy_readonly'
+            legacy['pending'] = None
+            legacy['legacy_source_version'] = d.get('version')
+            return cls(legacy, engine=engine)
         # Replay validates budgets, pending identities, histories and completion, not just a checksum.
         restored = cls._start(d['source'], d['path_id'], engine or ConstraintEngine(), d['run_id'], d['config'])
         require(isinstance(d['transcript'], list) and len(d['transcript']) <= d['config']['max_interactions'],

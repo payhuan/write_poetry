@@ -7,6 +7,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+
+from test_duplicate_helpers import duplicate_decisions
 from unittest.mock import patch
 
 from assessment_binding import digest, make_binding
@@ -18,7 +20,7 @@ from poetry_polish import Polish, REDLINE_CHECKS, compact_job_view, validate_rev
 from poetry_round import export_context
 from round_content import export_content_plan
 from rhyme_lexicon import RhymeLexicon
-from day4_example import fixture_state, fixture_engine, fixture_plan, drive, line_for, LEXICON
+from day4_example import fixture_state, fixture_engine, fixture_plan, drive, line_for, response_for, LEXICON
 from day5_example import (review_for, package_for, envelope, comparison_for, content_for,
                           redline_for, no_change_for, run_example)
 from word_refinement import VERSION as REFINEMENT_VERSION
@@ -69,18 +71,20 @@ class PolishTests(unittest.TestCase):
     def test_search_duplicate_proof_is_rechecked_and_bound_at_handoff(self):
         state = fixture_state()
         for index in range(1, 5):
-            state.append_line(line_for(export_context(state, index)))
+            line = line_for(export_context(state, index))
+            state.append_line(line[:-1] + '地' if index == 4 else line)
         engine = ConstraintEngine(RhymeLexicon(LEXICON))
         search = Search.create(state, poem_plan=fixture_plan(state), engine=engine)
         job = search.next_job()
+        if job['stage'] == 'poem_reading':
+            search.submit(response_for(job))
+            job = search.next_job()
         self.assertEqual(job['stage'], 'poem_duplicate')
         request = job['duplicate_request']
         payload = {'attempt': job['attempt'], 'review': {
             'review_version': request['review_version'],
             'request_sha256': request['request_sha256'],
-            'decisions': [{'char': occurrence['char'], 'relation': 'parallel',
-                           'reason': '测试夹具：重复字用于并列意群。'}
-                          for occurrence in request['occurrences']]}}
+            'decisions': duplicate_decisions(request)}}
         search.submit({**{k: job[k] for k in
                           ('run_id', 'job_id', 'path_id', 'batch_id', 'context_sha256')},
                        'payload': payload})
@@ -92,17 +96,19 @@ class PolishTests(unittest.TestCase):
     def test_changed_body_does_not_reuse_handoff_duplicate_proof(self):
         state = fixture_state()
         for index in range(1, 5):
-            state.append_line(line_for(export_context(state, index)))
+            line = line_for(export_context(state, index))
+            state.append_line(line[:-1] + '地' if index == 4 else line)
         engine = ConstraintEngine(RhymeLexicon(LEXICON))
         search = Search.create(state, poem_plan=fixture_plan(state), engine=engine)
         job = search.next_job()
+        if job['stage'] == 'poem_reading':
+            search.submit(response_for(job))
+            job = search.next_job()
         request = job['duplicate_request']
         payload = {'attempt': job['attempt'], 'review': {
             'review_version': request['review_version'],
             'request_sha256': request['request_sha256'],
-            'decisions': [{'char': occurrence['char'], 'relation': 'parallel',
-                           'reason': '测试夹具：重复字用于并列意群。'}
-                          for occurrence in request['occurrences']]}}
+            'decisions': duplicate_decisions(request)}}
         search.submit({**{k: job[k] for k in
                           ('run_id', 'job_id', 'path_id', 'batch_id', 'context_sha256')},
                        'payload': payload})
@@ -193,7 +199,8 @@ class PolishTests(unittest.TestCase):
         self.assertEqual(p.data['accepted']['lines'], original)
         self.assertEqual(p.data['history'], [])
         self.assertEqual(p.data['used'], dict(rounds=0, interactions=7))
-        self.assertEqual(p.result(), dict(title='测试题目', lines=original, status='completed'))
+        self.assertEqual(p.result(), dict(title='测试题目', lines=original, status='completed',
+                                          quality_independently_verified=False))
 
     def test_refined_unit_is_rechecked_compared_and_committed_atomically(self):
         p = self.create()
@@ -682,12 +689,15 @@ class PolishTests(unittest.TestCase):
         self.assertIsNone(p.result()['title'])
         self.assertEqual(Polish.from_dict(p.to_dict(), engine=fixture_engine()).to_dict(), p.to_dict())
 
-    def test_polish_v7_snapshot_is_rejected(self):
+    def test_polish_v8_snapshot_is_audit_only(self):
         artifact = self.create().to_dict()
-        artifact['polish']['version'] = 'poetry-polish-7'
+        artifact['polish']['version'] = 'poetry-polish-8'
         artifact['sha256'] = digest(artifact['polish'])
+        legacy = Polish.from_dict(artifact, engine=fixture_engine())
+        self.assertEqual(legacy.data['status'], 'legacy_readonly')
+        self.assertIsNone(legacy.next_job())
         with self.assertRaises(ValueError):
-            Polish.from_dict(artifact, engine=fixture_engine())
+            legacy.submit({})
 
     def test_semantic_pending_restore_and_final_recheck(self):
         p = self.content_source('adapt')
@@ -831,7 +841,8 @@ class PolishTests(unittest.TestCase):
             write('final.json', envelope(job, dict(title='迁移流程测试', notes=[])))
             run('submit', '--input', root+'p3.json', '--response', root+'final.json', '--output', root+'p4.json')
             run('result', '--input', root+'p4.json', '--output', root+'result.json')
-            self.assertEqual(read('result.json'), dict(title='迁移流程测试', lines=lines, status='completed'))
+            self.assertEqual(read('result.json'), dict(title='迁移流程测试', lines=lines, status='completed',
+                                                       quality_independently_verified=False))
 
 
 if __name__ == '__main__':

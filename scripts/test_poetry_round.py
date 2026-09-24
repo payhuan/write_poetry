@@ -18,6 +18,7 @@ from poetry_round import (ENVELOPE, RUBRIC_VERSION, WEIGHTS, RoundError, export_
                           filter_candidates, review_readings, review_duplicates, finish_round, read_json,
                           validate_scores, write_new_json)
 from rhyme_lexicon import RhymeLexicon
+from test_duplicate_helpers import duplicate_decisions
 
 FIXTURE = {'上平声部': {'一东': list('天地人风同'), '二冬': ['同', '冬']},
            '上声部': {'一董': list('水火土风')}}
@@ -144,9 +145,7 @@ class RoundTests(unittest.TestCase):
         request = filtered['duplicate_request']['reviews'][0]['request']
         response = {'review_version': request['review_version'],
                     'request_sha256': request['request_sha256'],
-                    'decisions': [{'char': item['char'], 'relation': 'parallel',
-                                   'reason': '测试夹具：两处属于并列意群。'}
-                                  for item in request['occurrences']]}
+                    'decisions': duplicate_decisions(request)}
         payload = {**{k: self.context[k] for k in ENVELOPE}, 'attempt': 1,
                    'filter_sha256': filtered['filter_sha256'],
                    'reviews': [{'id': record['id'], 'review': response}]}
@@ -197,6 +196,16 @@ class RoundTests(unittest.TestCase):
                 self.assertIn(code, [x['code'] for x in error.details])
                 mock.assert_not_called()
             self.assertEqual(self.state.to_dict(), before)
+
+    def test_envelope_error_names_missing_and_unexpected_fields(self):
+        payload = model_candidates(self.context)
+        payload.pop('attempt')
+        payload['extra'] = True
+        error = self.assert_error('INVALID_ENVELOPE', lambda: filter_candidates(
+            self.state, self.context, payload, engine=self.engine))
+        self.assertEqual(error.details[0]['location'], 'response')
+        self.assertIn('attempt', error.details[0]['missing_fields'])
+        self.assertIn('extra', error.details[0]['unexpected_fields'])
 
     def test_budget_includes_duplicates_and_no_truncation(self):
         for texts in ([], ['天地水火人'] * 11):

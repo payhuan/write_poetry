@@ -53,9 +53,9 @@ readings 使用 JSON 键 `句号:字位`，如 `2:3`；坐标必须存在于替�
 
 引擎在候选替换后的完整上下文或全诗中统计每个汉字的位置。没有重字时 `checks.duplicate=pass`；发现重字而未提供审查时，该必需项为 `unknown`，并为每组返回 `DUPLICATE_REVIEW_REQUIRED`、char、count 和全部 line/pos/offset。规则引擎不自行猜测词义，也不会把重字直接当作普通 warning 放行。
 
-使用 `duplicate_disambiguation.make_request(result)` 生成绑定原检测对象、上下文摘要和位置集合的请求。模型对每个重复字符返回 relation 与理由；relation 仅允许 `reduplication`（叠字）、`parallel`（意群并列）、`progressive`（意群递进）、`error` 或 `unknown`。前三类通过；普通复现、递减关系、不能说明每个位置所属意群或牵强解释均为 `error`；证据不足为 `unknown`。`apply_review` 校验请求摘要、字符集合和完整决定，`recheck_candidate` / `recheck_poem` 将产物作为 `duplicate_review` 交回引擎。审查产物与不同候选、正文、revision 或重复位置不匹配时拒绝复用。
+重字复核契约为 `duplicate-review-2`。请求按每个重复字符提供全部句位、字位、原文及对应句子。回复每组必须提交 `device`、具体理由，以及覆盖每个位置的 `position_evidence`（句位、字位、原文引用和该处词义／作用）。可接受的修辞类别包括叠字、顶真／联珠、反复／回环、句内对称重复、专名、固定词语；其他用法须明确说明手法和表达作用。只说意群并列或递进不能通过；无意同义重复、含糊解释、律诗中间两联的无意复现、上下联同一对应位置同字均判错，除非给出明确修辞目的。证据不足返回 `unknown`。Python 校验字段、位置、引用和绑定，不验证修辞解释是否真实成立。
 
-AI 只判断语义关系，最终状态仍由引擎汇总：任一 `error` 使 duplicate=fail 和整体验证失败；任一 `unknown` 保持整体验证未知；全部属于三种允许关系才使 duplicate=pass。`ConstraintEngine(..., duplicate_policy='report')` 仅供机械格律测试夹具保留旧式非阻断报告，正常 Skill 工作流不得使用。
+同一汉字出现在两个或更多押韵句的韵脚位置时，引擎以 `DUPLICATE_RHYME_WORD` 直接判错，不生成可覆盖它的复核请求。其他重复字由 AI 依据新契约判断：任一 `error` 使 duplicate=fail；任一 `unknown` 保持整体验证未知；其余结构正确的明确修辞证明使 duplicate=pass。`apply_review` 与规则复检均拒绝旧 `duplicate-review-1` 证明，也拒绝绑定到其他候选、正文、revision 或重复位置的证明。题目和序言不属于 PoemState 的诗句，不计入检测。`ConstraintEngine(..., duplicate_policy='report')` 仅供机械规则夹具使用，正常 Skill 工作流不得使用。
 
 韵脚句位完全来自快照 rhyme.positions，首句不重新猜测。非韵脚候选为 not_applicable。韵部支持规范名（如 `十一真`）、`上平声部/十一真`，以及省略序号的尾名别名（如 `真`）。别名唯一匹配时规范化为完整韵部名；多个匹配返回 RHYME_GROUP_AMBIGUOUS 及 choices，必须消歧，不合并判定；无匹配返回 RHYME_GROUP_UNAVAILABLE。简繁不猜测。未选择韵部和其他韵书返回 unknown。韵脚必须是正确长度单句的末字，否则 RHYME_POSITION_UNAVAILABLE。
 

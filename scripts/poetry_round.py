@@ -190,8 +190,14 @@ def _envelope(context):
 
 def _validate_envelope(payload, context, extra):
     finite_json(payload)
-    require(isinstance(payload, dict) and set(payload) == ENVELOPE | extra | {'attempt'},
-            'INVALID_ENVELOPE', 'Unexpected or missing model response fields')
+    expected = ENVELOPE | extra | {'attempt'}
+    if not isinstance(payload, dict) or set(payload) != expected:
+        actual = set(payload) if isinstance(payload, dict) else set()
+        missing, unexpected = sorted(expected - actual), sorted(actual - expected)
+        raise RoundError('INVALID_ENVELOPE',
+                         f"Invalid response envelope: missing={missing}; unexpected={unexpected}",
+                         [{'location': 'response', 'missing_fields': missing,
+                           'unexpected_fields': unexpected}])
     require(all(payload[k] == context[k] for k in ENVELOPE), 'WRONG_BATCH', 'Model response batch/context does not match')
     require(type(payload['attempt']) is int and 1 <= payload['attempt'] <= MAX_FORMAT_RETRIES + 1,
             'RETRY_EXHAUSTED', 'At most three attempts per model stage; no automatic retry')
@@ -213,6 +219,15 @@ def _receive(context, payload):
         if not isinstance(candidate, dict) or set(candidate) not in ((base_fields, enhanced_fields)
                                                                       if planned is not None else (base_fields,)):
             code = 'INVALID_CANDIDATE_FIELDS'
+            actual = set(candidate) if isinstance(candidate, dict) else set()
+            allowed = (base_fields, enhanced_fields) if planned is not None else (base_fields,)
+            best = min(allowed, key=lambda fields: len(fields - actual) + len(actual - fields))
+            problems.append({'input_index': index, 'candidate_index': index,
+                             'code': code, 'raw': deepcopy(candidate),
+                             'expected_fields': sorted(best),
+                             'missing_fields': sorted(best - actual),
+                             'unexpected_fields': sorted(actual - best)})
+            continue
         elif not _text(candidate['id']):
             code = 'INVALID_CANDIDATE_ID'
         elif candidate['id'] in ids:

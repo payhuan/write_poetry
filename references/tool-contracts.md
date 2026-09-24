@@ -13,7 +13,7 @@
 {"revision":3,"valid":null,"checks":{"length":{"status":"pass","required":true},"pingze":{"status":"unknown","required":true},"rhyme":{"status":"not_applicable","required":true},"duplicate":{"status":"pass","required":false,"occurrences":[]}},"errors":[],"warnings":[]}
 ```
 
-单项状态为 pass、fail、unknown、not_run、not_applicable。任一必需项失败为 valid=false，必需项未知或未执行为 null，其余为 true。required 省略默认 true；只能为布尔值；正常模式下 length、pingze、rhyme、reading、duplicate 均为必需项。重字未经语义审查为 unknown；仅叠字、意群并列或意群递进通过，错误复现失败。候选非韵脚句的押韵不适用不阻断。
+单项状态为 pass、fail、unknown、not_run、not_applicable。任一必需项失败为 valid=false，必需项未知或未执行为 null，其余为 true。required 省略默认 true；只能为布尔值；正常模式下 length、pingze、rhyme、reading、duplicate 均为必需项。重字未经语义审查为 unknown；`duplicate-review-2` 要求逐位置证据和明确修辞手法及作用，仅称并列或递进不通过；同字重韵由引擎直接失败。候选非韵脚句的押韵不适用不阻断。
 
 新结果增加 binding_version=1、scope（candidate/poem）、subject 和 context_sha256。候选 subject 包含 candidate_id、line_index、text_sha256；全诗 subject 包含完整原始 lines 数组的 text_sha256。上下文摘要覆盖正文、完整模板快照、韵律、约束与创作上下文，具体字段和编码见 [检测结果绑定](constraint-engine.md)。
 

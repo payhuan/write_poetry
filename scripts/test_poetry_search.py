@@ -7,6 +7,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+
+from test_duplicate_helpers import duplicate_decisions
 from unittest.mock import patch
 
 from assessment_binding import make_binding
@@ -44,7 +46,7 @@ class SearchTests(unittest.TestCase):
 
     def test_compact_poem_review_jobs_expose_bound_request(self):
         full = {'stage': 'poem_duplicate', 'context': {'context_sha256': 'x'},
-                'duplicate_request': {'review_version': 'duplicate-review-1', 'occurrences': [1]},
+                'duplicate_request': {'review_version': 'duplicate-review-2', 'occurrences': [1]},
                 'filtered': {'records': ['large']}}
         compact = compact_job_view(full)
         self.assertEqual(compact['request'], full['duplicate_request'])
@@ -122,6 +124,18 @@ class SearchTests(unittest.TestCase):
         self.assertEqual(s.data['status'], 'no_feasible_path')
         self.assertEqual(s.data['used']['rounds'], 1)
 
+    def test_format_feedback_names_bad_fields_and_is_exported_for_retry(self):
+        s = self.create()
+        job = s.next_job()
+        response = response_for(job)
+        response['payload']['candidates'][0]['readings'] = {}
+        result = s.submit(response)
+        self.assertEqual(result['error'], 'CANDIDATE_FORMAT_ERROR')
+        detail = result['feedback']['details'][0]
+        self.assertEqual(detail['candidate_index'], 0)
+        self.assertIn('readings', detail['unexpected_fields'])
+        self.assertEqual(s.next_compact_job()['repair_feedback']['code'], 'CANDIDATE_FORMAT_ERROR')
+
     def test_repeated_invalid_result_is_idempotent(self):
         s = self.create()
         r = response_for(s.next_job())
@@ -176,6 +190,8 @@ class SearchTests(unittest.TestCase):
             line = line_for(export_context(state, index))
             if index == 1:
                 line = '风' + line[1:]
+            if index == 4:
+                line = line[:-1] + '地'
             state.append_line(line)
         s = Search.create(state, poem_plan=fixture_plan(state), engine=fixture_engine())
         self.assertEqual(s.next_job()['stage'], 'poem_reading')
@@ -187,18 +203,20 @@ class SearchTests(unittest.TestCase):
         state = fixture_state()
         from poetry_round import export_context
         for index in range(1, 5):
-            state.append_line(line_for(export_context(state, index)))
+            line = line_for(export_context(state, index))
+            state.append_line(line[:-1] + '地' if index == 4 else line)
         engine = ConstraintEngine(RhymeLexicon(LEXICON))
         s = Search.create(state, poem_plan=fixture_plan(state), engine=engine)
         job = s.next_job()
+        if job['stage'] == 'poem_reading':
+            s.submit(response_for(job))
+            job = s.next_job()
         self.assertEqual(job['stage'], 'poem_duplicate')
         request = job['duplicate_request']
         payload = {'attempt': job['attempt'], 'review': {
             'review_version': request['review_version'],
             'request_sha256': request['request_sha256'],
-            'decisions': [{'char': occurrence['char'], 'relation': 'parallel',
-                           'reason': '测试夹具：重复字位于并列意群。'}
-                          for occurrence in request['occurrences']]}}
+            'decisions': duplicate_decisions(request)}}
         identity = {k: job[k] for k in ('run_id', 'job_id', 'path_id', 'batch_id', 'context_sha256')}
         s.submit({**identity, 'payload': payload})
         self.assertEqual(s.data['status'], 'ready_for_review', s.data['events'])
@@ -214,23 +232,27 @@ class SearchTests(unittest.TestCase):
         TemplateLibrary().bind(state)
         state.set_plan(rhyme={'system': '平水韵', 'group': '一东', 'first_line_rhymes': False})
         for index in range(1, 5):
-            state.append_line(line_for(export_context(state, index)))
+            line = line_for(export_context(state, index))
+            state.append_line(line[:-1] + '地' if index == 4 else line)
         content_plan = export_content_plan(state)
         content_plan['assignments'][0]['reason'] = '用户指定首句'
         engine = ConstraintEngine(RhymeLexicon(LEXICON))
         search = Search.create(state, poem_plan=fixture_plan(state),
                                content_plan=content_plan, engine=engine)
+        if search.next_job()['stage'] == 'poem_reading':
+            search.submit(response_for(search.next_job()))
         self.assertEqual(search.next_job()['stage'], 'poem_duplicate')
         self._submit_poem_duplicate(search)
         job = search.next_job()
+        if job['stage'] == 'final_reading':
+            search.submit(response_for(job))
+            job = search.next_job()
         self.assertEqual(job['stage'], 'final_duplicate')
         filtered = job['filtered']
         item = filtered['duplicate_request']['reviews'][0]
         req = item['request']
         review = {'review_version': req['review_version'], 'request_sha256': req['request_sha256'],
-                  'decisions': [{'char': occurrence['char'], 'relation': 'parallel',
-                                 'reason': '测试夹具：重复字用于并列意群。'}
-                                for occurrence in req['occurrences']]}
+                  'decisions': duplicate_decisions(req)}
         line_context = filtered['context']
         line_payload = {**{k: line_context[k] for k in
                            ('contract_version', 'batch_id', 'context_sha256', 'generation_sha256')},
@@ -243,13 +265,14 @@ class SearchTests(unittest.TestCase):
     @staticmethod
     def _submit_poem_duplicate(search):
         job = search.next_job()
+        if job['stage'] == 'poem_reading':
+            search.submit(response_for(job))
+            job = search.next_job()
         request = job['duplicate_request']
         payload = {'attempt': job['attempt'], 'review': {
             'review_version': request['review_version'],
             'request_sha256': request['request_sha256'],
-            'decisions': [{'char': occurrence['char'], 'relation': 'parallel',
-                           'reason': '测试夹具：重复字用于并列意群。'}
-                          for occurrence in request['occurrences']]}}
+            'decisions': duplicate_decisions(request)}}
         envelope = {k: job[k] for k in ('run_id', 'job_id', 'path_id', 'batch_id', 'context_sha256')}
         search.submit({**envelope, 'payload': payload})
 
@@ -415,9 +438,9 @@ class SearchTests(unittest.TestCase):
         with self.assertRaises(RoundError):
             Search.from_dict({'search': {}, 'sha256': digest({})})
 
-    def test_search_v1_through_v6_are_audit_only(self):
+    def test_search_v1_through_v7_are_audit_only(self):
         from assessment_binding import digest
-        for version in range(1, 7):
+        for version in range(1, 8):
             with self.subTest(version=version):
                 artifact = self.create().to_dict()
                 artifact['search']['version'] = f'poetry-search-{version}'

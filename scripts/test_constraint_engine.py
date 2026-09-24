@@ -256,21 +256,21 @@ class ConstraintTests(unittest.TestCase):
         self.assertTrue(r['checks']['duplicate']['required'])
         self.assertEqual(r['checks']['duplicate']['status'], 'unknown')
         request = make_duplicate_request(r)
+        from test_duplicate_helpers import duplicate_decisions
         payload = None
-        for relation in ('reduplication', 'parallel', 'progressive'):
+        for device in ('reduplication', 'anadiplosis', 'echo', 'internal_parallelism',
+                       'proper_name', 'fixed_expression', 'other_rhetorical'):
             payload = {'review_version': request['review_version'],
                        'request_sha256': request['request_sha256'],
-                       'decisions': [{'char': item['char'], 'relation': relation,
-                                      'reason': '测试证据明确支持此关系。'}
-                                     for item in request['occurrences']]}
+                       'decisions': duplicate_decisions(request, device)}
             checked = recheck_duplicate_candidate(engine, candidate, self.state(), request, payload)
             self.assertTrue(checked['result']['valid'])
         obsolete = deepcopy(payload)
-        obsolete['decisions'][0]['relation'] = 'descending'
+        obsolete['decisions'][0]['device'] = 'parallel'
         with self.assertRaises(ValueError):
             apply_duplicate_review(request, obsolete)
         rejected = deepcopy(payload)
-        rejected['decisions'][0].update(relation='error', reason='普通复现，不是允许用法。')
+        rejected['decisions'][0].update(device='error', reason='普通复现，不是允许用法。')
         self.assertFalse(recheck_duplicate_candidate(
             engine, candidate, self.state(), request, rejected)['result']['valid'])
         tampered = apply_duplicate_review(request, payload)
@@ -278,9 +278,19 @@ class ConstraintTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             engine.check_candidate(candidate, self.state(), duplicate_review=tampered)
         uncertain = deepcopy(payload)
-        uncertain['decisions'][0].update(relation='unknown', reason='上下文不足。')
+        uncertain['decisions'][0].update(device='unknown', reason='上下文不足。')
         self.assertIsNone(recheck_duplicate_candidate(
             engine, candidate, self.state(), request, uncertain)['result']['valid'])
+
+    def test_repeated_rhyme_character_is_hard_failure(self):
+        state = self.state()
+        for _ in range(4):
+            state.append_line('天地水火天')
+        result = ConstraintEngine(self.engine.lexicon).check_poem(state)
+        self.assertEqual(result['checks']['duplicate']['status'], 'fail')
+        self.assertIn('DUPLICATE_RHYME_WORD', [x['code'] for x in result['checks']['duplicate']['issues']])
+        with self.assertRaises(ValueError):
+            make_duplicate_request(result)
 
     def test_snapshot_does_not_reload_library(self):
         state = self.state()

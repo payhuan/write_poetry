@@ -1,13 +1,15 @@
 # Day 5：全诗审校、局部炼句与最终润色
 
-> 当前快照版本为 `poetry-polish-8`。全诗 review ready 后不能直接进入最终出口，必须先完成
+> 当前快照版本为 `poetry-polish-9`。全诗 review ready 后不能直接进入最终出口，必须先完成
 > [逐结构单位炼字](word-refinement.md)：绝句逐句、律诗按四联依次返回 `NO_CHANGE`、`REFINED` 或
 > `REFLOW_REQUIRED`。下文原有 issue 驱动的 generate/compare 仍用于全诗审校明确指出的问题；逐字审查使用
 > refinement/reflow/refinement_compare，并受更严格的两字符范围、语义锁和净增益规则约束。
 
+旧 `poetry-polish-1` 至 `poetry-polish-8` 快照只供审计读取，`next_job()` 为空且 `submit()` 被拒绝。需要继续创作时，基于当前接受正文创建新的 Search／Polish 流程，并重新完成重字复核。
+
 ## 职责与入口
 
-`scripts/poetry_polish.py` 提供 `Polish`，快照与工作封套版本为 `poetry-polish-8`，审校量表为 `whole-poem-review-4`，最终红线版本为 `final-redline-1`。运行 Skill 的 LLM 阅读工作并提供 JSON；程序不调用模型 API、不编造评分、不重做搜索、不处理图片。
+`scripts/poetry_polish.py` 提供 `Polish`，快照与工作封套版本为 `poetry-polish-9`，审校量表为 `whole-poem-review-4`，最终红线版本为 `final-redline-1`。运行 Skill 的 LLM 阅读工作并提供 JSON；程序不调用模型 API、不编造评分、不重做搜索、不处理图片。
 
 LLM 负责主题、情绪、时间、视角、意象、结构和语言，律诗中间两联的语义及句法对仗，用典及 adapt 语义，修改建议、候选、全诗比较和诗题。程序负责交接、绑定、范围、锁定要求、规则复检、内容契约、事务采纳、预算、持久化和完成条件。语义报告的真伪及文学质量不能由 JSON 校验器证明。
 
@@ -32,13 +34,15 @@ polish.result(include_notes=False)
 
 历史候选 quality_score 和路径平均分不进入全诗评分；accepted.quality_score 在开始时清空，最终完成时才记录当前全诗审校总分。旧 Search 保持原样嵌入 source 供追踪。摘要用来防混用、损坏和错误修改，不是签名；快照须来自可信本地运行。
 
+完成结果中的 `quality_independently_verified` 固定为 `false`：控制器只证明流程与复核材料齐备，语义判断和文学质量未经过独立复核。
+
 ## 工作身份与阶段
 
 每次新工作导出时扣一次模型额度。next_job 返回深拷贝，多次读取不扣费。交给模型时推荐使用 `next --compact`（或 Python `next_compact_job()`）：相同的 accepted/target 只提供一次并标记 `target_is_accepted=true`；过滤阶段仅提供当前 stage 的 `request`，完整快照仍保留原始上下文。普通 `next` / `next_job()` 输出维持完整兼容。response 严格包含下表全部身份字段及 payload：
 
 | 字段 | 规则 |
 | --- | --- |
-| contract_version | poetry-polish-8 |
+| contract_version | poetry-polish-9 |
 | run_id / job_id | 当前运行与工作 ID；格式修复保持 job_id |
 | path_id | 显式选定的 Day 4 草稿分支 |
 | revision | 工作 target 的版本，整数 |
@@ -55,7 +59,7 @@ binding 复用现有规则摘要；没有第二套正文摘要算法。完整相
 | refinement | 当前句／联的 NO_CHANGE、REFINED 或 REFLOW_REQUIRED | 保留、最小炼字或转 reflow |
 | reflow | 当前完整句／联及语义锁保持声明 | 规则与内容复检后 refinement_compare |
 | candidate_reading | 绑定的 `reading-review-1` 决策 | 合并已确认坐标并重新执行全诗规则检查 |
-| candidate_duplicate | 绑定的 `duplicate-review-1` 决策 | 仅针对该改稿完整正文复检；不复用 Day 4 的证明 |
+| candidate_duplicate | 绑定的 `duplicate-review-2` 决策 | 仅针对该改稿完整正文复检；不复用 Day 4 的证明 |
 | candidate_content_reading / candidate_content_duplicate | 逐句内容过滤产生的范围绑定复核 | 对当前全诗中的该句位独立复核后，再进入语义内容工作 |
 | candidate_content | 原 Day 3 review-content JSON | 全部必须项通过才 compare |
 | compare | 候选全诗审校、全维度比较和采用建议 | 采用或保留原稿 |
@@ -247,7 +251,7 @@ final payload：`{"title":"独立诗题","notes":["用户需要时展示的简�
 | max_interactions | 40 | 每次新模型工作和格式修复导出各消耗 1，至少 1 |
 | max_format_repairs | 2 | 每工作最多额外修正次数，范围 0–2 |
 
-初次全诗审校、最终红线和最终标题同样计入交互。候选被拒绝后的重新审校、采用后的新审校也计费。读取/重复提交不扣费。外层身份错误直接抛异常、状态不变；正确寻址而 payload 错误时，舍弃事务副本，保存错误与原响应，并发行有限修复。原始模型输出建议直接作为 payload 字符串传入，严格 JSON 解析（重复键、NaN、语法错误）发生在已计费工作内，不在控制器外无限修 JSON。
+初次全诗审校、最终红线和最终标题同样计入交互。候选被拒绝后的重新审校、采用后的新审校也计费。读取/重复提交不扣费。外层身份错误直接抛异常、状态不变；正确寻址而 payload 错误时，舍弃事务副本，保存错误与原响应，并发行有限修复。原始模型输出建议直接作为 payload 字符串传入，严格 JSON 解析（重复键、NaN、语法错误）发生在已计费工作内，不在控制器外无限修 JSON。结构错误保留机器错误码，并返回缺失／多余字段及 stage；下一次 `next_compact_job()` 会附上 `repair_feedback`。
 
 成功响应再次导入返回 already_processed；修改成功结果重放报 CHANGED_REPLAY。完全相同已拒绝响应返回 already_rejected；新的修复响应照抄新 attempt。所有修改在独立控制器副本上执行，验证错误不留下半包 accepted、history 或 candidate 更新。
 
