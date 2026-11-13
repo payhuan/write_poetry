@@ -36,7 +36,7 @@ search = Search.load('examples/search-01.json')
 
 普通句 stage 为 generate → 可选 reading → 可选 duplicate → 可选 content → score；律诗中间联为 unit_generate → 可选 unit_reading → 可选 unit_duplicate → 可选 unit_content → unit_score。读音和重字复核只接收控制器生成的范围绑定请求，候选生成结果仍禁止携带相应证明。两项规则复核完成后才可进入内容语义或评分。确认的全诗重字证明仅适用于原正文；句位候选、联内逐句候选和完整初稿按各自检查范围独立复核。Search 从已有完整正文启动时，若检查出现重字 unknown，则发出 poem_duplicate。完整出口的内容行还可能依次发出 final_reading、final_duplicate、final_content。改稿或正文变化会使旧证明失效，必须对新文本重审。整联候选和 `literary-6` 逐字、逐结构双层对仗评价见[完整句／联生成](unit-generation.md)。每个新阶段有新 job_id；格式修复保持 job_id，attempt 递增。不得在没有实际模型响应时填充评分或运行空生成循环。
 
-模型输出尚未解析时，使用 `payload={"attempt": job.attempt, "raw_json": 原始模型字符串}`，控制器使用 Day 3 严格解析器解析，语法错误同样进入有限格式修复计数。attempt 区分新修复响应和重复导入，即使模型再次返回完全相同的坏 JSON 也能有界结束。外层工作封套由调用者构造，必须是合法 JSON；不要在控制器外无限修复模型输出。格式错误会返回原错误码、字段差异及候选索引，并作为下一次 `next_compact_job()` 的 `repair_feedback` 提供给修复尝试。
+模型输出尚未解析时，使用 `payload={"attempt": job.attempt, "raw_json": 原始模型字符串}`，控制器使用 Day 3 严格解析器解析，语法错误同样进入有限格式修复计数。同一工作只更换 attempt 再提交已拒绝的正文时，返回 `already_rejected`，保留当前修复机会。根据 `repair_feedback` 改好响应再提交。外层工作封套由调用者构造，必须是合法 JSON；不要在控制器外无限修复模型输出。格式错误会返回原错误码、字段差异及候选索引，并作为下一次 `next_compact_job()` 的 `repair_feedback` 提供给修复尝试。
 
 固定 exact 完整句跳过生成模型交互，直接检查用户原文；仍需文学评分才能采用。固定句与规则明确冲突进入 needs_clarification。初始正文若与固定原文不同，完整出口保守拒绝，保留 FINAL_LOCKED_TEXT_MISMATCH，不擅改原句。
 

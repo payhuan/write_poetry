@@ -80,7 +80,7 @@ def validate_review(payload, state, poem_plan=None):
                 'DIMENSION_STATUS', name)
         if na:
             require(entry['score'] is None, 'NA_SCORE', 'Not applicable is excluded, never given a high score')
-        else:
+        elif name != 'parallelism' or entry['score'] is not None:
             v = entry['score']
             require(type(v) in (float, int) and math.isfinite(v) and 0 <= v <= 1,
                     'INVALID_SCORE', name)
@@ -116,9 +116,10 @@ def validate_review(payload, state, poem_plan=None):
                     require(False, 'PARALLELISM_SCORE_CONFLICT', str(exc))
                 pair_scores.extend((c['character_score'], c['structure_score']))
             expected_parallel_score = sum(pair_scores) / len(pair_scores)
-            require(abs(entry['score'] - expected_parallel_score) < 1e-12,
+            require(entry['score'] is None or abs(entry['score'] - expected_parallel_score) < 1e-12,
                     'PARALLELISM_SCORE_MISMATCH',
                     'Whole-poem parallelism score must average both layers across both middle couplets')
+            scores[name] = expected_parallel_score if entry['score'] is None else entry['score']
         elif name == 'structure':
             if state['form']['line_count'] == 8:
                 arc = entry['arc_assessment']
@@ -196,7 +197,10 @@ def validate_review(payload, state, poem_plan=None):
     total = sum(Fraction(str(scores[k])) * Fraction(str(WEIGHTS[k])) for k in scores)
     total /= sum(Fraction(str(WEIGHTS[k])) for k in scores)
     adjusted, duplicate_adjustment = adjust_full_poem_score(float(total), state['lines'])
-    return {**deepcopy(payload), 'base_total': float(total), **duplicate_adjustment,
+    review = deepcopy(payload)
+    if 'parallelism' in scores:
+        review['dimensions']['parallelism']['score'] = scores['parallelism']
+    return {**review, 'base_total': float(total), **duplicate_adjustment,
             'total': adjusted}
 
 
@@ -876,6 +880,9 @@ class Polish:
             self._final(job, payload)
 
     def submit(self, response):
+        return self._submit(response)
+
+    def _submit(self, response, *, replay=False):
         require(self.data['status'] != 'legacy_readonly', 'INVALID_VERSION',
                 'Legacy Polish snapshots are audit-only; start a new run from the current poem')
         fields(response, (*IDENTITY, 'payload'))
@@ -892,6 +899,13 @@ class Polish:
         require(all(response[k] == job[k] for k in IDENTITY) and type(response['attempt']) is int
                 and type(response['revision']) is int, 'WRONG_JOB', 'Wrong work, attempt, text, context, run or path')
         self._validate_job(job)
+        if not replay and job['attempt'] > 1:
+            for rejected in reversed(self.data['transcript']):
+                if rejected['job_id'] != job['job_id']:
+                    break
+                fingerprint_old = digest(rejected)
+                if rejected['payload'] == response['payload'] and fingerprint_old in self.data['invalid']:
+                    return {'status': 'already_rejected', 'feedback': deepcopy(self.data['invalid'][fingerprint_old])}
         staged = Polish(self.data, self.engine)
         staged.data.update(pending=None, status='running')
         try:
@@ -957,7 +971,7 @@ class Polish:
         require(isinstance(d['transcript'], list) and len(d['transcript']) <= d['config']['max_interactions'],
                 'INVALID_SNAPSHOT', 'Transcript exceeds issued model budget')
         for response in d['transcript']:
-            restored.submit(response)
+            restored._submit(response, replay=True)
         require(restored.data == d, 'SNAPSHOT_REPLAY_MISMATCH', 'Snapshot or rule resources changed; cannot reuse proof')
         return restored
 

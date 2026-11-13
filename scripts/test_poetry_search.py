@@ -118,7 +118,7 @@ class SearchTests(unittest.TestCase):
         s = self.create()
         for i in range(3):
             r = response_for(s.next_job())
-            r['payload']['candidates'] = []
+            r['payload']['candidates'] = [None] * i
             s.submit(r)
         self.assertEqual(s.data['used']['interactions'], 3)
         self.assertEqual(s.data['status'], 'no_feasible_path')
@@ -144,12 +144,16 @@ class SearchTests(unittest.TestCase):
         before = s.to_dict()
         self.assertEqual(s.submit(r)['status'], 'already_rejected')
         self.assertEqual(before, s.to_dict())
+        r['payload']['attempt'] = s.next_job()['attempt']
+        self.assertEqual(s.submit(r)['status'], 'already_rejected')
+        self.assertEqual(before, s.to_dict())
+        self.assertEqual(s.submit(response_for(s.next_job()))['status'], 'waiting_for_llm')
 
     def test_malformed_json_text_is_budgeted(self):
         s = self.create()
         for attempt in range(3):
             r = response_for(s.next_job())
-            r['payload'] = {'attempt': attempt + 1, 'raw_json': '{broken json'}
+            r['payload'] = {'attempt': attempt + 1, 'raw_json': '{broken json ' + str(attempt)}
             s.submit(r)
         self.assertEqual(s.data['status'], 'no_feasible_path')
         self.assertEqual(s.data['used']['interactions'], 3)

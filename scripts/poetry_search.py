@@ -440,6 +440,12 @@ class Search:
         job = self.data['pending']
         require(job is not None and self.data['status'] == 'waiting_for_llm', 'NO_PENDING_JOB', 'No pending work')
         require(all(response[k] == job[k] for k in identity), 'WRONG_JOB', 'Result belongs to another job/path/batch')
+        model_payload = response['payload']
+        if isinstance(model_payload, dict):
+            model_payload = {k: v for k, v in model_payload.items() if k != 'attempt'}
+        repair_key = 'repair:' + digest({**{k: response[k] for k in identity}, 'payload': model_payload})
+        if job['attempt'] > 1 and repair_key in self.data['invalid_responses']:
+            return {'status': 'already_rejected', 'error': self.data['invalid_responses'][repair_key]}
         staged = Search(self.data, engine=self.engine)
         staged.data['pending'] = None
         staged.data['status'] = 'running'
@@ -482,6 +488,8 @@ class Search:
                 d['used']['interactions'] += 1
                 self.data = d
             self.data['invalid_responses'][response_digest] = getattr(exc, 'code', 'INVALID_MODEL_RESULT')
+            if getattr(exc, 'code', None) != 'WRONG_ATTEMPT':
+                self.data['invalid_responses'][repair_key] = event['code']
             return {'status': self.data['status'], 'error': getattr(exc, 'code', 'INVALID_MODEL_RESULT'),
                     'feedback': {k: deepcopy(event[k]) for k in ('code', 'message', 'details') if k in event}}
         except Exception as exc:

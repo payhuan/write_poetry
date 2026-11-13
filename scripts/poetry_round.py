@@ -255,7 +255,11 @@ def _receive(context, payload):
         if isinstance(candidate, dict) and _text(candidate.get('id')):
             ids.add(candidate['id'])
         if code:
-            problems.append({'input_index': index, 'code': code, 'raw': deepcopy(candidate)})
+            problem = {'input_index': index, 'code': code, 'raw': deepcopy(candidate)}
+            if code == 'INVALID_SEMANTIC_LOCK':
+                problem.update(required_protected_meaning=planned['protected_meaning'],
+                               required_structural_function=planned['primary_task'])
+            problems.append(problem)
     if problems:
         raise RoundError('CANDIDATE_FORMAT_ERROR', 'Batch rejected before rule checking', problems)
     return deepcopy(items)

@@ -467,7 +467,12 @@ class PolishTests(unittest.TestCase):
         search = drive(Search.create(state, poem_plan=fixture_plan(state), engine=fixture_engine()))
         p = Polish.create(search.to_dict(), search.data['drafts'][0]['path_id'], engine=fixture_engine())
         r = review_for(p.data['accepted'])
-        r['dimensions']['parallelism']['couplets'][1]['character_alignment'][2]['upper_char'] = '错'
+        parallel = r['dimensions']['parallelism']
+        parallel['score'] = None
+        parallel['couplets'][0]['structure_score'] = .77
+        self.assertAlmostEqual(validate_review(r, p.data['accepted'])['dimensions']['parallelism']['score'], .7925)
+        self.assertIsNone(parallel['score'])
+        parallel['couplets'][1]['character_alignment'][2]['upper_char'] = '错'
         self.send(p, r)
         self.assertEqual(p.next_job()['attempt'], 2)
         self.finish(p)
@@ -507,7 +512,7 @@ class PolishTests(unittest.TestCase):
     def test_format_repair_and_interaction_caps(self):
         p = self.create()
         for expected in (2, 3, None):
-            self.send(p, '{invalid json')
+            self.send(p, '{invalid json ' + str(expected))
             self.assertEqual(p.next_job()['attempt'] if p.next_job() else None, expected)
         self.assertEqual(p.data['used']['interactions'], 3)
         self.assertEqual(p.data['reason'], 'FORMAT_REPAIRS_EXHAUSTED')
@@ -539,6 +544,8 @@ class PolishTests(unittest.TestCase):
         p.submit(r)
         before = p.to_dict()
         self.assertEqual(p.submit(r)['status'], 'already_rejected')
+        self.assertEqual(p.to_dict(), before)
+        self.assertEqual(p.submit(envelope(p.next_job(), '{}'))['status'], 'already_rejected')
         self.assertEqual(p.to_dict(), before)
         r = envelope(p.next_job(), review_for(p.data['accepted']))
         p.submit(r)
