@@ -40,5 +40,14 @@ class StructuralAlignmentTests(unittest.TestCase):
         validate_soft_rating(failed, .49, 'Structure')
 
 
+class CharacterRatingTests(unittest.TestCase):
+    def test_multiple_weak_positions_lower_the_cap(self):
+        alignment = [{'status': 'weak'}, {'status': 'pass'}, {'status': 'weak'}]
+        validate_soft_rating(alignment, .5476, 'Character')
+        with self.assertRaises(ValueError):
+            validate_soft_rating(alignment, .55, 'Character')
+        validate_soft_rating(alignment, .74, 'Structure')
+
+
 if __name__ == '__main__':
     unittest.main()

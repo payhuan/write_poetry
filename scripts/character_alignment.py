@@ -1,5 +1,7 @@
 """Validation helpers for character-by-character couplet assessments."""
 
+from math import prod
+
 from text_normalizer import normalize_line
 
 
@@ -77,14 +79,9 @@ def validate_structure_alignment(lines, alignment, line_indices, width):
 
 
 def validate_soft_rating(alignment, score, label):
-    """Cap the score from the reported worst status without rejecting the poem."""
-    statuses = [item['status'] for item in alignment]
-    ceiling = 1.0
-    if 'fail' in statuses:
-        ceiling = .49
-    elif 'unknown' in statuses:
-        ceiling = .59
-    elif 'weak' in statuses:
-        ceiling = .74
-    if score > ceiling:
+    """Accumulate character penalties; cap structure by its worst span."""
+    caps = {'pass': 1.0, 'weak': .74, 'unknown': .59, 'fail': .49}
+    limits = [caps[item['status']] for item in alignment]
+    ceiling = prod(limits) if label == 'Character' else min(limits, default=1.0)
+    if score > ceiling + 1e-12:
         raise ValueError(f'{label} score conflicts with reported alignment status')
