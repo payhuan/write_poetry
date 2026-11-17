@@ -82,6 +82,31 @@ class SearchTests(unittest.TestCase):
                 self.assertTrue(draft['checks']['valid'])
                 self.assertIsNone(draft['quality_score'])
 
+    def test_comparison_audit_distinguishes_submitted_and_ranked(self):
+        for mode in ('two', 'single', 'filtered', 'budget'):
+            with self.subTest(mode=mode):
+                state = fixture_state()
+                s = Search.create(state, poem_plan=fixture_plan(state), engine=fixture_engine(),
+                                  max_interactions=1 if mode == 'budget' else None)
+                response = response_for(s.next_job(), two=True)
+                candidates = response['payload']['candidates']
+                if mode == 'single':
+                    candidates.pop()
+                elif mode == 'filtered':
+                    candidates[-1]['text'] = '错'
+                s.submit(response)
+                s = Search.from_dict(s.to_dict(), engine=fixture_engine())
+                if mode == 'budget':
+                    self.assertIsNone(s.next_job())
+                    self.assertEqual(s.comparison_summary()['unranked_submissions'][0]['submitted'], 2)
+                    continue
+                self.assertEqual(s.next_job()['stage'], 'score')
+                s.submit(response_for(s.next_job()))
+                summary = s.comparison_summary()
+                self.assertEqual(summary['comparison_count'], int(mode == 'two'))
+                self.assertEqual(summary['steps'][0]['submitted'], len(candidates))
+                self.assertEqual(summary['steps'][0]['comparable'], 2 if mode == 'two' else 1)
+
     def test_global_beam(self):
         s = self.create(beam_width=2)
         for _ in range(6):

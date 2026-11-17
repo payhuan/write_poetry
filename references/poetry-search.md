@@ -106,3 +106,26 @@ python -m unittest discover -s scripts -p 'test_*.py'
 测试覆盖四种诗体、全局剪枝、存活路径优先、备选恢复、零回溯、共享预算、格式修复上限、跨路径拒绝、数据独立、固定要求、完整内容 unknown 拒绝、全诗规则重检、保存恢复一致、幂等、稳定同分、事务原子性和迁移后从其他工作目录运行。
 
 2026-09-15 验证：原有 102 项测试先行通过；加入 27 项控制器测试后共 129 项通过。保存的演示为 `examples/day4-result.json`，可通过 Search.load 恢复查看完整历史、剪枝、恢复原因与实际检测结果。
+
+## Python 工件与比较记录
+
+```python
+from poem_planning import make_plan_artifact
+from poem_state import PoemState
+from poetry_search import Search
+
+state = PoemState.load("state.json")
+# plan_payload 是已按当前 state 构造的规划对象。
+search = Search.create(state, poem_plan=make_plan_artifact(state, plan_payload))
+# 已导出的工件也可以直接传：poem_plan=json.loads(Path(...).read_text(encoding="utf-8"))
+# 这里需要包含 plan 和 sha256 的工件，不是工件内部的 plan 字典。
+```
+
+`PoemState.load/save` 的相对路径以当前工作目录为基准。Search 的 Python
+`load/save` 和 CLI 按运行工作区解析路径；CLI 用 `--work-dir` 或环境变量指定位置。
+保存不可覆盖，用 `search-001.json`、`search-002.json` 这样的递增文件名。
+
+`comparison_summary()` 返回已排名步骤、未排名提交和实际比较步数。
+每个生成批次记录 `CANDIDATES_SUBMITTED`；完成筛选及评分后记录
+`CANDIDATE_COMPARISON`，比较至少两个可排名候选才算一次。预算耗尽前尚未排名的提交
+不算比较；旧快照没有这些事件时不补造统计。统计只说明比较发生过，不证明表达路径语义上不同。

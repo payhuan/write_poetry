@@ -152,10 +152,16 @@ def receive_unit_candidates(context, payload):
                                'expected_fields': sorted(expected_candidate)}])
         require(_text(item['id']) and item['id'] not in seen_ids, 'DUPLICATE_CANDIDATE_ID', 'Invalid candidate id')
         lines = item['lines']
-        require(isinstance(lines, list) and len(lines) == 2 and
+        from poetry_round import RoundError
+        if not (isinstance(lines, list) and len(lines) == 2 and
                 [x.get('line_index') for x in lines if isinstance(x, dict)] == context['line_indices'] and
-                all(set(x) == {'line_index', 'text'} and _text(x['text']) for x in lines),
-                'INVALID_UNIT_LINES', 'A middle-couplet candidate must contain both complete ordered lines')
+                all(set(x) == {'line_index', 'text'} and _text(x['text']) for x in lines)
+                ):
+            raise RoundError('INVALID_UNIT_LINES',
+                             'A middle-couplet candidate must contain both complete ordered lines',
+                             [{'candidate_index': index, 'location': f'candidates[{index}].lines',
+                               'expected_shape': [{'line_index': n, 'text': '<完整诗句>'}
+                                                  for n in context['line_indices']]}])
         text_key = tuple(x['text'].strip() for x in lines)
         require(text_key not in seen_texts, 'DUPLICATE_TEXT', 'Duplicate complete couplet')
         require(_text(item['expression_path']) and _text(item['semantic_increment']),

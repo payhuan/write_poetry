@@ -13,6 +13,8 @@ description: 根据中文文字描述创作五言绝句、七言绝句、五言�
 
 ## 工作流
 
+运行前先选好 Skill 目录外的工作区：设置 `WRITE_POETRY_WORKDIR` 或传 `--work-dir`。Windows 未指定时默认使用 `%LOCALAPPDATA%\write-poetry`，C 盘空间紧张时请显式选择其他盘。
+
 Search 或 Polish 返回格式错误时，保存当前快照，读取 `next_compact_job()` 中的 `repair_feedback`，根据错误生成新响应后再提交。收到 `already_rejected` 时当前尝试仍可用；只换 attempt 的响应无需再次导入。全诗审校的律诗对仗汇总分填 `null`，提交颔联、颈联各自的逐字和逐结构评分，由程序汇总。候选的 `semantic_lock.protected_meaning` 应包含规划中每一项保护语义的原文，`structural_function` 使用该单位的 `primary_task`。
 
 遇到用典、必含诗句或用户灵感时，先按 [内容要求](references/content-requirements.md) 提取 allusions 和 required_fragments，区分原样保留、允许润色及仅作灵感。用典名称按 [典故查询与规范化](references/allusion-lookup.md) 查询：唯一精确入口才能自动关联规范主典，歧义先消解，模糊结果不能自动改名，本地未命中不能解释为典故不存在；用典是否成立按 [用典规范](references/allusion-usage.md) 经过事实门和诗境映射门。解析仅作结构和字数冲突检查，不宣称内容或格律已满足。Day 3 接入按 [内容安排与履行](references/round-content.md)：模型安排、典故引用和解释与 request 分开保存，不能回写用户原文依据。

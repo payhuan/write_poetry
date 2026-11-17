@@ -28,3 +28,53 @@ PoemPlan 的 `protected_meaning` 是字符串数组；候选锁中的 `semantic_
 两个层次分别给 `character_score` 与 `structure_score`，取值均为 0–1；`parallelism.score` 必须是两者的算术平均。对应状态为 `pass`、`weak`、`fail` 或 `unknown`。任一层出现 `weak` 时该层分数上限为 `.74`，`unknown` 上限为 `.59`，`fail` 上限为 `.49`。上限与较高权重一起拉开候选排序，但仍是软约束，不会只因对仗低分直接淘汰候选；状态和分数相互矛盾则拒绝该评分响应。逐字位不要求字面同义，也不能代替词组／句法层次的对应判断。
 
 整联内容审查时，`job.context` 是完整依据；嵌套的 `job.filtered.content_request.requests[*].request` 省略重复上下文，只保留该句候选、要求和绑定摘要。
+
+## 可改填的提交示例
+
+下例中的 `job` 是当前完整工作对象，`f = job["filtered"]`（仅评分或复核阶段使用）。
+用同一工件的值构造外层响应和内部批次字段；不要从另一阶段复制摘要或 attempt。
+以下 Python 字典可直接作为响应模板（尖括号项和省略号必须替换为实际值）。
+
+```python
+from poetry_round import ENVELOPE
+
+c = job["context"]
+outer = {k: job[k] for k in ("run_id", "job_id", "path_id", "batch_id", "context_sha256")}
+bound = {**{k: c[k] for k in ENVELOPE}, "attempt": job["attempt"]}
+upper, lower = c["line_indices"]  # unit_generate
+candidate = {
+    "id": "a", "lines": [{"line_index": upper, "text": "<上句>"},
+                         {"line_index": lower, "text": "<下句>"}],
+    "expression_path": "<表达路径>", "semantic_increment": "<语义增量>", "risks": [],
+    "semantic_lock": {
+        "protected_meaning": "<包含每项保护语义原文>", "facts": [], "images": [],
+        "relations": [], "emotion_direction": "<情绪走向>",
+        "structural_function": c["planned_unit"]["primary_task"], "confirmed_allusions": [],
+    },
+}
+generate = {**outer, "payload": {**bound, "status": "candidates", "candidates": [candidate]}}
+
+# unit_reading / unit_duplicate / unit_content 分别使用下列请求列表。
+# 对每个 wanted，以那一行的 line_filter 构造相应的普通单句响应：
+# 分别为 review_readings / review_duplicates / review_content 所接收的 payload。
+def unit_review(stage, make_line_response):
+    key = {"unit_reading": "reading_request", "unit_duplicate": "duplicate_request",
+           "unit_content": "content_request"}[stage]
+    rows = []
+    for wanted in f[key]["requests"]:
+        cid, index = wanted["candidate_id"], wanted["line_index"]
+        record = next(r for r in f["records"] if r["id"] == cid)
+        line_filter = next(x for x in record["line_filters"] if x["context"]["line_index"] == index)
+        rows.append({"candidate_id": cid, "line_index": index,
+                     "response": make_line_response(line_filter, job["attempt"])})
+    return {**outer, "payload": {**bound, "filter_sha256": f["filter_sha256"], "reviews": rows}}
+
+# unit_score：对 score_request.candidates 中每个 ID 提交一条。
+# parallelism 用上文双层对仗结构；生成阶段不提交它。
+score = {**outer, "payload": {**bound, "filter_sha256": f["filter_sha256"],
+         "rubric_version": f["score_request"]["rubric_version"],
+         "scores": [{"id": "<候选ID>", "dimensions": ...,
+                     "parallelism": ..., "reason": "<评分理由>"}]}}
+```
+
+完整评分及逐行复核构造可与 `scripts/day4_example.py` 的 `response_for` 对照；其中的夹具评分不是文学评价。

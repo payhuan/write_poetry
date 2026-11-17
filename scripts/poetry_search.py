@@ -293,6 +293,7 @@ class Search:
         p = self._current()
         parent = PoemState.from_dict(p['state'])
         report = finish_round(parent, filtered, scores, engine=self.engine)
+        self._record_comparison(filtered, report)
         if report['status'] == 'requires_user_adjustment':
             self._stop('needs_clarification', report['code'])
             return
@@ -336,11 +337,13 @@ class Search:
         elif filtered['score_request']['candidates']:
             self._job('unit_score', filtered['context'], filtered)
         else:
+            self._record_comparison(filtered)
             self._fail('NO_PASSED_UNIT')
 
     def _commit_unit(self, filtered, scores):
         p = self._current()
         report = finish_units(filtered, scores)
+        self._record_comparison(filtered, report)
         for candidate_id in report['ranking']:
             record = next(x for x in report['records'] if x['id'] == candidate_id)
             child = PoemState.from_dict(p['state'])
@@ -503,11 +506,40 @@ class Search:
         self.data = staged.data
         return {'status': self.data['status']}
 
+    def comparison_summary(self):
+        """Count completed candidate comparisons from the persisted audit trail."""
+        steps = [deepcopy(e) for e in self.data['events'] if e['code'] == 'CANDIDATE_COMPARISON']
+        completed = {e['job_id'] for e in steps}
+        pending = [deepcopy(e) for e in self.data['events'] if e['code'] == 'CANDIDATES_SUBMITTED'
+                   and e['job_id'] not in completed]
+        return {'steps': steps, 'unranked_submissions': pending,
+                'comparison_count': sum(e['compared'] for e in steps)}
+
+    def _record_submission(self, job, filtered):
+        count = len(filtered['records'])
+        self.data['events'].append({'code': 'CANDIDATES_SUBMITTED', 'job_id': job['job_id'],
+                                   'batch_id': job['batch_id'], 'path_id': job['path_id'],
+                                   'submitted': count})
+
+    def _record_comparison(self, filtered, report=None):
+        batch_id = filtered['context']['batch_id']
+        source = next((e for e in reversed(self.data['events'])
+                       if e['code'] == 'CANDIDATES_SUBMITTED' and e['batch_id'] == batch_id), None)
+        if source is None or any(e['code'] == 'CANDIDATE_COMPARISON' and e['batch_id'] == batch_id
+                                 for e in self.data['events']):
+            return
+        count = len(report['ranking']) if report else 0
+        self.data['events'].append({**source, 'code': 'CANDIDATE_COMPARISON',
+                                   'comparable': count, 'compared': count >= 2})
+
     def _receive(self, job, payload):
         state = PoemState.from_dict(self._current()['state'])
         stage, c, f = job['stage'], job['context'], job['filtered']
         if stage == 'unit_generate':
-            self._after_unit_filter(filter_units(state, c, payload, engine=self.engine))
+            filtered = filter_units(state, c, payload, engine=self.engine)
+            if filtered['status'] != 'replan_required':
+                self._record_submission(job, filtered)
+            self._after_unit_filter(filtered)
         elif stage == 'poem_duplicate':
             require(set(payload) == {'attempt', 'review'} and payload['attempt'] == job['attempt'],
                     'INVALID_POEM_DUPLICATE', 'Use issued attempt and duplicate review')
@@ -553,6 +585,7 @@ class Search:
             if reviewed['score_request']['candidates']:
                 self._job('unit_score', c, reviewed)
             else:
+                self._record_comparison(reviewed)
                 self._fail('UNIT_CONTENT_FAILED_OR_UNKNOWN')
         elif stage == 'unit_score':
             self._commit_unit(f, payload)
@@ -569,8 +602,10 @@ class Search:
                                          [{'candidate_index': index, 'missing_fields': missing,
                                            'unexpected_fields': sorted(set(item) - enhanced),
                                            'expected_fields': sorted(enhanced)}])
-            self._after_filter(c, filter_candidates(state, c, payload, engine=self.engine,
-                                                    readings=self._current().get('readings')))
+            filtered = filter_candidates(state, c, payload, engine=self.engine,
+                                         readings=self._current().get('readings'))
+            self._record_submission(job, filtered)
+            self._after_filter(c, filtered)
         elif stage == 'reading':
             self._after_filter(c, review_readings(state, f, payload, engine=self.engine))
         elif stage in ('content', 'final_content'):
@@ -634,6 +669,10 @@ def compact_job_view(job):
         'final_content': 'content_request',
         'score': 'score_request', 'unit_score': 'score_request',
     }.get(stage)
+    if stage in ('generate', 'unit_generate'):
+        result['generation_guidance'] = (
+            '当目标候选数至少为二时，尽量提交至少两条实质不同的表达路径：'
+            '可改变入题角度、意象组织或叙述动作；只换近义词不算。资源不足时允许单候选，不自动重试。')
     if request_key:
         request = job.get(request_key)
         if request is None and isinstance(job.get('filtered'), dict):
