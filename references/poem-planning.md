@@ -14,6 +14,8 @@
 
 如误填转向轴（例如 `emotion`），仍返回 `TURN_PLAN_REQUIRED`，但 `details` 会列出 `location`（`structure_plan[2].turn_plan.axis`，索引从 0 开始）、`received` 和 `allowed_values`。情绪／立场轴应填 `emotion_stance`。Search CLI 将该详情保留在标准错误输出的 JSON 中。
 
+其他规划错误也用 `details[].location` 定位。对象字段不符会列出缺失和多余字段；枚举或引用不符会列出合法值；规划绑定过期会列出不同字段并要求重新导出，自检失败会指出未通过的检查项及其原理由。工件外层缺字段与摘要不匹配分别报告。
+
 律诗自检还须通过 `arc_roles_assigned`、`neck_couplet_changes_direction`、`turn_is_more_than_next_event`、`ending_resolves_or_reframes`。验证器校验字段、位置和状态链，不替模型判断文学上的转向是否成立。若转向会损害用户事实、典故或保护语义，应保留代价说明并重新规划，不为满足标签强行跳景。缺单位、重复单位、无依据跳景、对仗规划缺失、转前后状态未变化、典故安排指向未知单位或自检未通过都会被拒绝。
 
 `planning_basis(state)` 是稳定绑定；正文、请求、模板、韵部或规划上下文改变后，旧规划不能移植。

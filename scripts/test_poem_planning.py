@@ -67,6 +67,34 @@ class PoemPlanningTests(unittest.TestCase):
         self.assertTrue(all(unit['arc_role'] is None and unit['turn_plan'] is None
                             for unit in plan['structure_plan']))
 
+    def test_other_planning_failures_point_to_repairable_fields(self):
+        state = fixture_state('七言律诗')
+        valid = fixture_plan(state)['plan']
+        cases = (
+            (lambda p: p['poem_core'].pop('speaker'), 'INVALID_POEM_CORE',
+             'poem_core', 'missing_fields', ['speaker']),
+            (lambda p: p['structure_plan'][1]['antithesis'].update(relation='same'),
+             'ANTITHESIS_PLAN_REQUIRED', 'structure_plan[1].antithesis.relation', 'received', 'same'),
+            (lambda p: p['structure_plan'][2]['turn_plan'].update(relation_to_next='相反'),
+             'TURN_PLAN_REQUIRED', 'structure_plan[2].turn_plan.relation_to_next', 'received', '相反'),
+            (lambda p: p['core_images'][0].update(first_unit=[]), 'INVALID_IMAGE_PLAN',
+             'core_images[0].first_unit', 'received', []),
+            (lambda p: p['self_check']['ending_prepared'].update(status='fail'), 'PLAN_SELF_CHECK_FAILED',
+             'self_check.ending_prepared.status', 'received', 'fail'),
+            (lambda p: p['binding'].update(base_revision=-1), 'STALE_POEM_PLAN',
+             'binding', 'differing_fields', ['base_revision']),
+        )
+        for change, code, location, key, expected in cases:
+            with self.subTest(location=location):
+                plan = deepcopy(valid)
+                change(plan)
+                with self.assertRaises(PlanError) as caught:
+                    validate_plan(state, plan)
+                self.assertEqual(caught.exception.code, code)
+                detail = caught.exception.details[0]
+                self.assertEqual(detail['location'], location)
+                self.assertEqual(detail[key], expected)
+
     def test_wrong_allusion_arrangement_binding_is_rejected(self):
         from poem_state import PoemState
         from poem_templates import TemplateLibrary
