@@ -61,6 +61,16 @@ def require(condition, code, message):
         raise RoundError(code, message)
 
 
+def require_literary_quotes(reason, lines, location):
+    """Verify literal excerpts, leaving their literary meaning to the evaluator."""
+    import re
+    quotes = re.findall(r'「([^「」]+)」', reason) if isinstance(reason, str) else []
+    if not quotes or not all(any(q.strip() and q in line for line in lines) for q in quotes):
+        raise RoundError('INVALID_LITERARY_EVIDENCE',
+                         'Quote current verse verbatim using 「原文字词」',
+                         [{'location': location, 'expected_shape': '理由中包含「当前正文原文」'}])
+
+
 def finite_json(value):
     try:
         digest(value)

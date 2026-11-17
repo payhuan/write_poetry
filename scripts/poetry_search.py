@@ -22,7 +22,7 @@ from reading_disambiguation import make_request as make_reading_request, apply_r
 from duplicate_disambiguation import make_request as make_duplicate_request, apply_review as apply_duplicate_review
 from poetry_round import review_duplicates
 
-VERSION = 'poetry-search-9'
+VERSION = 'poetry-search-10'
 TERMINAL = {'ready_for_review', 'budget_exhausted', 'no_feasible_path',
             'needs_clarification', 'run_error', 'legacy_readonly'}
 
@@ -89,9 +89,9 @@ class Search:
         require(isinstance(artifact, dict) and set(artifact) == {'search', 'sha256'}
                 and digest(artifact['search']) == artifact['sha256'], 'INVALID_SNAPSHOT', 'Snapshot checksum mismatch')
         d = artifact['search']
-        if isinstance(d, dict) and d.get('version') in ('poetry-search-1', 'poetry-search-2', 'poetry-search-3', 'poetry-search-4', 'poetry-search-5', 'poetry-search-6', 'poetry-search-7', 'poetry-search-8'):
+        if isinstance(d, dict) and d.get('version') in ('poetry-search-1', 'poetry-search-2', 'poetry-search-3', 'poetry-search-4', 'poetry-search-5', 'poetry-search-6', 'poetry-search-7', 'poetry-search-8', 'poetry-search-9'):
             legacy = deepcopy(d)
-            legacy.update(version=VERSION, poem_plan=None, status='legacy_readonly', pending=None)
+            legacy.update(version=VERSION, poem_plan=d.get('poem_plan'), status='legacy_readonly', pending=None)
             legacy['events'].append({'code': 'POEM_PLAN_REQUIRED', 'status': 'legacy_readonly'})
             return cls(legacy, engine=engine)
         fields = {'version', 'run_id', 'status', 'initial', 'assignments', 'config', 'active',
@@ -293,6 +293,13 @@ class Search:
         p = self._current()
         parent = PoemState.from_dict(p['state'])
         report = finish_round(parent, filtered, scores, engine=self.engine)
+        if filtered['context'].get('planned_unit') and scores is not None:
+            from poetry_round import require_literary_quotes
+            records = {r['id']: r['text'] for r in filtered['records']}
+            for i, item in enumerate(scores['scores']):
+                if item['evaluation'] is not None:
+                    require_literary_quotes(item['evaluation']['reason'], [records[item['id']]],
+                                            f'scores[{i}].evaluation.reason')
         self._record_comparison(filtered, report)
         if report['status'] == 'requires_user_adjustment':
             self._stop('needs_clarification', report['code'])
@@ -343,6 +350,10 @@ class Search:
     def _commit_unit(self, filtered, scores):
         p = self._current()
         report = finish_units(filtered, scores)
+        from poetry_round import require_literary_quotes
+        records = {r['id']: [line['text'] for line in r['lines']] for r in filtered['records']}
+        for i, item in enumerate(scores['scores']):
+            require_literary_quotes(item['reason'], records[item['id']], f'scores[{i}].reason')
         self._record_comparison(filtered, report)
         for candidate_id in report['ranking']:
             record = next(x for x in report['records'] if x['id'] == candidate_id)
@@ -673,6 +684,11 @@ def compact_job_view(job):
         result['generation_guidance'] = (
             '当目标候选数至少为二时，尽量提交至少两条实质不同的表达路径：'
             '可改变入题角度、意象组织或叙述动作；只换近义词不算。资源不足时允许单候选，不自动重试。')
+    if stage in ('score', 'unit_score'):
+        result['evidence_guidance'] = (
+            '评分 reason 必须用「原文」引用当前候选内的字词，解释如何兑现 planned_unit.content_scope。'
+            '若没有兑现，引用造成偏离的原文并降低任务分；生成阶段发现规划无法实现时用整联 replan_required，'
+            '不要在采用后回改规划。对仗逐字与逐结构分别评价；句法相同不自动扣分，语义动作或视角重复且妨碍推进才扣分。')
     if request_key:
         request = job.get(request_key)
         if request is None and isinstance(job.get('filtered'), dict):

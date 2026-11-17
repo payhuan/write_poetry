@@ -51,6 +51,14 @@ class PolishTests(unittest.TestCase):
         response = envelope(compact, review_for(full['context']['accepted']))
         self.assertIn('status', polish.submit(response))
 
+    def test_review_requires_current_theme_evidence(self):
+        polish = self.create()
+        job = polish.next_job()
+        review = review_for(job['context']['accepted'])
+        review['dimensions']['theme']['reason'] = '主题很好，但没有引用正文'
+        result = polish.submit(envelope(job, review))
+        self.assertEqual(result['feedback']['code'], 'INVALID_LITERARY_EVIDENCE')
+
     def test_compact_candidate_job_keeps_distinct_target(self):
         job = deepcopy(self.create().next_job())
         changed_target = deepcopy(job['context']['target'])

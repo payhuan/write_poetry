@@ -21,7 +21,7 @@ from duplicate_scoring import adjust_full_poem_score
 from character_alignment import (validate_character_alignment, validate_structure_alignment,
                                  validate_soft_rating)
 
-VERSION = 'poetry-polish-10'
+VERSION = 'poetry-polish-11'
 REVIEW_VERSION = 'whole-poem-review-5'
 REDLINE_VERSION = 'final-redline-1'
 REDLINE_CHECKS = ('user_facts_reversed', 'allusion_facts_reversed',
@@ -394,6 +394,10 @@ class Polish:
 
     def _record_review(self, job, payload, target):
         review = validate_review(payload, target, job['context']['poem_plan'])
+        from poetry_round import require_literary_quotes
+        for name in ('theme', 'naturalness', 'structure'):
+            require_literary_quotes(payload['dimensions'][name]['reason'], target['lines'],
+                                    f'dimensions.{name}.reason')
         record = dict(identity={k: deepcopy(job[k]) for k in IDENTITY}, review=review)
         self.data['reviews'].append(deepcopy(record))
         return record
@@ -989,6 +993,12 @@ def compact_job_view(job):
         return None
     result = deepcopy(job)
     context = result['context']
+    if result['stage'] in ('review', 'compare', 'refinement_compare'):
+        result['evidence_guidance'] = (
+            'theme、naturalness、structure 的 reason 各用「原文」引用当前所评稿件。'
+            '主题高分须说明正文如何体现委托中的具体关系或情绪；儿女相思不强制性别、身份或器物。'
+            '跨时空须找出正文中的预想或回忆信号；诗后解说不能替正文补韵脚与诗意的联系。'
+            '四三节拍和对仗同构不自动扣分；须指出实际重复的骨架、语义动作或视角及其对推进的影响。')
     if context.get('target') == context.get('accepted'):
         context.pop('target', None)
         context['target_is_accepted'] = True

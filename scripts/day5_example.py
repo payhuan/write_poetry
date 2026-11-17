@@ -16,7 +16,7 @@ def review_for(state, *, revise=False, positions=(1,), score=.8):
     for name in WEIGHTS:
         na = name == 'parallelism' and state['form']['line_count'] == 4
         dimensions[name] = dict(status='not_applicable' if na else 'assessed',
-                                score=None if na else score, reason='确定性流程夹具理由', couplets=[])
+                                score=None if na else score, reason='确定性流程夹具理由：「' + state['lines'][0] + '」', couplets=[])
         if name == 'structure':
             dimensions[name]['arc_assessment'] = None if state['form']['line_count'] == 4 else {
                 'units': [dict(arc_role=role, line_indices=positions, status='pass',

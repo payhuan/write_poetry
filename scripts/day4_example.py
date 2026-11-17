@@ -172,7 +172,7 @@ def response_for(job, *, fail_high=False, two=False, value=0.8):
                        scores=[{'id': item['id'], 'dimensions': {k: value for k in UNIT_WEIGHTS},
                                 'parallelism': parallel_for(next(x for x in f['records']
                                                                   if x['id'] == item['id'])),
-                                'reason': '固定整联评分夹具。'}
+                                'reason': '固定整联评分夹具：「' + item['lines'][0]['text'] + '」'}
                                for item in f['score_request']['candidates']])
     elif job['stage'] == 'unit_content':
         f = job['filtered']
@@ -217,7 +217,7 @@ def response_for(job, *, fail_high=False, two=False, value=0.8):
         f = job['filtered']
         payload.update(filter_sha256=f['filter_sha256'], rubric_version='literary-2',
                        scores=[{'id': item['id'], 'evaluation': {'dimensions': {k: value - i * .1 for k in WEIGHTS},
-                               'reason': '确定性控制流程夹具评分。'}} for i, item in enumerate(f['score_request']['candidates'])])
+                               'reason': '确定性控制流程夹具评分：「' + item['text'] + '」'}} for i, item in enumerate(f['score_request']['candidates'])])
     elif job['stage'] == 'poem_reading':
         request = job['reading_request']
         decisions = []

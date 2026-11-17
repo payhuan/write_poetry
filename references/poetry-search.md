@@ -81,7 +81,7 @@ search = Search.load('examples/search-01.json')
 
 ## 保存恢复与 CLI
 
-`to_dict/from_dict` 使用 `{search, sha256}` 完整包，版本 `poetry-search-9`。search 额外保存完整 `poem-plan-2`；路径保存 semantic_locks、已复检 readings 与整诗重字证明（`duplicate-review-3`）。`poetry-search-1` 至 `poetry-search-8` 可载入为 `legacy_readonly` 供审计，但 next_job 为空、submit 被拒绝；须基于原始状态建立新规划和新运行，不能把旧快照静默升级为可继续创作的证明。Day 3 旧重字证明不可复用，当前正文须重新按新规范复核；Day 3 旧过滤工件必须重新导出并复核。
+`to_dict/from_dict` 使用 `{search, sha256}` 完整包，版本 `poetry-search-10`。search 额外保存完整 `poem-plan-2`；路径保存 semantic_locks、已复检 readings 与整诗重字证明（`duplicate-review-3`）。`poetry-search-1` 至 `poetry-search-9` 可载入为 `legacy_readonly` 供审计，但 next_job 为空、submit 被拒绝；须基于原始状态建立新规划和新运行，不能把旧快照静默升级为可继续创作的证明。Day 3 旧重字证明不可复用，当前正文须重新按新规范复核；Day 3 旧过滤工件必须重新导出并复核。
 
 保存原子发布新文件，禁止覆盖；CLI 相对数据路径按[独立工作区](runtime-workspace.md)解析，并禁止向 Skill 目录写入。整个项目可迁移，脚本定位内置资源相对于自身目录。
 
@@ -129,3 +129,7 @@ search = Search.create(state, poem_plan=make_plan_artifact(state, plan_payload))
 每个生成批次记录 `CANDIDATES_SUBMITTED`；完成筛选及评分后记录
 `CANDIDATE_COMPARISON`，比较至少两个可排名候选才算一次。预算耗尽前尚未排名的提交
 不算比较；旧快照没有这些事件时不补造统计。统计只说明比较发生过，不证明表达路径语义上不同。
+
+搜索提交的候选评分理由须用「原文」引用当前候选，说明正文是否兑现 `planned_unit.content_scope`；
+只引用规划或别的候选会触发 `INVALID_LITERARY_EVIDENCE`。如果规划可用但候选偏离，重写候选；
+整联规划不可自然实现时用 `replan_required`，勿事后改计划来追认已采用的诗句。

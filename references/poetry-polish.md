@@ -1,6 +1,6 @@
 # Day 5：全诗审校、局部炼句与最终润色
 
-> 当前快照版本为 `poetry-polish-10`。全诗 review ready 后不能直接进入最终出口，必须先完成
+> 当前快照版本为 `poetry-polish-11`。全诗 review ready 后不能直接进入最终出口，必须先完成
 > [逐结构单位炼字](word-refinement.md)：绝句逐句、律诗按四联依次返回 `NO_CHANGE`、`REFINED` 或
 > `REFLOW_REQUIRED`。下文原有 issue 驱动的 generate/compare 仍用于全诗审校明确指出的问题；逐字审查使用
 > refinement/reflow/refinement_compare，并受更严格的两字符范围、语义锁和净增益规则约束。
@@ -9,7 +9,7 @@
 
 ## 职责与入口
 
-`scripts/poetry_polish.py` 提供 `Polish`，快照与工作封套版本为 `poetry-polish-10`，审校量表为 `whole-poem-review-5`，最终红线版本为 `final-redline-1`。运行 Skill 的 LLM 阅读工作并提供 JSON；程序不调用模型 API、不编造评分、不重做搜索、不处理图片。
+`scripts/poetry_polish.py` 提供 `Polish`，快照与工作封套版本为 `poetry-polish-11`，审校量表为 `whole-poem-review-5`，最终红线版本为 `final-redline-1`。运行 Skill 的 LLM 阅读工作并提供 JSON；程序不调用模型 API、不编造评分、不重做搜索、不处理图片。
 
 LLM 负责主题、情绪、时间、视角、意象、结构和语言，律诗中间两联的语义及句法对仗，用典及 adapt 语义，修改建议、候选、全诗比较和诗题。程序负责交接、绑定、范围、锁定要求、规则复检、内容契约、事务采纳、预算、持久化和完成条件。语义报告的真伪及文学质量不能由 JSON 校验器证明。
 
@@ -42,7 +42,7 @@ polish.result(include_notes=False)
 
 | 字段 | 规则 |
 | --- | --- |
-| contract_version | poetry-polish-10 |
+| contract_version | poetry-polish-11 |
 | run_id / job_id | 当前运行与工作 ID；格式修复保持 job_id |
 | path_id | 显式选定的 Day 4 草稿分支 |
 | revision | 工作 target 的版本，整数 |
@@ -290,3 +290,9 @@ python -m unittest discover -s scripts -p 'test_*.py'
 2026-09-22 验证：全量 222 项测试通过，其中 Day 5 为 41 项；四项最终红线分别覆盖 yes 阻断，并覆盖 unknown、缺项、缺证据、保存恢复与迁移 CLI。迁移测试使用项目自带真实韵库跑通 CLI start/next/submit/result，固定文学响应仍是夹具。保存示例经 Polish.load 完整重放验证：completed，1 轮问题修复、4 个结构单位炼字审查、9 次交互，修改因 RULES_FAILED_OR_UNKNOWN 被拒绝，随后各单位返回 NO_CHANGE 并保留原稿。
 
 这些测试证明控制流程和结果绑定按契约运行，不能证明真实模型文学质量、语义报告准确率或评分一致性。真实创作质量留待后续评测；平水韵资源及规则覆盖仍受既有引擎边界限制。
+
+新审校与比较中的候选审校须在 `theme`、`naturalness`、`structure` 的 `reason` 分别用「原文」
+引用所评诗稿。主题高分要解释正文里的关系或情绪线索；拟想、回忆或跳时要有正文依据。
+对仗或全篇句式的节拍相同本身不扣分；指出具体的语义动作、视角或句法骨架重复如何妨碍推进，
+再反映在现有维度。程序验证引文存在及稿件绑定，文学理由仍是模型判断。
+旧版 Polish 快照仅供审计，要继续创作须按新契约重建运行和复检。

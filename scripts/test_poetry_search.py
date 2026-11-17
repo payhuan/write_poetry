@@ -107,6 +107,15 @@ class SearchTests(unittest.TestCase):
                 self.assertEqual(summary['steps'][0]['submitted'], len(candidates))
                 self.assertEqual(summary['steps'][0]['comparable'], 2 if mode == 'two' else 1)
 
+    def test_score_rejects_quote_outside_current_candidate(self):
+        s = self.create()
+        s.submit(response_for(s.next_job()))
+        response = response_for(s.next_job())
+        response['payload']['scores'][0]['evaluation']['reason'] = '「这是别首诗的句子」'
+        result = s.submit(response)
+        self.assertEqual(result['error'], 'INVALID_LITERARY_EVIDENCE')
+        self.assertEqual(s.comparison_summary()['comparison_count'], 0)
+
     def test_global_beam(self):
         s = self.create(beam_width=2)
         for _ in range(6):
@@ -354,15 +363,21 @@ class SearchTests(unittest.TestCase):
     def test_save_resume_identical(self):
         s = self.create()
         s.submit(response_for(s.next_job()))
-        # Reuse a fixed UUID factory for subsequently exported Day 3 batches.
-        class Fixed:
-            hex = 'a' * 32
-        with patch('poetry_round.uuid4', return_value=Fixed()):
+        # Match batches across executions without reusing an ID within one run.
+        from uuid import UUID
+        def batch_ids():
+            return (UUID(int=i) for i in range(1, 100))
+        with patch('poetry_round.uuid4', side_effect=batch_ids()):
             a = drive(Search.from_dict(s.to_dict(), engine=fixture_engine()), fail_high=True)
+        with patch('poetry_round.uuid4', side_effect=batch_ids()):
             b = Search.from_dict(s.to_dict(), engine=fixture_engine())
-            while b.next_job() and b.data['status'] == 'waiting_for_llm':
+            for _ in range(200):
+                if not b.next_job() or b.data['status'] != 'waiting_for_llm':
+                    break
                 b.submit(response_for(b.next_job(), fail_high=True))
                 b = Search.from_dict(b.to_dict(), engine=fixture_engine())
+            else:
+                self.fail('Restored controller did not terminate')
         self.assertEqual(a.to_dict(), b.to_dict())
 
     def test_replay(self):
@@ -452,9 +467,9 @@ class SearchTests(unittest.TestCase):
         with self.assertRaises(RoundError):
             Search.from_dict({'search': {}, 'sha256': digest({})})
 
-    def test_search_v1_through_v8_are_audit_only(self):
+    def test_search_v1_through_v9_are_audit_only(self):
         from assessment_binding import digest
-        for version in range(1, 9):
+        for version in range(1, 10):
             with self.subTest(version=version):
                 artifact = self.create().to_dict()
                 artifact['search']['version'] = f'poetry-search-{version}'
@@ -503,7 +518,7 @@ class SearchTests(unittest.TestCase):
             job = s.next_job()
             r = response_for(job, two=job['context']['line_index'] == 2)
             if job['stage'] == 'generate' and len(job['context']['lines']) >= 2 and '天' in job['context']['lines'][1]:
-                r['payload']['candidates'] = [{'id': 'fail', 'text': '错', 'line_index': job['context']['line_index']}]
+                r['payload']['candidates'] = [{**r['payload']['candidates'][0], 'id': 'fail', 'text': '错'}]
             s.submit(r)
         self.assertEqual(s.data['status'], 'ready_for_review')
         self.assertEqual(s.data['used']['backtracks'], 1)

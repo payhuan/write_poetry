@@ -74,7 +74,7 @@ def unit_review(stage, make_line_response):
 score = {**outer, "payload": {**bound, "filter_sha256": f["filter_sha256"],
          "rubric_version": f["score_request"]["rubric_version"],
          "scores": [{"id": "<候选ID>", "dimensions": ...,
-                     "parallelism": ..., "reason": "<评分理由>"}]}}
+                     "parallelism": ..., "reason": "「<当前候选原文>」……"}]}}
 ```
 
 完整评分及逐行复核构造可与 `scripts/day4_example.py` 的 `response_for` 对照；其中的夹具评分不是文学评价。
