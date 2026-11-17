@@ -6,7 +6,7 @@ import argparse
 import json
 
 from poem_state import PoemState
-from poem_planning import load_plan_artifact
+from poem_planning import PlanError, load_plan_artifact
 from constraint_engine import ConstraintEngine
 from assessment_binding import digest, make_binding
 from poetry_round import (export_context, filter_candidates, review_content, review_readings, finish_round,
@@ -707,7 +707,7 @@ if __name__ == '__main__':
         main()
     except (ValueError, OSError) as exc:
         import sys
-        error = exc.to_dict() if isinstance(exc, RoundError) else {
+        error = exc.to_dict() if isinstance(exc, (RoundError, PlanError)) else {
             'status': 'error', 'code': 'INVALID_INPUT', 'message': str(exc)}
         print(json.dumps(error, ensure_ascii=True), file=sys.stderr)
         raise SystemExit(2) from exc

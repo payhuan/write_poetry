@@ -4,7 +4,7 @@ from copy import deepcopy
 import unittest
 
 from day4_example import fixture_state, fixture_plan
-from poem_planning import validate_plan
+from poem_planning import PlanError, TURN_AXES, validate_plan
 
 
 class PoemPlanningTests(unittest.TestCase):
@@ -42,6 +42,24 @@ class PoemPlanningTests(unittest.TestCase):
         for bad in bad_plans:
             with self.assertRaises(ValueError):
                 validate_plan(state, bad)
+
+    def test_invalid_turn_axis_reports_field_received_and_allowed_values(self):
+        state = fixture_state('七言律诗')
+        plan = fixture_plan(state)['plan']
+        turn = plan['structure_plan'][2]['turn_plan']
+        for axis in ('emotion', ['emotion']):
+            with self.subTest(axis=axis):
+                turn['axis'] = axis
+                with self.assertRaises(PlanError) as caught:
+                    validate_plan(state, plan)
+                error = caught.exception.to_dict()
+                self.assertEqual(error['code'], 'TURN_PLAN_REQUIRED')
+                self.assertEqual(error['details'], [{
+                    'location': 'structure_plan[2].turn_plan.axis',
+                    'received': axis, 'allowed_values': sorted(TURN_AXES),
+                }])
+        turn['axis'] = 'emotion_stance'
+        self.assertEqual(validate_plan(state, plan), plan)
 
     def test_quatrain_has_no_formal_arc_roles_or_turn_plan(self):
         state = fixture_state('五言绝句')

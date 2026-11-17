@@ -12,6 +12,8 @@
 
 律诗颈联必须提供 `turn_plan`：转向轴（行动／状态、情绪／立场、认知、意义、时空、意象关系或其他）、转前状态、变化、转后状态、前文铺垫、与前后联的关系、对本联 `primary_task` 与 `semantic_increment` 的作用、对保护语义的处理，以及变化产生的新意义或张力。转向须与职责、增量、前后关系和保护语义相容。单纯增加下一件事不够；但转向不要求换场景或意象。绝句不要求这些标签或额外自检项。
 
+如误填转向轴（例如 `emotion`），仍返回 `TURN_PLAN_REQUIRED`，但 `details` 会列出 `location`（`structure_plan[2].turn_plan.axis`，索引从 0 开始）、`received` 和 `allowed_values`。情绪／立场轴应填 `emotion_stance`。Search CLI 将该详情保留在标准错误输出的 JSON 中。
+
 律诗自检还须通过 `arc_roles_assigned`、`neck_couplet_changes_direction`、`turn_is_more_than_next_event`、`ending_resolves_or_reframes`。验证器校验字段、位置和状态链，不替模型判断文学上的转向是否成立。若转向会损害用户事实、典故或保护语义，应保留代价说明并重新规划，不为满足标签强行跳景。缺单位、重复单位、无依据跳景、对仗规划缺失、转前后状态未变化、典故安排指向未知单位或自检未通过都会被拒绝。
 
 `planning_basis(state)` 是稳定绑定；正文、请求、模板、韵部或规划上下文改变后，旧规划不能移植。

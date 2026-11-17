@@ -14,9 +14,14 @@ TURN_AXES = {'action_state', 'emotion_stance', 'cognition', 'meaning',
 
 
 class PlanError(ValueError):
-    def __init__(self, code, message):
+    def __init__(self, code, message, details=None):
         super().__init__(message)
         self.code = code
+        self.details = details or []
+
+    def to_dict(self):
+        return {'status': 'error', 'code': self.code, 'message': str(self),
+                'details': self.details}
 
 
 def need(condition, code, message):
@@ -126,12 +131,12 @@ def validate_plan(state, payload):
     need(isinstance(units, list) and len(units) == len(expected),
          'INVALID_STRUCTURE_PLAN', 'Plan must cover every structural unit exactly once')
     unit_ids = set()
-    for item, identity in zip(units, expected):
+    for index, (item, identity) in enumerate(zip(units, expected)):
         fields = {'unit_id', 'unit', 'line_indices', 'arc_role', 'primary_task', 'content_scope',
                   'semantic_increment', 'relation_to_previous', 'relation_to_next',
                   'protected_meaning', 'must_not_say_yet', 'antithesis', 'turn_plan'}
         lushi = d['form']['line_count'] == 8
-        expected_role = ('起', '承', '转', '合')[expected.index(identity)] if lushi else None
+        expected_role = ('起', '承', '转', '合')[index] if lushi else None
         need(isinstance(item, dict) and set(item) == fields and
              all(item[k] == identity[k] for k in ('unit_id', 'unit', 'line_indices')) and
              item['arc_role'] == expected_role and
@@ -149,8 +154,15 @@ def validate_plan(state, payload):
                            'relation_to_previous', 'relation_to_next', 'task_connection',
                            'increment_connection', 'protected_meaning_relation',
                            'new_meaning_or_tension'}
+            if isinstance(turn_plan, dict) and 'axis' in turn_plan:
+                axis = turn_plan['axis']
+                if not isinstance(axis, str) or axis not in TURN_AXES:
+                    location = f'structure_plan[{index}].turn_plan.axis'
+                    allowed = sorted(TURN_AXES)
+                    raise PlanError('TURN_PLAN_REQUIRED',
+                                    f'{location}: received {axis!r}; allowed: {", ".join(allowed)}',
+                                    [{'location': location, 'received': axis, 'allowed_values': allowed}])
             need(isinstance(turn_plan, dict) and set(turn_plan) == turn_fields and
-                 turn_plan['axis'] in TURN_AXES and
                  all(text(turn_plan[k]) for k in turn_fields - {'axis'}) and
                  turn_plan['before_state'].strip() != turn_plan['after_state'].strip() and
                  turn_plan['relation_to_previous'] == item['relation_to_previous'] and
